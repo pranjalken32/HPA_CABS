@@ -180,14 +180,21 @@ export default function Analytics() {
   const allCategories = [...new Set(allExpenses.map((e) => e.category))]
 
   // ---- Daily pattern (day of week) ----
-  const dayOfWeekData: Record<string, { revenue: number; trips: number; count: number }> = {}
+  // Group income by date first, then by day-of-week for correct averaging
   const dayOrder = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-  for (const d of dayOrder) dayOfWeekData[d] = { revenue: 0, trips: 0, count: 0 }
+  const incomeByDate: Record<string, { revenue: number; trips: number }> = {}
   for (const i of allIncomes) {
-    const day = getDayName(i.date)
+    if (!incomeByDate[i.date]) incomeByDate[i.date] = { revenue: 0, trips: 0 }
+    incomeByDate[i.date].revenue += i.amount
+    incomeByDate[i.date].trips += i.trips
+  }
+  const dayOfWeekData: Record<string, { revenue: number; trips: number; count: number }> = {}
+  for (const d of dayOrder) dayOfWeekData[d] = { revenue: 0, trips: 0, count: 0 }
+  for (const [date, data] of Object.entries(incomeByDate)) {
+    const day = getDayName(date)
     if (dayOfWeekData[day]) {
-      dayOfWeekData[day].revenue += i.amount
-      dayOfWeekData[day].trips += i.trips
+      dayOfWeekData[day].revenue += data.revenue
+      dayOfWeekData[day].trips += data.trips
       dayOfWeekData[day].count++
     }
   }
