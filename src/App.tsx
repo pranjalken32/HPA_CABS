@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import Layout from './components/Layout'
 import Dashboard from './pages/Dashboard'
@@ -7,8 +8,13 @@ import History from './pages/History'
 import Cars from './pages/Cars'
 import CarDetail from './pages/CarDetail'
 import Analytics from './pages/Analytics'
+import { processRecurringExpenses } from './recurring'
 
 export default function App() {
+  useEffect(() => {
+    processRecurringExpenses()
+  }, [])
+
   return (
     <Routes>
       <Route element={<Layout />}>
