@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { db } from '../db'
+import { addExpense } from '../hooks/useSupabase'
 import { CheckCircle2 } from 'lucide-react'
 
 const CATEGORIES = [
@@ -44,12 +44,13 @@ export default function AddExpense() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!amount || Number(amount) <= 0) return
-    await db.expenses.add({
+    await addExpense({
       date,
       category,
       amount: Number(amount),
       note,
       recurring,
+      car_id: null,
     })
     setSaved(true)
     setTimeout(() => {

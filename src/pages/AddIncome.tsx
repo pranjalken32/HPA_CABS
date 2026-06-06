@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { db } from '../db'
+import { addIncome } from '../hooks/useSupabase'
 import { CheckCircle2 } from 'lucide-react'
 
 const PLATFORMS = ['rapido', 'ola', 'uber', 'cash', 'other']
@@ -22,12 +22,13 @@ export default function AddIncome() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!amount || Number(amount) <= 0) return
-    await db.incomes.add({
+    await addIncome({
       date,
       platform,
       amount: Number(amount),
       trips: Number(trips) || 0,
       note,
+      car_id: null,
     })
     setSaved(true)
     setTimeout(() => {

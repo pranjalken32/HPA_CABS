@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useLiveQuery } from 'dexie-react-hooks'
-import { db } from '../db'
 import { useMonthFilter } from '../hooks/useMonthFilter'
+import { useIncomes, useExpenses, deleteIncome, deleteExpense, updateIncome, updateExpense } from '../hooks/useSupabase'
 import { Trash2, Pencil, ArrowUpCircle, ArrowDownCircle, X } from 'lucide-react'
 
 type Tab = 'all' | 'income' | 'expense'
@@ -45,25 +44,8 @@ export default function History() {
   const [tab, setTab] = useState<Tab>('all')
   const [editing, setEditing] = useState<Entry | null>(null)
 
-  const incomes = useLiveQuery(
-    () =>
-      db.incomes
-        .where('date')
-        .between(startDate, endDate, true, true)
-        .reverse()
-        .sortBy('date'),
-    [startDate, endDate]
-  )
-
-  const expenses = useLiveQuery(
-    () =>
-      db.expenses
-        .where('date')
-        .between(startDate, endDate, true, true)
-        .reverse()
-        .sortBy('date'),
-    [startDate, endDate]
-  )
+  const incomes = useIncomes(startDate, endDate)
+  const expenses = useExpenses(startDate, endDate)
 
   const entries: Entry[] = []
   if (tab !== 'expense') {
@@ -98,8 +80,8 @@ export default function History() {
 
   const handleDelete = async (entry: Entry) => {
     if (!confirm('Delete this entry?')) return
-    if (entry.kind === 'income') await db.incomes.delete(entry.id)
-    else await db.expenses.delete(entry.id)
+    if (entry.kind === 'income') await deleteIncome(entry.id)
+    else await deleteExpense(entry.id)
   }
 
   const fmt = (n: number) => n.toLocaleString('en-IN')
@@ -217,7 +199,7 @@ function EditModal({ entry, onClose }: { entry: Entry; onClose: () => void }) {
     if (!amount || Number(amount) <= 0) return
 
     if (entry.kind === 'income') {
-      await db.incomes.update(entry.id, {
+      await updateIncome(entry.id, {
         date,
         platform,
         amount: Number(amount),
@@ -225,7 +207,7 @@ function EditModal({ entry, onClose }: { entry: Entry; onClose: () => void }) {
         note,
       })
     } else {
-      await db.expenses.update(entry.id, {
+      await updateExpense(entry.id, {
         date,
         category,
         amount: Number(amount),
