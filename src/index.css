@@ -1,0 +1,30 @@
+@import "tailwindcss";
+
+@theme {
+  --color-surface: #0f0f1a;
+  --color-surface-card: #1a1a2e;
+  --color-surface-elevated: #25253d;
+  --color-border-dim: #2a2a45;
+  --color-accent: #6c5ce7;
+  --color-accent-light: #a29bfe;
+  --color-text-primary: #e8e8f0;
+  --color-text-secondary: #8888a8;
+  --color-text-muted: #55556e;
+  --color-income: #00e676;
+  --color-expense: #ff5252;
+  --color-profit: #00e676;
+  --color-loss: #ff5252;
+}
+
+body {
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+input[type="date"],
+input[type="month"],
+input[type="number"],
+input[type="text"] {
+  color-scheme: dark;
+}
