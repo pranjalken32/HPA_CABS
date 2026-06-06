@@ -1,17 +1,11 @@
 import { useState } from 'react'
-import { useLiveQuery } from 'dexie-react-hooks'
-import { db } from '../db'
 import { useNavigate } from 'react-router-dom'
+import { useCars, addCar } from '../hooks/useSupabase'
 import { Plus, Car, ChevronRight } from 'lucide-react'
-
-function todayStr(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
 
 export default function Cars() {
   const navigate = useNavigate()
-  const cars = useLiveQuery(() => db.cars.toArray())
+  const cars = useCars()
   const [showForm, setShowForm] = useState(false)
   const [name, setName] = useState('')
   const [number, setNumber] = useState('')
@@ -20,11 +14,10 @@ export default function Cars() {
   const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name.trim() || !number.trim()) return
-    await db.cars.add({
+    await addCar({
       name: name.trim(),
       number: number.trim().toUpperCase(),
-      totalCost: Number(totalCost) || 0,
-      createdAt: todayStr(),
+      total_cost: Number(totalCost) || 0,
     })
     setName('')
     setNumber('')

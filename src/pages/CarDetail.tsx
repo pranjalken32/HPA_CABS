@@ -1,7 +1,10 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useLiveQuery } from 'dexie-react-hooks'
-import { db } from '../db'
+import {
+  useCar, useCarDocuments, useServiceRecords, useIncomes,
+  addCarDocument, addServiceRecord,
+  deleteCarDocument, deleteServiceRecord, deleteCar,
+} from '../hooks/useSupabase'
 import {
   ArrowLeft,
   FileText,
@@ -47,13 +50,11 @@ export default function CarDetail() {
   const navigate = useNavigate()
   const carId = Number(id)
 
-  const car = useLiveQuery(() => db.cars.get(carId), [carId])
-  const docs = useLiveQuery(() => db.carDocuments.where('carId').equals(carId).toArray(), [carId])
-  const services = useLiveQuery(
-    () => db.serviceRecords.where('carId').equals(carId).reverse().sortBy('date'),
-    [carId]
-  )
-  const incomes = useLiveQuery(() => db.incomes.where('carId').equals(carId).toArray(), [carId])
+  const car = useCar(carId)
+  const docs = useCarDocuments(carId)
+  const services = useServiceRecords(carId)
+  const incomes = useIncomes('2000-01-01', '2099-12-31')
+  const carIncomes = incomes.filter((i) => i.car_id === carId)
 
   const [tab, setTab] = useState<Tab>('docs')
 
@@ -78,15 +79,15 @@ export default function CarDetail() {
     )
   }
 
-  const totalRecovered = incomes?.reduce((s, i) => s + i.amount, 0) ?? 0
+  const totalRecovered = carIncomes.reduce((s, i) => s + i.amount, 0)
   const totalServiceCost = services?.reduce((s, r) => s + r.cost, 0) ?? 0
-  const recoveryPercent = car.totalCost > 0 ? Math.min((totalRecovered / car.totalCost) * 100, 100) : 0
-  const remaining = Math.max(car.totalCost - totalRecovered, 0)
+  const recoveryPercent = car.total_cost > 0 ? Math.min((totalRecovered / car.total_cost) * 100, 100) : 0
+  const remaining = Math.max(car.total_cost - totalRecovered, 0)
 
   // Estimate time to recover based on monthly average
   const monthsActive = (() => {
-    if (!incomes || incomes.length === 0) return 0
-    const dates = incomes.map((i) => new Date(i.date).getTime())
+    if (carIncomes.length === 0) return 0
+    const dates = carIncomes.map((i) => new Date(i.date).getTime())
     const earliest = Math.min(...dates)
     const latest = Math.max(...dates)
     const diffMs = latest - earliest
@@ -98,10 +99,10 @@ export default function CarDetail() {
   const handleAddDoc = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!docExpiry) return
-    await db.carDocuments.add({
-      carId,
-      docType,
-      expiryDate: docExpiry,
+    await addCarDocument({
+      car_id: carId,
+      doc_type: docType,
+      expiry_date: docExpiry,
       note: docNote.trim(),
     })
     setDocExpiry('')
@@ -112,12 +113,12 @@ export default function CarDetail() {
   const handleAddService = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!svcDesc.trim()) return
-    await db.serviceRecords.add({
-      carId,
+    await addServiceRecord({
+      car_id: carId,
       date: svcDate,
       description: svcDesc.trim(),
       cost: Number(svcCost) || 0,
-      odometerKm: Number(svcOdo) || 0,
+      odometer_km: Number(svcOdo) || 0,
     })
     setSvcDesc('')
     setSvcCost('')
@@ -127,9 +128,7 @@ export default function CarDetail() {
 
   const handleDeleteCar = async () => {
     if (!confirm(`Delete "${car.name}" and all its data?`)) return
-    await db.carDocuments.where('carId').equals(carId).delete()
-    await db.serviceRecords.where('carId').equals(carId).delete()
-    await db.cars.delete(carId)
+    await deleteCar(carId)
     navigate('/cars')
   }
 
@@ -239,8 +238,8 @@ export default function CarDetail() {
             <p className="text-center text-text-muted text-sm py-6">No documents added yet</p>
           )}
 
-          {docs?.sort((a, b) => a.expiryDate.localeCompare(b.expiryDate)).map((doc) => {
-            const days = daysUntil(doc.expiryDate)
+          {docs?.sort((a, b) => a.expiry_date.localeCompare(b.expiry_date)).map((doc) => {
+            const days = daysUntil(doc.expiry_date)
             const isExpired = days < 0
             const isExpiring = days >= 0 && days <= 30
             return (
@@ -266,18 +265,18 @@ export default function CarDetail() {
                   {isExpired ? <AlertTriangle size={16} /> : isExpiring ? <Clock size={16} /> : <CheckCircle2 size={16} />}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-text-primary">{doc.docType}</p>
+                  <p className="text-sm font-semibold text-text-primary">{doc.doc_type}</p>
                   <p className="text-[11px] text-text-muted">
                     {isExpired
                       ? `Expired ${Math.abs(days)} days ago`
                       : isExpiring
                       ? `Expires in ${days} days`
-                      : `Valid until ${doc.expiryDate}`}
+                      : `Valid until ${doc.expiry_date}`}
                   </p>
                   {doc.note && <p className="text-[10px] text-text-muted mt-0.5">{doc.note}</p>}
                 </div>
                 <button
-                  onClick={async () => { await db.carDocuments.delete(doc.id) }}
+                  onClick={async () => { await deleteCarDocument(doc.id) }}
                   className="text-text-muted hover:text-expense transition-colors shrink-0"
                 >
                   <Trash2 size={14} />
@@ -319,7 +318,7 @@ export default function CarDetail() {
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-surface-elevated rounded-xl p-3">
                 <p className="text-[10px] text-text-muted uppercase tracking-wider">Total Cost</p>
-                <p className="text-sm font-bold text-text-primary">₹{fmt(car.totalCost)}</p>
+                <p className="text-sm font-bold text-text-primary">₹{fmt(car.total_cost)}</p>
               </div>
               <div className="bg-surface-elevated rounded-xl p-3">
                 <p className="text-[10px] text-text-muted uppercase tracking-wider">Recovered</p>
@@ -347,7 +346,7 @@ export default function CarDetail() {
               </div>
             )}
 
-            {car.totalCost === 0 && (
+            {car.total_cost === 0 && (
               <p className="text-xs text-text-muted">Set car total cost to see recovery progress</p>
             )}
           </div>
@@ -432,7 +431,7 @@ export default function CarDetail() {
                 <p className="text-sm font-semibold text-text-primary">{svc.description}</p>
                 <p className="text-[11px] text-text-muted">
                   {svc.date}
-                  {svc.odometerKm > 0 && ` · ${fmt(svc.odometerKm)} km`}
+                  {svc.odometer_km > 0 && ` · ${fmt(svc.odometer_km)} km`}
                 </p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
@@ -440,7 +439,7 @@ export default function CarDetail() {
                   <span className="text-xs font-bold text-expense">₹{fmt(svc.cost)}</span>
                 )}
                 <button
-                  onClick={async () => { await db.serviceRecords.delete(svc.id) }}
+                  onClick={async () => { await deleteServiceRecord(svc.id) }}
                   className="text-text-muted hover:text-expense transition-colors"
                 >
                   <Trash2 size={14} />

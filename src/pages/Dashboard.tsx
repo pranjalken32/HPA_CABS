@@ -1,7 +1,6 @@
 import { useState } from 'react'
-import { useLiveQuery } from 'dexie-react-hooks'
-import { db } from '../db'
 import { useMonthFilter } from '../hooks/useMonthFilter'
+import { useIncomes, useExpenses } from '../hooks/useSupabase'
 import {
   BarChart,
   Bar,
@@ -81,23 +80,8 @@ export default function Dashboard() {
   const { month, setMonth, startDate, endDate } = useMonthFilter()
   const [expandedWeek, setExpandedWeek] = useState<number | null>(null)
 
-  const incomes = useLiveQuery(
-    () =>
-      db.incomes
-        .where('date')
-        .between(startDate, endDate, true, true)
-        .toArray(),
-    [startDate, endDate]
-  )
-
-  const expenses = useLiveQuery(
-    () =>
-      db.expenses
-        .where('date')
-        .between(startDate, endDate, true, true)
-        .toArray(),
-    [startDate, endDate]
-  )
+  const incomes = useIncomes(startDate, endDate)
+  const expenses = useExpenses(startDate, endDate)
 
   const totalIncome = incomes?.reduce((s, i) => s + i.amount, 0) ?? 0
   const totalExpense = expenses?.reduce((s, e) => s + e.amount, 0) ?? 0

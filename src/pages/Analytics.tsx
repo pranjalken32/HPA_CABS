@@ -1,6 +1,5 @@
 import { useState, useMemo } from 'react'
-import { useLiveQuery } from 'dexie-react-hooks'
-import { db } from '../db'
+import { useIncomes, useExpenses } from '../hooks/useSupabase'
 import {
   BarChart,
   Bar,
@@ -24,7 +23,6 @@ import {
   IndianRupee,
   CalendarDays,
   Car,
-  Fuel,
   AlertTriangle,
   ChevronDown,
   ChevronUp,
@@ -90,21 +88,8 @@ export default function Analytics() {
     return { startDate: startStr, endDate: endStr, months: ms }
   }, [range])
 
-  const allIncomes = useLiveQuery(
-    () => db.incomes.where('date').between(startDate, endDate, true, true).toArray(),
-    [startDate, endDate]
-  )
-
-  const allExpenses = useLiveQuery(
-    () => db.expenses.where('date').between(startDate, endDate, true, true).toArray(),
-    [startDate, endDate]
-  )
-
-  const cars = useLiveQuery(() => db.cars.toArray())
-
-  if (!allIncomes || !allExpenses) {
-    return <div className="text-text-muted text-center py-8">Loading...</div>
-  }
+  const allIncomes = useIncomes(startDate, endDate)
+  const allExpenses = useExpenses(startDate, endDate)
 
   // ---- KPIs ----
   const totalRevenue = allIncomes.reduce((s, i) => s + i.amount, 0)
@@ -375,7 +360,7 @@ export default function Analytics() {
               <CartesianGrid strokeDasharray="3 3" stroke="#2a2a45" />
               <XAxis dataKey="month" tick={{ fill: '#8888a8', fontSize: 11 }} />
               <YAxis tick={{ fill: '#8888a8', fontSize: 10 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
-              <Tooltip {...tooltipStyle} formatter={(v: number) => `₹${fmt(v)}`} />
+              <Tooltip {...tooltipStyle} formatter={(v) => `₹${fmt(Number(v))}`} />
               <Bar dataKey="revenue" fill="#00e676" radius={[4, 4, 0, 0]} name="Revenue" />
               <Bar dataKey="expense" fill="#ff5252" radius={[4, 4, 0, 0]} name="Expense" />
             </BarChart>
@@ -397,7 +382,7 @@ export default function Analytics() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#2a2a45" />
                 <XAxis dataKey="month" tick={{ fill: '#8888a8', fontSize: 11 }} />
                 <YAxis tick={{ fill: '#8888a8', fontSize: 10 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
-                <Tooltip {...tooltipStyle} formatter={(v: number) => `₹${fmt(v)}`} />
+                <Tooltip {...tooltipStyle} formatter={(v) => `₹${fmt(Number(v))}`} />
                 <Area type="monotone" dataKey="profit" stroke="#6c5ce7" fill="url(#profitGrad)" name="Profit" />
               </AreaChart>
             </ResponsiveContainer>
@@ -431,7 +416,7 @@ export default function Analytics() {
                   <Cell key={entry.name} fill={PLATFORM_COLORS[entry.name] ?? '#64748b'} />
                 ))}
               </Pie>
-              <Tooltip {...tooltipStyle} formatter={(v: number) => `₹${fmt(v)}`} />
+              <Tooltip {...tooltipStyle} formatter={(v) => `₹${fmt(Number(v))}`} />
             </PieChart>
           </ResponsiveContainer>
         </div>
@@ -462,7 +447,7 @@ export default function Analytics() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#2a2a45" />
                   <XAxis dataKey="month" tick={{ fill: '#8888a8', fontSize: 11 }} />
                   <YAxis tick={{ fill: '#8888a8', fontSize: 10 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
-                  <Tooltip {...tooltipStyle} formatter={(v: number) => `₹${fmt(v)}`} />
+                  <Tooltip {...tooltipStyle} formatter={(v) => `₹${fmt(Number(v))}`} />
                   {allPlatforms.map((p) => (
                     <Bar key={p} dataKey={p} fill={PLATFORM_COLORS[p] ?? '#64748b'} radius={[3, 3, 0, 0]} stackId="platform" name={p} />
                   ))}
@@ -499,7 +484,7 @@ export default function Analytics() {
                   <Cell key={idx} fill={EXPENSE_COLORS[idx % EXPENSE_COLORS.length]} />
                 ))}
               </Pie>
-              <Tooltip {...tooltipStyle} formatter={(v: number) => `₹${fmt(v)}`} />
+              <Tooltip {...tooltipStyle} formatter={(v) => `₹${fmt(Number(v))}`} />
               <Legend
                 wrapperStyle={{ fontSize: '10px', color: '#8888a8' }}
               />
@@ -536,7 +521,7 @@ export default function Analytics() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#2a2a45" />
                   <XAxis dataKey="month" tick={{ fill: '#8888a8', fontSize: 11 }} />
                   <YAxis tick={{ fill: '#8888a8', fontSize: 10 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
-                  <Tooltip {...tooltipStyle} formatter={(v: number) => `₹${fmt(v)}`} />
+                  <Tooltip {...tooltipStyle} formatter={(v) => `₹${fmt(Number(v))}`} />
                   {allCategories.map((c, idx) => (
                     <Bar key={c} dataKey={c} fill={EXPENSE_COLORS[idx % EXPENSE_COLORS.length]} radius={[2, 2, 0, 0]} stackId="exp" name={c} />
                   ))}
@@ -562,7 +547,7 @@ export default function Analytics() {
               <CartesianGrid strokeDasharray="3 3" stroke="#2a2a45" />
               <XAxis dataKey="day" tick={{ fill: '#8888a8', fontSize: 11 }} />
               <YAxis tick={{ fill: '#8888a8', fontSize: 10 }} />
-              <Tooltip {...tooltipStyle} formatter={(v: number) => `₹${fmt(v)}`} />
+              <Tooltip {...tooltipStyle} formatter={(v) => `₹${fmt(Number(v))}`} />
               <Bar dataKey="avgRevenue" fill="#6c5ce7" radius={[4, 4, 0, 0]} name="Avg Revenue" />
             </BarChart>
           </ResponsiveContainer>
@@ -588,7 +573,7 @@ export default function Analytics() {
                 <CartesianGrid strokeDasharray="3 3" stroke="#2a2a45" />
                 <XAxis dataKey="date" tick={{ fill: '#8888a8', fontSize: 9 }} interval="preserveStartEnd" />
                 <YAxis tick={{ fill: '#8888a8', fontSize: 10 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
-                <Tooltip {...tooltipStyle} formatter={(v: number) => `₹${fmt(v)}`} />
+                <Tooltip {...tooltipStyle} formatter={(v) => `₹${fmt(Number(v))}`} />
                 <Line type="monotone" dataKey="revenue" stroke="#00e676" strokeWidth={2} dot={false} name="Revenue" />
                 <Line type="monotone" dataKey="expense" stroke="#ff5252" strokeWidth={1.5} dot={false} name="Expense" />
               </LineChart>

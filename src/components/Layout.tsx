@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { LayoutDashboard, PlusCircle, MinusCircle, List, Car, BarChart3 } from 'lucide-react'
+import { LayoutDashboard, PlusCircle, MinusCircle, List, Car, BarChart3, LogOut } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import { useAuth } from '../AuthContext'
 
 const navItems: { to: string; icon: LucideIcon; label: string; match?: string }[] = [
   { to: '/', icon: LayoutDashboard, label: 'Home' },
@@ -13,6 +14,7 @@ const navItems: { to: string; icon: LucideIcon; label: string; match?: string }[
 
 export default function Layout() {
   const location = useLocation()
+  const { signOut } = useAuth()
 
   return (
     <div className="min-h-screen bg-surface pb-20">
@@ -24,6 +26,13 @@ export default function Layout() {
           <h1 className="text-lg font-bold tracking-tight text-text-primary">
             HPA <span className="text-accent-light">Cabs</span>
           </h1>
+          <button
+            onClick={() => signOut()}
+            className="ml-auto text-text-muted hover:text-expense transition-colors"
+            title="Sign out"
+          >
+            <LogOut size={18} />
+          </button>
         </div>
       </header>
 
