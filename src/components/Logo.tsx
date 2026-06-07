@@ -8,34 +8,34 @@ export default function Logo({ size = 32 }: { size?: number }) {
       xmlns="http://www.w3.org/2000/svg"
     >
       <rect width="100" height="100" rx="22" fill="#111111" />
-      {/* Speed lines */}
-      <line x1="8" y1="38" x2="22" y2="38" stroke="#333333" strokeWidth="2" strokeLinecap="round" />
-      <line x1="12" y1="44" x2="28" y2="44" stroke="#444444" strokeWidth="1.5" strokeLinecap="round" />
-      <line x1="8" y1="50" x2="20" y2="50" stroke="#333333" strokeWidth="1.5" strokeLinecap="round" />
-      {/* HPA text */}
+      {/* HPA text - italic */}
       <text
-        x="58"
-        y="52"
-        fontSize="30"
-        fontFamily="system-ui,-apple-system,Helvetica,Arial,sans-serif"
-        fontWeight="900"
+        x="50"
+        y="46"
+        fontSize="32"
+        fontFamily="'Helvetica Neue',Helvetica,Arial,sans-serif"
+        fontWeight="800"
+        fontStyle="italic"
         fill="#ffffff"
         textAnchor="middle"
-        letterSpacing="-1"
+        letterSpacing="2"
       >
         HPA
       </text>
-      {/* Car silhouette */}
+      {/* Accent line */}
+      <line x1="30" y1="50" x2="70" y2="50" stroke="#333333" strokeWidth="0.8" strokeLinecap="round" />
+      {/* Centered car silhouette */}
       <path
-        d="M22 68 L28 62 L42 60 L58 60 L68 62 L78 68 L80 72 Q80 76 76 76 L72 76 Q70 76 70 73 Q70 70 67 70 Q64 70 64 73 Q64 76 62 76 L38 76 Q36 76 36 73 Q36 70 33 70 Q30 70 30 73 Q30 76 28 76 L24 76 Q20 76 20 72 Z"
+        d="M18 70 L24 64 L36 62 L64 62 L76 64 L82 70 L84 74 Q84 78 80 78 L75 78 Q73 78 73 75 Q73 72 70 72 Q67 72 67 75 Q67 78 65 78 L35 78 Q33 78 33 75 Q33 72 30 72 Q27 72 27 75 Q27 78 25 78 L20 78 Q16 78 16 74 Z"
         fill="#ffffff"
-        opacity={0.9}
+        opacity={0.95}
       />
       {/* Windows */}
-      <path d="M32 66 L36 62 L48 61 L48 66 Z" fill="#111111" opacity={0.8} />
-      <path d="M50 66 L50 61 L62 62 L66 66 Z" fill="#111111" opacity={0.8} />
-      {/* Headlight */}
-      <circle cx="76" cy="70" r="1.5" fill="#ffffff" opacity={0.6} />
+      <path d="M28 68 L33 64 L47 63 L47 68 Z" fill="#111111" opacity={0.8} />
+      <path d="M53 68 L53 63 L67 64 L72 68 Z" fill="#111111" opacity={0.8} />
+      {/* Speed lines */}
+      <line x1="6" y1="68" x2="14" y2="68" stroke="#444444" strokeWidth="1.5" strokeLinecap="round" />
+      <line x1="8" y1="73" x2="14" y2="73" stroke="#333333" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   )
 }
