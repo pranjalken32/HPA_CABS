@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAuth } from '../AuthContext'
+import Logo from '../components/Logo'
 
 export default function Login() {
   const { signIn } = useAuth()
@@ -25,13 +26,9 @@ export default function Login() {
     <div className="min-h-screen bg-black flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <svg className="w-16 h-16 mx-auto mb-3" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-            <rect width="100" height="100" rx="20" fill="#000000"/>
-            <rect x="6" y="6" width="88" height="88" rx="16" fill="none" stroke="#222222" strokeWidth="1.5"/>
-            <path d="M30 28 L30 72 M30 50 L70 50 M70 28 L70 72" stroke="#ffffff" strokeWidth="10" strokeLinecap="round" fill="none"/>
-            <line x1="35" y1="90" x2="45" y2="90" stroke="#444444" strokeWidth="2" strokeLinecap="round"/>
-            <line x1="50" y1="90" x2="60" y2="90" stroke="#444444" strokeWidth="2" strokeLinecap="round"/>
-          </svg>
+          <div className="flex justify-center mb-3">
+            <Logo size={64} />
+          </div>
           <h1 className="text-2xl font-bold text-white tracking-tight">HPA Cabs</h1>
           <p className="text-sm text-text-muted mt-1">Sign in to continue</p>
         </div>
