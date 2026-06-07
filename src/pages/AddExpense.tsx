@@ -1,6 +1,6 @@
-import { useState } from 'react'
-import { addExpense } from '../hooks/useSupabase'
-import { CheckCircle2 } from 'lucide-react'
+import { useState, useRef } from 'react'
+import { addExpense, uploadReceipt } from '../hooks/useSupabase'
+import { CheckCircle2, Camera, X } from 'lucide-react'
 
 const CATEGORIES = [
   'emi',
@@ -40,10 +40,24 @@ export default function AddExpense() {
   const [note, setNote] = useState('')
   const [recurring, setRecurring] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [receiptFile, setReceiptFile] = useState<File | null>(null)
+  const [receiptPreview, setReceiptPreview] = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!amount || Number(amount) <= 0) return
+    let receipt_url: string | null = null
+    if (receiptFile) {
+      setUploading(true)
+      try {
+        receipt_url = await uploadReceipt(receiptFile)
+      } catch {
+        // Storage may not be set up yet — save without receipt
+      }
+      setUploading(false)
+    }
     await addExpense({
       date,
       category,
@@ -51,12 +65,15 @@ export default function AddExpense() {
       note,
       recurring,
       car_id: null,
+      receipt_url,
     })
     setSaved(true)
     setTimeout(() => {
       setSaved(false)
       setAmount('')
       setNote('')
+      setReceiptFile(null)
+      setReceiptPreview(null)
     }, 1200)
   }
 
@@ -153,11 +170,52 @@ export default function AddExpense() {
           )}
         </div>
 
+        {/* Receipt Upload */}
+        <div>
+          <label className="block text-sm font-medium text-text-secondary mb-2">Receipt Photo (optional)</label>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) {
+                setReceiptFile(file)
+                setReceiptPreview(URL.createObjectURL(file))
+              }
+            }}
+          />
+          {receiptPreview ? (
+            <div className="relative">
+              <img src={receiptPreview} alt="Receipt" className="w-full h-32 object-cover rounded-xl border border-border-dim" />
+              <button
+                type="button"
+                onClick={() => { setReceiptFile(null); setReceiptPreview(null) }}
+                className="absolute top-1 right-1 bg-surface-base/80 rounded-full p-1"
+              >
+                <X size={14} className="text-text-muted" />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="w-full border border-dashed border-border-dim rounded-xl py-4 flex flex-col items-center gap-1 text-text-muted hover:border-accent transition-colors"
+            >
+              <Camera size={20} />
+              <span className="text-xs">Tap to add receipt photo</span>
+            </button>
+          )}
+        </div>
+
         <button
           type="submit"
-          className="w-full bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white font-semibold py-3 rounded-xl transition-all shadow-lg shadow-red-500/20"
+          disabled={uploading}
+          className="w-full bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white font-semibold py-3 rounded-xl transition-all shadow-lg shadow-red-500/20 disabled:opacity-60"
         >
-          Save Expense
+          {uploading ? 'Uploading receipt...' : 'Save Expense'}
         </button>
       </form>
     </div>

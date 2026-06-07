@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
-  useCar, useCarDocuments, useServiceRecords, useIncomes,
-  addCarDocument, addServiceRecord,
-  deleteCarDocument, deleteServiceRecord, deleteCar,
+  useCar, useCarDocuments, useServiceRecords, useIncomes, useFuelLogs,
+  addCarDocument, addServiceRecord, addFuelLog,
+  deleteCarDocument, deleteServiceRecord, deleteCar, deleteFuelLog,
 } from '../hooks/useSupabase'
 import {
   ArrowLeft,
@@ -15,6 +15,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock,
+  Fuel,
 } from 'lucide-react'
 
 const DOC_TYPES = [
@@ -43,7 +44,7 @@ function fmt(n: number): string {
   return n.toLocaleString('en-IN')
 }
 
-type Tab = 'docs' | 'recovery' | 'service'
+type Tab = 'docs' | 'recovery' | 'service' | 'fuel'
 
 export default function CarDetail() {
   const { id } = useParams<{ id: string }>()
@@ -56,7 +57,15 @@ export default function CarDetail() {
   const incomes = useIncomes('2000-01-01', '2099-12-31')
   const carIncomes = incomes.filter((i) => i.car_id === carId)
 
+  const fuelLogs = useFuelLogs(carId)
   const [tab, setTab] = useState<Tab>('docs')
+
+  // Fuel form
+  const [showFuelForm, setShowFuelForm] = useState(false)
+  const [fuelDate, setFuelDate] = useState(todayStr())
+  const [fuelQty, setFuelQty] = useState('')
+  const [fuelPrice, setFuelPrice] = useState('95')
+  const [fuelOdo, setFuelOdo] = useState('')
 
   // Doc form
   const [showDocForm, setShowDocForm] = useState(false)
@@ -132,10 +141,40 @@ export default function CarDetail() {
     navigate('/cars')
   }
 
+  const handleAddFuel = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!fuelQty || Number(fuelQty) <= 0) return
+    const qty = Number(fuelQty)
+    const price = Number(fuelPrice) || 0
+    await addFuelLog({
+      car_id: carId,
+      date: fuelDate,
+      quantity_kg: qty,
+      price_per_kg: price,
+      total_cost: qty * price,
+      odometer_km: Number(fuelOdo) || 0,
+    })
+    setFuelQty('')
+    setFuelOdo('')
+    setShowFuelForm(false)
+  }
+
+  // Fuel efficiency calculation
+  const fuelEfficiency = (() => {
+    if (fuelLogs.length < 2) return null
+    const sorted = [...fuelLogs].sort((a, b) => a.odometer_km - b.odometer_km)
+    const validLogs = sorted.filter((l) => l.odometer_km > 0)
+    if (validLogs.length < 2) return null
+    const totalKm = validLogs[validLogs.length - 1].odometer_km - validLogs[0].odometer_km
+    const totalKg = validLogs.slice(1).reduce((s, l) => s + l.quantity_kg, 0)
+    return totalKg > 0 ? totalKm / totalKg : null
+  })()
+
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
-    { key: 'docs', label: 'Documents', icon: <FileText size={14} /> },
+    { key: 'docs', label: 'Docs', icon: <FileText size={14} /> },
     { key: 'recovery', label: 'Recovery', icon: <TrendingUp size={14} /> },
     { key: 'service', label: 'Service', icon: <Wrench size={14} /> },
+    { key: 'fuel', label: 'Fuel', icon: <Fuel size={14} /> },
   ]
 
   return (
@@ -350,6 +389,116 @@ export default function CarDetail() {
               <p className="text-xs text-text-muted">Set car total cost to see recovery progress</p>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Fuel Tab */}
+      {tab === 'fuel' && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-text-secondary">CNG / Fuel Log</h3>
+            <button
+              onClick={() => setShowFuelForm(!showFuelForm)}
+              className="flex items-center gap-1 text-accent-light text-xs font-semibold"
+            >
+              <Plus size={14} /> Add
+            </button>
+          </div>
+
+          {/* Efficiency card */}
+          {fuelEfficiency !== null && (
+            <div className="bg-surface-card rounded-2xl p-4 border border-border-dim text-center">
+              <p className="text-[10px] text-text-muted uppercase tracking-wider">Avg Fuel Efficiency</p>
+              <p className="text-2xl font-black text-accent-light">{fuelEfficiency.toFixed(1)} km/kg</p>
+              <p className="text-[10px] text-text-muted mt-1">
+                Based on {fuelLogs.length} fill-ups
+              </p>
+            </div>
+          )}
+
+          {showFuelForm && (
+            <form onSubmit={handleAddFuel} className="bg-surface-elevated rounded-xl p-3 border border-border-dim space-y-2">
+              <div>
+                <label className="block text-[10px] text-text-muted uppercase tracking-wider mb-1">Date</label>
+                <input
+                  type="date"
+                  value={fuelDate}
+                  onChange={(e) => setFuelDate(e.target.value)}
+                  className="w-full border border-border-dim bg-surface-card rounded-lg px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[10px] text-text-muted uppercase tracking-wider mb-1">Quantity (kg)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={fuelQty}
+                    onChange={(e) => setFuelQty(e.target.value)}
+                    placeholder="e.g. 8"
+                    className="w-full border border-border-dim bg-surface-card rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-text-muted uppercase tracking-wider mb-1">Price/kg (₹)</label>
+                  <input
+                    type="number"
+                    value={fuelPrice}
+                    onChange={(e) => setFuelPrice(e.target.value)}
+                    placeholder="e.g. 95"
+                    className="w-full border border-border-dim bg-surface-card rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-[10px] text-text-muted uppercase tracking-wider mb-1">Odometer (km)</label>
+                <input
+                  type="number"
+                  value={fuelOdo}
+                  onChange={(e) => setFuelOdo(e.target.value)}
+                  placeholder="e.g. 15000"
+                  className="w-full border border-border-dim bg-surface-card rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                />
+              </div>
+              <button
+                type="submit"
+                className="w-full bg-accent text-white font-semibold py-2 rounded-lg text-xs"
+              >
+                Save Fill-up
+              </button>
+            </form>
+          )}
+
+          {fuelLogs.length === 0 && !showFuelForm && (
+            <p className="text-center text-text-muted text-sm py-6">No fuel logs yet. Add fill-ups to track efficiency.</p>
+          )}
+
+          {fuelLogs.map((log) => (
+            <div key={log.id} className="bg-surface-card rounded-xl p-3 border border-border-dim flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-orange-500/10 flex items-center justify-center shrink-0">
+                <Fuel size={16} className="text-orange-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-text-primary">
+                  {log.quantity_kg} kg @ ₹{log.price_per_kg}/kg
+                </p>
+                <p className="text-[11px] text-text-muted">
+                  {log.date}
+                  {log.odometer_km > 0 && ` · ${fmt(log.odometer_km)} km`}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-xs font-bold text-expense">₹{fmt(log.total_cost)}</span>
+                <button
+                  onClick={async () => { await deleteFuelLog(log.id) }}
+                  className="text-text-muted hover:text-expense transition-colors"
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
       )}
 

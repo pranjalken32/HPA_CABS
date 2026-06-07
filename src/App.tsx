@@ -9,14 +9,19 @@ import History from './pages/History'
 import Cars from './pages/Cars'
 import CarDetail from './pages/CarDetail'
 import Analytics from './pages/Analytics'
+import DriverSettlement from './pages/DriverSettlement'
 import Login from './pages/Login'
 import { processRecurringExpenses } from './hooks/useSupabase'
+import { runAllAlerts } from './utils/notifications'
 
 export default function App() {
   const { user, loading } = useAuth()
 
   useEffect(() => {
-    if (user) processRecurringExpenses()
+    if (user) {
+      processRecurringExpenses()
+      runAllAlerts()
+    }
   }, [user])
 
   if (loading) {
@@ -44,6 +49,7 @@ export default function App() {
         <Route path="/cars" element={<Cars />} />
         <Route path="/cars/:id" element={<CarDetail />} />
         <Route path="/analytics" element={<Analytics />} />
+        <Route path="/driver" element={<DriverSettlement />} />
       </Route>
     </Routes>
   )

@@ -2,7 +2,9 @@ import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useMonthFilter } from '../hooks/useMonthFilter'
 import { useIncomes, useExpenses, useProfiles, deleteIncome, deleteExpense, updateIncome, updateExpense } from '../hooks/useSupabase'
-import { Trash2, Pencil, ArrowUpCircle, ArrowDownCircle, X, User } from 'lucide-react'
+import { exportToExcel, exportToPDF } from '../utils/export'
+import { generateMonthlySummary, shareViaWhatsApp } from '../utils/share'
+import { Trash2, Pencil, ArrowUpCircle, ArrowDownCircle, X, User, Download, FileSpreadsheet, Share2 } from 'lucide-react'
 
 type Tab = 'all' | 'income' | 'expense'
 
@@ -100,6 +102,33 @@ export default function History() {
           onChange={(e) => setMonth(e.target.value)}
           className="border border-border-dim rounded-xl px-3 py-1.5 text-sm bg-surface-card text-text-primary"
         />
+      </div>
+
+      {/* Export & Share */}
+      <div className="flex gap-2 mb-4">
+        <button
+          onClick={() => exportToExcel(month, incomes ?? [], expenses ?? [])}
+          className="flex-1 bg-surface-card rounded-xl py-2 border border-border-dim flex items-center justify-center gap-1.5 hover:border-income transition-colors"
+        >
+          <FileSpreadsheet size={14} className="text-income" />
+          <span className="text-xs font-medium text-text-primary">Excel</span>
+        </button>
+        <button
+          onClick={() => exportToPDF(month, incomes ?? [], expenses ?? [])}
+          className="flex-1 bg-surface-card rounded-xl py-2 border border-border-dim flex items-center justify-center gap-1.5 hover:border-expense transition-colors"
+        >
+          <Download size={14} className="text-expense" />
+          <span className="text-xs font-medium text-text-primary">PDF</span>
+        </button>
+        <button
+          onClick={() => {
+            const text = generateMonthlySummary(month, incomes ?? [], expenses ?? [])
+            shareViaWhatsApp(text)
+          }}
+          className="bg-surface-card rounded-xl py-2 px-3 border border-border-dim flex items-center justify-center gap-1.5 hover:border-income transition-colors"
+        >
+          <Share2 size={14} className="text-income" />
+        </button>
       </div>
 
       <div className="flex gap-1 bg-surface-elevated rounded-xl p-1 mb-4 border border-border-dim">
