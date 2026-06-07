@@ -1,4 +1,6 @@
+import { useEffect } from 'react'
 import { Routes, Route } from 'react-router-dom'
+import { useAuth } from './AuthContext'
 import Layout from './components/Layout'
 import Dashboard from './pages/Dashboard'
 import AddIncome from './pages/AddIncome'
@@ -7,8 +9,31 @@ import History from './pages/History'
 import Cars from './pages/Cars'
 import CarDetail from './pages/CarDetail'
 import Analytics from './pages/Analytics'
+import Login from './pages/Login'
+import { processRecurringExpenses } from './hooks/useSupabase'
 
 export default function App() {
+  const { user, loading } = useAuth()
+
+  useEffect(() => {
+    if (user) processRecurringExpenses()
+  }, [user])
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-surface-base flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-accent to-accent-light flex items-center justify-center text-white font-bold text-2xl mx-auto mb-3 animate-pulse">
+            H
+          </div>
+          <p className="text-text-muted text-sm">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!user) return <Login />
+
   return (
     <Routes>
       <Route element={<Layout />}>

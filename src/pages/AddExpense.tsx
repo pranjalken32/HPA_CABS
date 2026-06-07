@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { db } from '../db'
+import { addExpense } from '../hooks/useSupabase'
 import { CheckCircle2 } from 'lucide-react'
 
 const CATEGORIES = [
@@ -44,12 +44,13 @@ export default function AddExpense() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!amount || Number(amount) <= 0) return
-    await db.expenses.add({
+    await addExpense({
       date,
       category,
       amount: Number(amount),
       note,
       recurring,
+      car_id: null,
     })
     setSaved(true)
     setTimeout(() => {
@@ -133,17 +134,24 @@ export default function AddExpense() {
           />
         </div>
 
-        <label className="flex items-center gap-3 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={recurring}
-            onChange={(e) => setRecurring(e.target.checked)}
-            className="w-5 h-5 rounded border-border-dim bg-surface-elevated accent-accent"
-          />
-          <span className="text-sm text-text-secondary">
-            Monthly recurring expense
-          </span>
-        </label>
+        <div>
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={recurring}
+              onChange={(e) => setRecurring(e.target.checked)}
+              className="w-5 h-5 rounded border-border-dim bg-surface-elevated accent-accent"
+            />
+            <span className="text-sm text-text-secondary">
+              Monthly recurring expense
+            </span>
+          </label>
+          {recurring && (
+            <p className="text-xs text-text-muted mt-1.5 ml-8">
+              Auto-generated on the 1st of each month
+            </p>
+          )}
+        </div>
 
         <button
           type="submit"

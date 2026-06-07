@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
 export default defineConfig({
+  base: '/HPA_CABS/',
   plugins: [
     react(),
     tailwindcss(),
@@ -18,16 +19,16 @@ export default defineConfig({
         background_color: '#0f0f1a',
         display: 'standalone',
         orientation: 'portrait',
-        scope: '/',
-        start_url: '/',
+        scope: '/HPA_CABS/',
+        start_url: '/HPA_CABS/',
         icons: [
           {
-            src: '/icon-192.png',
+            src: '/HPA_CABS/icon-192.png',
             sizes: '192x192',
             type: 'image/png',
           },
           {
-            src: '/icon-512.png',
+            src: '/HPA_CABS/icon-512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any maskable',
