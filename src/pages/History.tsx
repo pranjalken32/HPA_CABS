@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useMonthFilter } from '../hooks/useMonthFilter'
-import { useIncomes, useExpenses, deleteIncome, deleteExpense, updateIncome, updateExpense } from '../hooks/useSupabase'
-import { Trash2, Pencil, ArrowUpCircle, ArrowDownCircle, X } from 'lucide-react'
+import { useIncomes, useExpenses, useProfiles, deleteIncome, deleteExpense, updateIncome, updateExpense } from '../hooks/useSupabase'
+import { Trash2, Pencil, ArrowUpCircle, ArrowDownCircle, X, User } from 'lucide-react'
 
 type Tab = 'all' | 'income' | 'expense'
 
@@ -37,6 +37,7 @@ type Entry = {
   platform?: string
   category?: string
   trips?: number
+  user_id?: string
 }
 
 export default function History() {
@@ -46,6 +47,7 @@ export default function History() {
 
   const incomes = useIncomes(startDate, endDate)
   const expenses = useExpenses(startDate, endDate)
+  const profiles = useProfiles()
 
   const entries: Entry[] = []
   if (tab !== 'expense') {
@@ -59,6 +61,7 @@ export default function History() {
         note: i.note,
         platform: i.platform,
         trips: i.trips,
+        user_id: i.user_id,
       })
     }
   }
@@ -73,6 +76,7 @@ export default function History() {
         note: e.note,
         recurring: e.recurring,
         category: e.category,
+        user_id: e.user_id,
       })
     }
   }
@@ -145,6 +149,14 @@ export default function History() {
                   {entry.date}
                   {entry.note ? ` · ${entry.note}` : ''}
                 </div>
+                {entry.user_id && profiles.get(entry.user_id) && (
+                  <div className="flex items-center gap-1 mt-0.5">
+                    <User size={10} className="text-accent-light" />
+                    <span className="text-[10px] text-accent-light capitalize">
+                      {profiles.get(entry.user_id)}
+                    </span>
+                  </div>
+                )}
               </div>
               <span
                 className={`text-sm font-bold ${

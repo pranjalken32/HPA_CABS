@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase'
-import type { IncomeRow, ExpenseRow, CarRow, CarDocumentRow, ServiceRecordRow } from '../supabase'
+import type { IncomeRow, ExpenseRow, CarRow, CarDocumentRow, ServiceRecordRow, ProfileRow } from '../supabase'
 
 // ---- Generic refresh counter ----
 let _refreshCounter = 0
@@ -233,6 +233,27 @@ export async function deleteServiceRecord(id: number) {
   const { error } = await supabase.from('service_records').delete().eq('id', id)
   if (error) throw error
   triggerRefresh()
+}
+
+// ---- Profiles ----
+
+export function useProfiles() {
+  const [profiles, setProfiles] = useState<Map<string, string>>(new Map())
+
+  useEffect(() => {
+    supabase
+      .from('profiles')
+      .select('id, display_name')
+      .then(({ data }) => {
+        const map = new Map<string, string>()
+        for (const p of (data as ProfileRow[]) ?? []) {
+          map.set(p.id, p.display_name)
+        }
+        setProfiles(map)
+      })
+  }, [])
+
+  return profiles
 }
 
 // ---- Recurring expenses ----

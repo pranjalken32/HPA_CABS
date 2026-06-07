@@ -56,3 +56,8 @@ export interface ServiceRecordRow {
   cost: number
   odometer_km: number
 }
+
+export interface ProfileRow {
+  id: string
+  display_name: string
+}
