@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase'
-import type { IncomeRow, ExpenseRow, CarRow, CarDocumentRow, ServiceRecordRow, ProfileRow } from '../supabase'
+import type { IncomeRow, ExpenseRow, CarRow, CarDocumentRow, ServiceRecordRow, ProfileRow, FuelLogRow, GoalRow } from '../supabase'
 
 // ---- Generic refresh counter ----
 let _refreshCounter = 0
@@ -256,6 +256,78 @@ export function useProfiles() {
   return profiles
 }
 
+// ---- Fuel Logs ----
+
+export function useFuelLogs(carId: number) {
+  const [data, setData] = useState<FuelLogRow[]>([])
+  const refresh = useRefresh()
+
+  useEffect(() => {
+    supabase
+      .from('fuel_logs')
+      .select('*')
+      .eq('car_id', carId)
+      .order('date', { ascending: false })
+      .then(({ data }) => setData(data ?? []))
+  }, [carId, refresh])
+
+  return data
+}
+
+export async function addFuelLog(row: Omit<FuelLogRow, 'id' | 'user_id'>) {
+  const { error } = await supabase.from('fuel_logs').insert(row)
+  if (error) throw error
+  triggerRefresh()
+}
+
+export async function deleteFuelLog(id: number) {
+  const { error } = await supabase.from('fuel_logs').delete().eq('id', id)
+  if (error) throw error
+  triggerRefresh()
+}
+
+// ---- Goals ----
+
+export function useGoal(month: string) {
+  const [data, setData] = useState<GoalRow | null>(null)
+  const refresh = useRefresh()
+
+  useEffect(() => {
+    supabase
+      .from('goals')
+      .select('*')
+      .eq('month', month)
+      .maybeSingle()
+      .then(({ data }) => setData(data))
+  }, [month, refresh])
+
+  return data
+}
+
+export async function upsertGoal(month: string, targetRevenue: number) {
+  const { error } = await supabase
+    .from('goals')
+    .upsert({ month, target_revenue: targetRevenue }, { onConflict: 'month' })
+  if (error) throw error
+  triggerRefresh()
+}
+
+// ---- Receipt Upload ----
+
+export async function uploadReceipt(file: File): Promise<string> {
+  const ext = file.name.split('.').pop() ?? 'jpg'
+  const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+  const { error } = await supabase.storage.from('receipts').upload(path, file)
+  if (error) throw error
+  const { data } = supabase.storage.from('receipts').getPublicUrl(path)
+  return data.publicUrl
+}
+
+export async function getReceiptUrl(path: string): Promise<string> {
+  const { data } = await supabase.storage.from('receipts').createSignedUrl(path, 3600)
+  return data?.signedUrl ?? ''
+}
+
 // ---- Recurring expenses ----
 
 export async function processRecurringExpenses() {
@@ -300,6 +372,7 @@ export async function processRecurringExpenses() {
         note: tmpl.note,
         recurring: true,
         car_id: tmpl.car_id,
+        receipt_url: null,
       })
     }
   }

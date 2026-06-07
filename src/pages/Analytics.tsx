@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useIncomes, useExpenses } from '../hooks/useSupabase'
+import { exportToExcel, exportToPDF } from '../utils/export'
 import {
   BarChart,
   Bar,
@@ -27,6 +28,8 @@ import {
   ChevronDown,
   ChevronUp,
   BarChart3,
+  Download,
+  FileSpreadsheet,
 } from 'lucide-react'
 
 const PLATFORM_COLORS: Record<string, string> = {
@@ -306,6 +309,24 @@ export default function Analytics() {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Export Buttons */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => exportToExcel(startDate.slice(0, 7), allIncomes, allExpenses)}
+          className="flex-1 bg-surface-card rounded-xl p-2.5 border border-border-dim flex items-center justify-center gap-2 hover:border-income transition-colors"
+        >
+          <FileSpreadsheet size={16} className="text-income" />
+          <span className="text-xs font-medium text-text-primary">Export Excel</span>
+        </button>
+        <button
+          onClick={() => exportToPDF(startDate.slice(0, 7), allIncomes, allExpenses)}
+          className="flex-1 bg-surface-card rounded-xl p-2.5 border border-border-dim flex items-center justify-center gap-2 hover:border-expense transition-colors"
+        >
+          <Download size={16} className="text-expense" />
+          <span className="text-xs font-medium text-text-primary">Export PDF</span>
+        </button>
       </div>
 
       {/* ---- KPI CARDS ---- */}

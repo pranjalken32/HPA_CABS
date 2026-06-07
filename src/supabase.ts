@@ -27,6 +27,7 @@ export interface ExpenseRow {
   note: string
   recurring: boolean
   car_id: number | null
+  receipt_url: string | null
 }
 
 export interface CarRow {
@@ -60,4 +61,22 @@ export interface ServiceRecordRow {
 export interface ProfileRow {
   id: string
   display_name: string
+}
+
+export interface FuelLogRow {
+  id: number
+  user_id: string
+  car_id: number
+  date: string
+  quantity_kg: number
+  price_per_kg: number
+  total_cost: number
+  odometer_km: number
+}
+
+export interface GoalRow {
+  id: number
+  user_id: string
+  month: string
+  target_revenue: number
 }

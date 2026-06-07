@@ -1,6 +1,7 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useMonthFilter } from '../hooks/useMonthFilter'
-import { useIncomes, useExpenses } from '../hooks/useSupabase'
+import { useIncomes, useExpenses, useCars, useGoal, upsertGoal } from '../hooks/useSupabase'
 import {
   BarChart,
   Bar,
@@ -23,7 +24,11 @@ import {
   ChevronDown,
   ChevronUp,
   IndianRupee,
+  Users,
+  Share2,
+  Target,
 } from 'lucide-react'
+import { generateMonthlySummary, shareViaWhatsApp } from '../utils/share'
 
 const PLATFORM_COLORS: Record<string, string> = {
   rapido: '#f97316',
@@ -79,9 +84,14 @@ interface WeekStats {
 export default function Dashboard() {
   const { month, setMonth, startDate, endDate } = useMonthFilter()
   const [expandedWeek, setExpandedWeek] = useState<number | null>(null)
+  const [showGoalInput, setShowGoalInput] = useState(false)
+  const [goalInput, setGoalInput] = useState('')
+  const navigate = useNavigate()
 
   const incomes = useIncomes(startDate, endDate)
   const expenses = useExpenses(startDate, endDate)
+  const cars = useCars()
+  const goal = useGoal(month)
 
   const totalIncome = incomes?.reduce((s, i) => s + i.amount, 0) ?? 0
   const totalExpense = expenses?.reduce((s, e) => s + e.amount, 0) ?? 0
@@ -177,6 +187,99 @@ export default function Dashboard() {
           onChange={(e) => setMonth(e.target.value)}
           className="border border-border-dim rounded-xl px-3 py-1.5 text-sm bg-surface-card text-text-primary"
         />
+      </div>
+
+      {/* Goal Progress */}
+      {goal ? (
+        <div className="bg-surface-card rounded-2xl p-4 border border-border-dim">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Target size={16} className="text-accent-light" />
+              <span className="text-sm font-semibold text-text-primary">Monthly Goal</span>
+            </div>
+            <span className="text-xs text-text-muted">
+              ₹{fmt(totalRevenue)} / ₹{fmt(goal.target_revenue)}
+            </span>
+          </div>
+          <div className="w-full h-3 bg-surface-elevated rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all ${
+                totalRevenue >= goal.target_revenue
+                  ? 'bg-gradient-to-r from-income to-emerald-400'
+                  : 'bg-gradient-to-r from-accent to-accent-light'
+              }`}
+              style={{ width: `${Math.min(100, (totalRevenue / goal.target_revenue) * 100)}%` }}
+            />
+          </div>
+          <div className="flex justify-between mt-1">
+            <span className="text-[10px] text-text-muted">
+              {Math.round((totalRevenue / goal.target_revenue) * 100)}% achieved
+            </span>
+            {totalRevenue >= goal.target_revenue && (
+              <span className="text-[10px] text-income font-semibold">Goal reached!</span>
+            )}
+          </div>
+        </div>
+      ) : (
+        <button
+          onClick={() => setShowGoalInput(true)}
+          className="w-full bg-surface-card rounded-2xl p-3 border border-dashed border-border-dim text-center text-sm text-text-muted hover:border-accent transition-colors"
+        >
+          <Target size={16} className="inline mr-1" /> Set monthly revenue goal
+        </button>
+      )}
+
+      {showGoalInput && !goal && (
+        <div className="bg-surface-card rounded-2xl p-4 border border-border-dim space-y-3">
+          <input
+            type="number"
+            placeholder="Target revenue (e.g. 100000)"
+            value={goalInput}
+            onChange={(e) => setGoalInput(e.target.value)}
+            className="w-full border border-border-dim bg-surface-elevated rounded-xl px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={async () => {
+                if (Number(goalInput) > 0) {
+                  await upsertGoal(month, Number(goalInput))
+                  setShowGoalInput(false)
+                  setGoalInput('')
+                }
+              }}
+              className="flex-1 bg-accent text-white text-sm py-2 rounded-xl"
+            >
+              Set Goal
+            </button>
+            <button
+              onClick={() => { setShowGoalInput(false); setGoalInput('') }}
+              className="px-4 text-sm text-text-muted py-2 rounded-xl border border-border-dim"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Actions */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => navigate('/driver')}
+          className="flex-1 bg-surface-card rounded-2xl p-3 border border-border-dim flex items-center gap-2 hover:border-accent transition-colors"
+        >
+          <Users size={18} className="text-accent-light" />
+          <span className="text-sm text-text-primary">Driver Settlement</span>
+        </button>
+        <button
+          onClick={() => {
+            const text = generateMonthlySummary(month, incomes ?? [], expenses ?? [])
+            shareViaWhatsApp(text)
+          }}
+          className="bg-surface-card rounded-2xl p-3 border border-border-dim flex items-center gap-2 hover:border-income transition-colors"
+        >
+          <Share2 size={18} className="text-income" />
+          <span className="text-sm text-text-primary">Share</span>
+        </button>
       </div>
 
       {/* ─── MONTHLY OVERVIEW ─── */}
@@ -398,6 +501,42 @@ export default function Dashboard() {
           )
         })}
       </div>
+
+      {/* ─── MULTI-CAR PROFITABILITY ─── */}
+      {cars.length > 0 && (incomes ?? []).some((i) => i.car_id) && (
+        <>
+          <div className="flex items-center gap-2 pt-2">
+            <div className="h-px flex-1 bg-border-dim" />
+            <span className="text-[10px] uppercase tracking-widest text-text-muted font-semibold">Car Profitability</span>
+            <div className="h-px flex-1 bg-border-dim" />
+          </div>
+          <div className="space-y-2">
+            {cars.map((car) => {
+              const carIncome = (incomes ?? []).filter((i) => i.car_id === car.id).reduce((s, i) => s + i.amount, 0)
+              const carExpense = (expenses ?? []).filter((e) => e.car_id === car.id).reduce((s, e) => s + e.amount, 0)
+              const carProfit = carIncome - carExpense
+              if (carIncome === 0 && carExpense === 0) return null
+              return (
+                <div key={car.id} className="bg-surface-card rounded-2xl p-3 border border-border-dim flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
+                    <Car size={20} className="text-accent-light" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-text-primary truncate">{car.name}</p>
+                    <p className="text-[10px] text-text-muted">{car.number}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs text-text-muted">Income ₹{fmt(carIncome)}</p>
+                    <p className={`text-sm font-bold ${carProfit >= 0 ? 'text-income' : 'text-expense'}`}>
+                      {carProfit >= 0 ? '+' : ''}₹{fmt(carProfit)}
+                    </p>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </>
+      )}
 
       {/* Empty state */}
       {(incomes?.length ?? 0) === 0 && (expenses?.length ?? 0) === 0 && weeklyStats.length === 0 && (
