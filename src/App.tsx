@@ -30,9 +30,11 @@ export default function App() {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="text-center">
-          <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center text-black font-bold text-2xl mx-auto mb-3 animate-pulse">
-            H
-          </div>
+          <svg className="w-14 h-14 mx-auto mb-3 animate-pulse" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <rect width="100" height="100" rx="20" fill="#000000"/>
+            <rect x="6" y="6" width="88" height="88" rx="16" fill="none" stroke="#222222" strokeWidth="1.5"/>
+            <path d="M30 28 L30 72 M30 50 L70 50 M70 28 L70 72" stroke="#ffffff" strokeWidth="10" strokeLinecap="round" fill="none"/>
+          </svg>
           <p className="text-text-muted text-sm">Loading...</p>
         </div>
       </div>

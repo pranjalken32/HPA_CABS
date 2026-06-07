@@ -20,9 +20,11 @@ export default function Layout() {
     <div className="min-h-screen bg-surface pb-20">
       <header className="bg-surface-card border-b border-border-dim px-4 py-3 sticky top-0 z-30">
         <div className="max-w-lg mx-auto flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center text-black text-xs font-black">
-            H
-          </div>
+          <svg className="w-8 h-8" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+            <rect width="100" height="100" rx="20" fill="#000000"/>
+            <rect x="6" y="6" width="88" height="88" rx="16" fill="none" stroke="#222222" strokeWidth="1.5"/>
+            <path d="M30 28 L30 72 M30 50 L70 50 M70 28 L70 72" stroke="#ffffff" strokeWidth="10" strokeLinecap="round" fill="none"/>
+          </svg>
           <h1 className="text-lg font-bold tracking-tight text-white">
             HPA <span className="text-text-secondary">Cabs</span>
           </h1>

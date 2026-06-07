@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <defs>
-    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#6c5ce7"/>
-      <stop offset="100%" stop-color="#a29bfe"/>
-    </linearGradient>
-  </defs>
-  <rect width="100" height="100" rx="22" fill="#1a1a2e"/>
-  <text x="50" y="66" font-size="38" font-family="Arial,sans-serif" font-weight="900" fill="url(#g)" text-anchor="middle">HPA</text>
+  <rect width="100" height="100" rx="20" fill="#000000"/>
+  <rect x="8" y="8" width="84" height="84" rx="14" fill="none" stroke="#222222" stroke-width="1.5"/>
+  <!-- H monogram -->
+  <path d="M30 28 L30 72 M30 50 L70 50 M70 28 L70 72" stroke="#ffffff" stroke-width="10" stroke-linecap="round" fill="none"/>
+  <!-- Road accent line -->
+  <line x1="35" y1="88" x2="45" y2="88" stroke="#444444" stroke-width="2" stroke-linecap="round"/>
+  <line x1="50" y1="88" x2="60" y2="88" stroke="#444444" stroke-width="2" stroke-linecap="round"/>
+  <line x1="65" y1="88" x2="65" y2="88" stroke="#444444" stroke-width="2" stroke-linecap="round"/>
 </svg>
