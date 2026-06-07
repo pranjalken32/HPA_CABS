@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useAuth } from '../AuthContext'
-import { Shield } from 'lucide-react'
 
 export default function Login() {
   const { signIn } = useAuth()
@@ -76,22 +75,7 @@ export default function Login() {
           </button>
         </form>
 
-        <div className="mt-6 bg-surface-card rounded-2xl border border-border-dim p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Shield size={16} className="text-accent" />
-            <span className="text-xs font-medium text-text-secondary">Authorized Users Only</span>
-          </div>
-          <div className="flex gap-2">
-            {['Hemant', 'Anurag', 'Pranjal'].map((name) => (
-              <span
-                key={name}
-                className="px-3 py-1 bg-accent/10 border border-accent/20 rounded-full text-xs text-accent font-medium"
-              >
-                {name}
-              </span>
-            ))}
-          </div>
-        </div>
+
       </div>
     </div>
   )
