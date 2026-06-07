@@ -61,6 +61,7 @@ export interface ServiceRecordRow {
 export interface ProfileRow {
   id: string
   display_name: string
+  role: 'owner' | 'driver'
 }
 
 export interface FuelLogRow {

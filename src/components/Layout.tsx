@@ -2,6 +2,7 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { LayoutDashboard, PlusCircle, MinusCircle, List, Car, BarChart3, LogOut } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useAuth } from '../AuthContext'
+import Logo from './Logo'
 
 const navItems: { to: string; icon: LucideIcon; label: string; match?: string }[] = [
   { to: '/', icon: LayoutDashboard, label: 'Home' },
@@ -14,21 +15,22 @@ const navItems: { to: string; icon: LucideIcon; label: string; match?: string }[
 
 export default function Layout() {
   const location = useLocation()
-  const { signOut } = useAuth()
+  const { signOut, displayName } = useAuth()
 
   return (
     <div className="min-h-screen bg-surface pb-20">
-      <header className="bg-surface-card/80 backdrop-blur-xl border-b border-border-dim px-4 py-3 sticky top-0 z-30">
+      <header className="bg-surface-card border-b border-border-dim px-4 py-3 sticky top-0 z-30">
         <div className="max-w-lg mx-auto flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-accent to-purple-500 flex items-center justify-center text-white text-xs font-black">
-            H
-          </div>
-          <h1 className="text-lg font-bold tracking-tight text-text-primary">
-            HPA <span className="text-accent-light">Cabs</span>
+          <Logo size={32} />
+          <h1 className="text-lg font-bold tracking-tight text-white">
+            HPA <span className="text-text-secondary">Cabs</span>
           </h1>
+          {displayName && (
+            <span className="text-xs text-text-muted ml-1 capitalize">{displayName}</span>
+          )}
           <button
             onClick={() => signOut()}
-            className="ml-auto text-text-muted hover:text-expense transition-colors"
+            className="ml-auto text-text-muted hover:text-white transition-colors"
             title="Sign out"
           >
             <LogOut size={18} />
@@ -40,7 +42,7 @@ export default function Layout() {
         <Outlet />
       </main>
 
-      <nav className="fixed bottom-0 left-0 right-0 bg-surface-card/90 backdrop-blur-xl border-t border-border-dim z-30">
+      <nav className="fixed bottom-0 left-0 right-0 bg-surface-card border-t border-border-dim z-30">
         <div className="max-w-lg mx-auto flex">
           {navItems.map(({ to, icon: Icon, label, match }) => {
             const isActive = match
@@ -51,7 +53,7 @@ export default function Layout() {
                 key={to}
                 to={to}
                 className={`flex-1 flex flex-col items-center py-2.5 text-[10px] transition-colors ${
-                  isActive ? 'text-accent-light font-semibold' : 'text-text-muted'
+                  isActive ? 'text-white font-semibold' : 'text-text-muted'
                 }`}
               >
                 <Icon size={20} />

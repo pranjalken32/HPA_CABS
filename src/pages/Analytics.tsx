@@ -34,23 +34,23 @@ import {
 
 const PLATFORM_COLORS: Record<string, string> = {
   rapido: '#f97316',
-  ola: '#22c55e',
-  uber: '#3b82f6',
-  cash: '#a29bfe',
-  other: '#64748b',
+  ola: '#06c167',
+  uber: '#ffffff',
+  cash: '#999999',
+  other: '#666666',
 }
 
 const EXPENSE_COLORS = [
-  '#ff5252', '#f97316', '#eab308', '#00e676',
-  '#06b6d4', '#6c5ce7', '#a29bfe', '#ec4899',
+  '#ff4444', '#f97316', '#eab308', '#06c167',
+  '#06b6d4', '#ffffff', '#999999', '#ec4899',
 ]
 
 const tooltipStyle = {
   contentStyle: {
-    background: '#1a1a2e',
-    border: '1px solid #2a2a45',
+    background: '#111111',
+    border: '1px solid #222222',
     borderRadius: '12px',
-    color: '#e8e8f0',
+    color: '#ffffff',
     fontSize: '12px',
   },
 }
@@ -291,7 +291,7 @@ export default function Analytics() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold text-text-primary flex items-center gap-2">
-          <BarChart3 size={22} className="text-accent-light" />
+          <BarChart3 size={22} className="text-white" />
           Analytics
         </h2>
         <div className="flex gap-1 bg-surface-card rounded-xl p-0.5 border border-border-dim">
@@ -301,7 +301,7 @@ export default function Analytics() {
               onClick={() => setRange(r)}
               className={`px-3 py-1 text-xs rounded-lg font-medium transition-all ${
                 range === r
-                  ? 'bg-accent text-white'
+                  ? 'bg-white text-black'
                   : 'text-text-muted hover:text-text-secondary'
               }`}
             >
@@ -337,7 +337,7 @@ export default function Analytics() {
         </div>
         <div className="bg-surface-card rounded-xl p-3 border border-border-dim">
           <div className="text-[10px] text-text-muted uppercase tracking-wider">Avg Trips / Day</div>
-          <div className="text-lg font-bold text-accent-light">{avgTripsPerDay.toFixed(1)}</div>
+          <div className="text-lg font-bold text-white">{avgTripsPerDay.toFixed(1)}</div>
         </div>
         <div className="bg-surface-card rounded-xl p-3 border border-border-dim">
           <div className="text-[10px] text-text-muted uppercase tracking-wider">Revenue / Trip</div>
@@ -378,12 +378,12 @@ export default function Analytics() {
         <div className="h-52">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={monthlyTrend}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#2a2a45" />
-              <XAxis dataKey="month" tick={{ fill: '#8888a8', fontSize: 11 }} />
-              <YAxis tick={{ fill: '#8888a8', fontSize: 10 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#222222" />
+              <XAxis dataKey="month" tick={{ fill: '#666666', fontSize: 11 }} />
+              <YAxis tick={{ fill: '#666666', fontSize: 10 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
               <Tooltip {...tooltipStyle} formatter={(v) => `₹${fmt(Number(v))}`} />
-              <Bar dataKey="revenue" fill="#00e676" radius={[4, 4, 0, 0]} name="Revenue" />
-              <Bar dataKey="expense" fill="#ff5252" radius={[4, 4, 0, 0]} name="Expense" />
+              <Bar dataKey="revenue" fill="#06c167" radius={[4, 4, 0, 0]} name="Revenue" />
+              <Bar dataKey="expense" fill="#ff4444" radius={[4, 4, 0, 0]} name="Expense" />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -396,15 +396,15 @@ export default function Analytics() {
               <AreaChart data={monthlyTrend}>
                 <defs>
                   <linearGradient id="profitGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6c5ce7" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#6c5ce7" stopOpacity={0} />
+                    <stop offset="5%" stopColor="#ffffff" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#ffffff" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#2a2a45" />
-                <XAxis dataKey="month" tick={{ fill: '#8888a8', fontSize: 11 }} />
-                <YAxis tick={{ fill: '#8888a8', fontSize: 10 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#222222" />
+                <XAxis dataKey="month" tick={{ fill: '#666666', fontSize: 11 }} />
+                <YAxis tick={{ fill: '#666666', fontSize: 10 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
                 <Tooltip {...tooltipStyle} formatter={(v) => `₹${fmt(Number(v))}`} />
-                <Area type="monotone" dataKey="profit" stroke="#6c5ce7" fill="url(#profitGrad)" name="Profit" />
+                <Area type="monotone" dataKey="profit" stroke="#ffffff" fill="url(#profitGrad)" name="Profit" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -465,12 +465,12 @@ export default function Analytics() {
             <div className="h-44">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={platformMonthly}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#2a2a45" />
-                  <XAxis dataKey="month" tick={{ fill: '#8888a8', fontSize: 11 }} />
-                  <YAxis tick={{ fill: '#8888a8', fontSize: 10 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#222222" />
+                  <XAxis dataKey="month" tick={{ fill: '#666666', fontSize: 11 }} />
+                  <YAxis tick={{ fill: '#666666', fontSize: 10 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
                   <Tooltip {...tooltipStyle} formatter={(v) => `₹${fmt(Number(v))}`} />
                   {allPlatforms.map((p) => (
-                    <Bar key={p} dataKey={p} fill={PLATFORM_COLORS[p] ?? '#64748b'} radius={[3, 3, 0, 0]} stackId="platform" name={p} />
+                    <Bar key={p} dataKey={p} fill={PLATFORM_COLORS[p] ?? '#666666'} radius={[3, 3, 0, 0]} stackId="platform" name={p} />
                   ))}
                 </BarChart>
               </ResponsiveContainer>
@@ -507,7 +507,7 @@ export default function Analytics() {
               </Pie>
               <Tooltip {...tooltipStyle} formatter={(v) => `₹${fmt(Number(v))}`} />
               <Legend
-                wrapperStyle={{ fontSize: '10px', color: '#8888a8' }}
+                wrapperStyle={{ fontSize: '10px', color: '#999999' }}
               />
             </PieChart>
           </ResponsiveContainer>
@@ -539,9 +539,9 @@ export default function Analytics() {
             <div className="h-44">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={expenseMonthly}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#2a2a45" />
-                  <XAxis dataKey="month" tick={{ fill: '#8888a8', fontSize: 11 }} />
-                  <YAxis tick={{ fill: '#8888a8', fontSize: 10 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="#222222" />
+                  <XAxis dataKey="month" tick={{ fill: '#666666', fontSize: 11 }} />
+                  <YAxis tick={{ fill: '#666666', fontSize: 10 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
                   <Tooltip {...tooltipStyle} formatter={(v) => `₹${fmt(Number(v))}`} />
                   {allCategories.map((c, idx) => (
                     <Bar key={c} dataKey={c} fill={EXPENSE_COLORS[idx % EXPENSE_COLORS.length]} radius={[2, 2, 0, 0]} stackId="exp" name={c} />
@@ -565,11 +565,11 @@ export default function Analytics() {
         <div className="h-40">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={dayPatternData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#2a2a45" />
-              <XAxis dataKey="day" tick={{ fill: '#8888a8', fontSize: 11 }} />
-              <YAxis tick={{ fill: '#8888a8', fontSize: 10 }} />
+              <CartesianGrid strokeDasharray="3 3" stroke="#222222" />
+              <XAxis dataKey="day" tick={{ fill: '#666666', fontSize: 11 }} />
+              <YAxis tick={{ fill: '#666666', fontSize: 10 }} />
               <Tooltip {...tooltipStyle} formatter={(v) => `₹${fmt(Number(v))}`} />
-              <Bar dataKey="avgRevenue" fill="#6c5ce7" radius={[4, 4, 0, 0]} name="Avg Revenue" />
+              <Bar dataKey="avgRevenue" fill="#ffffff" radius={[4, 4, 0, 0]} name="Avg Revenue" />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -591,12 +591,12 @@ export default function Analytics() {
           <div className="h-44">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={dailyTimeline}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#2a2a45" />
-                <XAxis dataKey="date" tick={{ fill: '#8888a8', fontSize: 9 }} interval="preserveStartEnd" />
-                <YAxis tick={{ fill: '#8888a8', fontSize: 10 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#222222" />
+                <XAxis dataKey="date" tick={{ fill: '#666666', fontSize: 9 }} interval="preserveStartEnd" />
+                <YAxis tick={{ fill: '#666666', fontSize: 10 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
                 <Tooltip {...tooltipStyle} formatter={(v) => `₹${fmt(Number(v))}`} />
-                <Line type="monotone" dataKey="revenue" stroke="#00e676" strokeWidth={2} dot={false} name="Revenue" />
-                <Line type="monotone" dataKey="expense" stroke="#ff5252" strokeWidth={1.5} dot={false} name="Expense" />
+                <Line type="monotone" dataKey="revenue" stroke="#06c167" strokeWidth={2} dot={false} name="Revenue" />
+                <Line type="monotone" dataKey="expense" stroke="#ff4444" strokeWidth={1.5} dot={false} name="Expense" />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -622,7 +622,7 @@ export default function Analytics() {
                     ? 'bg-expense/10 border-expense/20 text-expense'
                     : a.type === 'warning'
                     ? 'bg-yellow-500/10 border-yellow-500/20 text-yellow-400'
-                    : 'bg-accent/10 border-accent/20 text-accent-light'
+                    : 'bg-white/10 border-white/20 text-white'
                 }`}
               >
                 <div className="flex items-start gap-2">
@@ -664,7 +664,7 @@ function CollapsibleSection({
         className="w-full flex items-center justify-between px-4 py-3 text-left"
       >
         <div className="flex items-center gap-2 text-sm font-semibold text-text-primary">
-          <span className="text-accent-light">{icon}</span>
+          <span className="text-white">{icon}</span>
           {title}
         </div>
         {open ? (
