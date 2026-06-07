@@ -226,6 +226,19 @@ export function useServiceRecords(carId: number) {
 export async function addServiceRecord(row: Omit<ServiceRecordRow, 'id' | 'user_id'>) {
   const { error } = await supabase.from('service_records').insert(row)
   if (error) throw error
+
+  if (row.cost > 0) {
+    await supabase.from('expenses').insert({
+      date: row.date,
+      category: 'Service',
+      amount: row.cost,
+      note: row.description,
+      recurring: false,
+      car_id: row.car_id,
+      receipt_url: null,
+    })
+  }
+
   triggerRefresh()
 }
 

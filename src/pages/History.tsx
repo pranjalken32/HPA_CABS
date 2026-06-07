@@ -25,6 +25,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   permit: 'Permit / RTO',
   toll: 'Toll / Parking',
   car_wash: 'Car Wash',
+  Service: 'Service',
   other: 'Other',
 }
 
