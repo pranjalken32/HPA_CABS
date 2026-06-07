@@ -1,30 +1,24 @@
 import { useState } from 'react'
 import { useAuth } from '../AuthContext'
+import { Shield } from 'lucide-react'
 
 export default function Login() {
-  const { signIn, signUp } = useAuth()
+  const { signIn } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [isSignUp, setIsSignUp] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const [signUpSuccess, setSignUpSuccess] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
     setLoading(true)
 
-    const err = isSignUp
-      ? await signUp(email, password)
-      : await signIn(email, password)
-
+    const err = await signIn(email, password)
     setLoading(false)
 
     if (err) {
       setError(err)
-    } else if (isSignUp) {
-      setSignUpSuccess(true)
     }
   }
 
@@ -36,77 +30,68 @@ export default function Login() {
             H
           </div>
           <h1 className="text-2xl font-bold text-text-primary">HPA Cabs</h1>
-          <p className="text-sm text-text-muted mt-1">
-            {isSignUp ? 'Create your account' : 'Sign in to continue'}
-          </p>
+          <p className="text-sm text-text-muted mt-1">Sign in to continue</p>
         </div>
 
-        {signUpSuccess ? (
-          <div className="bg-surface-card rounded-2xl border border-border-dim p-6 text-center">
-            <p className="text-income font-medium mb-2">Account created!</p>
-            <p className="text-sm text-text-secondary">
-              Check your email to confirm, then sign in.
-            </p>
-            <button
-              onClick={() => { setIsSignUp(false); setSignUpSuccess(false) }}
-              className="mt-4 text-accent text-sm font-medium"
-            >
-              Go to Sign In
-            </button>
+        <form onSubmit={handleSubmit} className="bg-surface-card rounded-2xl border border-border-dim p-6 space-y-4">
+          {error && (
+            <div className="bg-expense/10 border border-expense/30 rounded-xl px-3 py-2 text-sm text-expense">
+              {error}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-text-secondary mb-1">Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full border border-border-dim bg-surface-elevated rounded-xl px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none transition-colors"
+              placeholder="you@example.com"
+              required
+              autoComplete="email"
+            />
           </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="bg-surface-card rounded-2xl border border-border-dim p-6 space-y-4">
-            {error && (
-              <div className="bg-expense/10 border border-expense/30 rounded-xl px-3 py-2 text-sm text-expense">
-                {error}
-              </div>
-            )}
 
-            <div>
-              <label className="block text-sm font-medium text-text-secondary mb-1">Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full border border-border-dim bg-surface-elevated rounded-xl px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none transition-colors"
-                placeholder="you@example.com"
-                required
-              />
-            </div>
+          <div>
+            <label className="block text-sm font-medium text-text-secondary mb-1">Password</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full border border-border-dim bg-surface-elevated rounded-xl px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none transition-colors"
+              placeholder="••••••••"
+              minLength={6}
+              required
+              autoComplete="current-password"
+            />
+          </div>
 
-            <div>
-              <label className="block text-sm font-medium text-text-secondary mb-1">Password</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full border border-border-dim bg-surface-elevated rounded-xl px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none transition-colors"
-                placeholder="••••••••"
-                minLength={6}
-                required
-              />
-            </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-gradient-to-r from-accent to-accent-light text-white font-semibold py-3 rounded-xl transition-all shadow-lg shadow-accent/20 disabled:opacity-60"
+          >
+            {loading ? 'Signing in...' : 'Sign In'}
+          </button>
+        </form>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-gradient-to-r from-accent to-accent-light text-white font-semibold py-3 rounded-xl transition-all shadow-lg shadow-accent/20 disabled:opacity-60"
-            >
-              {loading ? 'Please wait...' : isSignUp ? 'Create Account' : 'Sign In'}
-            </button>
-
-            <p className="text-center text-sm text-text-muted">
-              {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
-              <button
-                type="button"
-                onClick={() => { setIsSignUp(!isSignUp); setError(null) }}
-                className="text-accent font-medium"
+        <div className="mt-6 bg-surface-card rounded-2xl border border-border-dim p-4">
+          <div className="flex items-center gap-2 mb-3">
+            <Shield size={16} className="text-accent" />
+            <span className="text-xs font-medium text-text-secondary">Authorized Users Only</span>
+          </div>
+          <div className="flex gap-2">
+            {['Hemant', 'Anurag', 'Pranjal'].map((name) => (
+              <span
+                key={name}
+                className="px-3 py-1 bg-accent/10 border border-accent/20 rounded-full text-xs text-accent font-medium"
               >
-                {isSignUp ? 'Sign In' : 'Sign Up'}
-              </button>
-            </p>
-          </form>
-        )}
+                {name}
+              </span>
+            ))}
+          </div>
+        </div>
       </div>
     </div>
   )
