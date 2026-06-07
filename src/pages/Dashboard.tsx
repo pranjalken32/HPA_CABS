@@ -32,23 +32,23 @@ import { generateMonthlySummary, shareViaWhatsApp } from '../utils/share'
 
 const PLATFORM_COLORS: Record<string, string> = {
   rapido: '#f97316',
-  ola: '#22c55e',
-  uber: '#3b82f6',
-  cash: '#a29bfe',
-  other: '#64748b',
+  ola: '#06c167',
+  uber: '#ffffff',
+  cash: '#999999',
+  other: '#666666',
 }
 
 const EXPENSE_COLORS = [
-  '#ff5252', '#f97316', '#eab308', '#00e676',
-  '#06b6d4', '#6c5ce7', '#a29bfe', '#ec4899',
+  '#ff4444', '#f97316', '#eab308', '#06c167',
+  '#06b6d4', '#ffffff', '#999999', '#ec4899',
 ]
 
 const tooltipStyle = {
   contentStyle: {
-    background: '#1a1a2e',
-    border: '1px solid #2a2a45',
+    background: '#111111',
+    border: '1px solid #222222',
     borderRadius: '12px',
-    color: '#e8e8f0',
+    color: '#ffffff',
     fontSize: '12px',
   },
 }
@@ -97,11 +97,8 @@ export default function Dashboard() {
   const totalExpense = expenses?.reduce((s, e) => s + e.amount, 0) ?? 0
   const netProfit = totalIncome - totalExpense
   const totalTrips = incomes?.reduce((s, i) => s + i.trips, 0) ?? 0
-
-  // Revenue = income from platforms (rapido, ola, uber) — cash/other is also income but platform revenue
   const totalRevenue = totalIncome
 
-  // Platform breakdown (monthly)
   const platformData = Object.entries(
     (incomes ?? []).reduce<Record<string, number>>((acc, i) => {
       acc[i.platform] = (acc[i.platform] ?? 0) + i.amount
@@ -109,7 +106,6 @@ export default function Dashboard() {
     }, {})
   ).map(([name, value]) => ({ name, value }))
 
-  // Expense category breakdown (monthly)
   const categoryData = Object.entries(
     (expenses ?? []).reduce<Record<string, number>>((acc, e) => {
       acc[e.category] = (acc[e.category] ?? 0) + e.amount
@@ -117,7 +113,6 @@ export default function Dashboard() {
     }, {})
   ).map(([name, value]) => ({ name, value }))
 
-  // Weekly stats — show ALL weeks of the month
   const [y, m] = month.split('-').map(Number)
   const totalWeeksInMonth = getTotalWeeks(y, m)
 
@@ -128,7 +123,6 @@ export default function Dashboard() {
     daily: Record<string, { date: string; income: number; expense: number }>
   }> = {}
 
-  // Initialize all weeks
   for (let w = 1; w <= totalWeeksInMonth; w++) {
     weekMap[w] = { income: 0, expense: 0, trips: 0, daily: {} }
   }
@@ -180,12 +174,12 @@ export default function Dashboard() {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-text-primary">Dashboard</h2>
+        <h2 className="text-xl font-bold text-white">Dashboard</h2>
         <input
           type="month"
           value={month}
           onChange={(e) => setMonth(e.target.value)}
-          className="border border-border-dim rounded-xl px-3 py-1.5 text-sm bg-surface-card text-text-primary"
+          className="border border-border-dim rounded-xl px-3 py-1.5 text-sm bg-surface-card text-white"
         />
       </div>
 
@@ -194,8 +188,8 @@ export default function Dashboard() {
         <div className="bg-surface-card rounded-2xl p-4 border border-border-dim">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
-              <Target size={16} className="text-accent-light" />
-              <span className="text-sm font-semibold text-text-primary">Monthly Goal</span>
+              <Target size={16} className="text-white" />
+              <span className="text-sm font-semibold text-white">Monthly Goal</span>
             </div>
             <span className="text-xs text-text-muted">
               ₹{fmt(totalRevenue)} / ₹{fmt(goal.target_revenue)}
@@ -205,8 +199,8 @@ export default function Dashboard() {
             <div
               className={`h-full rounded-full transition-all ${
                 totalRevenue >= goal.target_revenue
-                  ? 'bg-gradient-to-r from-income to-emerald-400'
-                  : 'bg-gradient-to-r from-accent to-accent-light'
+                  ? 'bg-income'
+                  : 'bg-white'
               }`}
               style={{ width: `${Math.min(100, (totalRevenue / goal.target_revenue) * 100)}%` }}
             />
@@ -223,7 +217,7 @@ export default function Dashboard() {
       ) : (
         <button
           onClick={() => setShowGoalInput(true)}
-          className="w-full bg-surface-card rounded-2xl p-3 border border-dashed border-border-dim text-center text-sm text-text-muted hover:border-accent transition-colors"
+          className="w-full bg-surface-card rounded-2xl p-3 border border-dashed border-border-dim text-center text-sm text-text-muted hover:border-white transition-colors"
         >
           <Target size={16} className="inline mr-1" /> Set monthly revenue goal
         </button>
@@ -236,7 +230,7 @@ export default function Dashboard() {
             placeholder="Target revenue (e.g. 100000)"
             value={goalInput}
             onChange={(e) => setGoalInput(e.target.value)}
-            className="w-full border border-border-dim bg-surface-elevated rounded-xl px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+            className="w-full border border-border-dim bg-surface-elevated rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-text-muted focus:border-white focus:outline-none"
           />
           <div className="flex gap-2">
             <button
@@ -247,7 +241,7 @@ export default function Dashboard() {
                   setGoalInput('')
                 }
               }}
-              className="flex-1 bg-accent text-white text-sm py-2 rounded-xl"
+              className="flex-1 bg-white text-black text-sm font-semibold py-2 rounded-xl"
             >
               Set Goal
             </button>
@@ -265,24 +259,24 @@ export default function Dashboard() {
       <div className="flex gap-2">
         <button
           onClick={() => navigate('/driver')}
-          className="flex-1 bg-surface-card rounded-2xl p-3 border border-border-dim flex items-center gap-2 hover:border-accent transition-colors"
+          className="flex-1 bg-surface-card rounded-2xl p-3 border border-border-dim flex items-center gap-2 hover:border-white/30 transition-colors"
         >
-          <Users size={18} className="text-accent-light" />
-          <span className="text-sm text-text-primary">Driver Settlement</span>
+          <Users size={18} className="text-white" />
+          <span className="text-sm text-white">Driver Settlement</span>
         </button>
         <button
           onClick={() => {
             const text = generateMonthlySummary(month, incomes ?? [], expenses ?? [])
             shareViaWhatsApp(text)
           }}
-          className="bg-surface-card rounded-2xl p-3 border border-border-dim flex items-center gap-2 hover:border-income transition-colors"
+          className="bg-surface-card rounded-2xl p-3 border border-border-dim flex items-center gap-2 hover:border-income/30 transition-colors"
         >
           <Share2 size={18} className="text-income" />
-          <span className="text-sm text-text-primary">Share</span>
+          <span className="text-sm text-white">Share</span>
         </button>
       </div>
 
-      {/* ─── MONTHLY OVERVIEW ─── */}
+      {/* MONTHLY OVERVIEW */}
       <div className="flex items-center gap-2">
         <div className="h-px flex-1 bg-border-dim" />
         <span className="text-[10px] uppercase tracking-widest text-text-muted font-semibold">Monthly Overview</span>
@@ -290,42 +284,11 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <SummaryCard
-          label="Revenue"
-          value={fmt(totalRevenue)}
-          icon={<IndianRupee size={20} />}
-          color="text-accent-light"
-          gradient="from-accent/20 to-purple-500/5"
-        />
-        <SummaryCard
-          label="Net Profit"
-          value={fmt(netProfit)}
-          icon={<Wallet size={20} />}
-          color={netProfit >= 0 ? 'text-income' : 'text-expense'}
-          gradient={netProfit >= 0 ? 'from-green-500/20 to-emerald-500/5' : 'from-red-500/20 to-rose-500/5'}
-        />
-        <SummaryCard
-          label="Income"
-          value={fmt(totalIncome)}
-          icon={<TrendingUp size={20} />}
-          color="text-income"
-          gradient="from-green-500/20 to-emerald-500/5"
-        />
-        <SummaryCard
-          label="Expenses"
-          value={fmt(totalExpense)}
-          icon={<TrendingDown size={20} />}
-          color="text-expense"
-          gradient="from-red-500/20 to-rose-500/5"
-        />
-        <SummaryCard
-          label="Total Trips"
-          value={String(totalTrips)}
-          icon={<Car size={20} />}
-          color="text-text-primary"
-          gradient="from-slate-500/10 to-slate-500/5"
-          isCurrency={false}
-        />
+        <SummaryCard label="Revenue" value={fmt(totalRevenue)} icon={<IndianRupee size={20} />} color="text-white" />
+        <SummaryCard label="Net Profit" value={fmt(netProfit)} icon={<Wallet size={20} />} color={netProfit >= 0 ? 'text-income' : 'text-expense'} />
+        <SummaryCard label="Income" value={fmt(totalIncome)} icon={<TrendingUp size={20} />} color="text-income" />
+        <SummaryCard label="Expenses" value={fmt(totalExpense)} icon={<TrendingDown size={20} />} color="text-expense" />
+        <SummaryCard label="Total Trips" value={String(totalTrips)} icon={<Car size={20} />} color="text-white" isCurrency={false} />
       </div>
 
       {/* Monthly pie charts */}
@@ -348,7 +311,7 @@ export default function Dashboard() {
                 }
               >
                 {platformData.map((entry) => (
-                  <Cell key={entry.name} fill={PLATFORM_COLORS[entry.name] ?? '#94a3b8'} />
+                  <Cell key={entry.name} fill={PLATFORM_COLORS[entry.name] ?? '#666666'} />
                 ))}
               </Pie>
               <Tooltip {...tooltipStyle} />
@@ -380,13 +343,13 @@ export default function Dashboard() {
                 ))}
               </Pie>
               <Tooltip {...tooltipStyle} />
-              <Legend wrapperStyle={{ color: '#8888a8', fontSize: '12px' }} />
+              <Legend wrapperStyle={{ color: '#999999', fontSize: '12px' }} />
             </PieChart>
           </ResponsiveContainer>
         </div>
       )}
 
-      {/* ─── WEEKLY BREAKDOWN ─── */}
+      {/* WEEKLY BREAKDOWN */}
       <div className="flex items-center gap-2 pt-2">
         <div className="h-px flex-1 bg-border-dim" />
         <span className="text-[10px] uppercase tracking-widest text-text-muted font-semibold">Weekly Breakdown</span>
@@ -396,21 +359,21 @@ export default function Dashboard() {
       {/* Weekly comparison chart */}
       <div className="bg-surface-card rounded-2xl p-4 border border-border-dim">
         <div className="flex items-center gap-2 mb-3">
-          <CalendarDays size={16} className="text-accent-light" />
+          <CalendarDays size={16} className="text-white" />
           <h3 className="text-sm font-semibold text-text-secondary">Week-by-Week</h3>
         </div>
         <ResponsiveContainer width="100%" height={180}>
           <BarChart data={weeklyChartData}>
-            <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#8888a8' }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fontSize: 10, fill: '#8888a8' }} axisLine={false} tickLine={false} />
+            <XAxis dataKey="week" tick={{ fontSize: 10, fill: '#666666' }} axisLine={false} tickLine={false} />
+            <YAxis tick={{ fontSize: 10, fill: '#666666' }} axisLine={false} tickLine={false} />
             <Tooltip {...tooltipStyle} />
-            <Bar dataKey="revenue" name="Revenue" fill="#a29bfe" radius={[6, 6, 0, 0]} />
-            <Bar dataKey="expense" name="Expense" fill="#ff5252" radius={[6, 6, 0, 0]} />
+            <Bar dataKey="revenue" name="Revenue" fill="#ffffff" radius={[6, 6, 0, 0]} />
+            <Bar dataKey="expense" name="Expense" fill="#ff4444" radius={[6, 6, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
 
-      {/* Expandable weekly cards — all weeks */}
+      {/* Expandable weekly cards */}
       <div className="space-y-2">
         {weeklyStats.map((ws) => {
           const isOpen = expandedWeek === ws.weekNum
@@ -432,7 +395,7 @@ export default function Dashboard() {
                     W{ws.weekNum}
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-text-primary">{ws.week}</p>
+                    <p className="text-sm font-semibold text-white">{ws.week}</p>
                     <p className="text-[11px] text-text-muted">
                       {hasData
                         ? `${ws.trips} trips · ₹${fmt(ws.revenue)} rev · ₹${fmt(ws.expense)} out`
@@ -461,7 +424,7 @@ export default function Dashboard() {
                       <div className="grid grid-cols-4 gap-2 text-center">
                         <div className="bg-surface-elevated rounded-lg p-2">
                           <p className="text-[9px] text-text-muted uppercase tracking-wider">Revenue</p>
-                          <p className="text-xs font-bold text-accent-light">₹{fmt(ws.revenue)}</p>
+                          <p className="text-xs font-bold text-white">₹{fmt(ws.revenue)}</p>
                         </div>
                         <div className="bg-surface-elevated rounded-lg p-2">
                           <p className="text-[9px] text-text-muted uppercase tracking-wider">Income</p>
@@ -473,7 +436,7 @@ export default function Dashboard() {
                         </div>
                         <div className="bg-surface-elevated rounded-lg p-2">
                           <p className="text-[9px] text-text-muted uppercase tracking-wider">Trips</p>
-                          <p className="text-xs font-bold text-text-primary">{ws.trips}</p>
+                          <p className="text-xs font-bold text-white">{ws.trips}</p>
                         </div>
                       </div>
 
@@ -482,11 +445,11 @@ export default function Dashboard() {
                           <p className="text-[10px] text-text-muted uppercase tracking-wider mb-2">Daily Detail</p>
                           <ResponsiveContainer width="100%" height={140}>
                             <BarChart data={ws.dailyChart}>
-                              <XAxis dataKey="date" tick={{ fontSize: 9, fill: '#8888a8' }} axisLine={false} tickLine={false} />
-                              <YAxis tick={{ fontSize: 9, fill: '#8888a8' }} axisLine={false} tickLine={false} />
+                              <XAxis dataKey="date" tick={{ fontSize: 9, fill: '#666666' }} axisLine={false} tickLine={false} />
+                              <YAxis tick={{ fontSize: 9, fill: '#666666' }} axisLine={false} tickLine={false} />
                               <Tooltip {...tooltipStyle} />
-                              <Bar dataKey="income" fill="#00e676" radius={[4, 4, 0, 0]} />
-                              <Bar dataKey="expense" fill="#ff5252" radius={[4, 4, 0, 0]} />
+                              <Bar dataKey="income" fill="#06c167" radius={[4, 4, 0, 0]} />
+                              <Bar dataKey="expense" fill="#ff4444" radius={[4, 4, 0, 0]} />
                             </BarChart>
                           </ResponsiveContainer>
                         </div>
@@ -502,7 +465,7 @@ export default function Dashboard() {
         })}
       </div>
 
-      {/* ─── MULTI-CAR PROFITABILITY ─── */}
+      {/* MULTI-CAR PROFITABILITY */}
       {cars.length > 0 && (incomes ?? []).some((i) => i.car_id) && (
         <>
           <div className="flex items-center gap-2 pt-2">
@@ -518,11 +481,11 @@ export default function Dashboard() {
               if (carIncome === 0 && carExpense === 0) return null
               return (
                 <div key={car.id} className="bg-surface-card rounded-2xl p-3 border border-border-dim flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
-                    <Car size={20} className="text-accent-light" />
+                  <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
+                    <Car size={20} className="text-white" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-text-primary truncate">{car.name}</p>
+                    <p className="text-sm font-semibold text-white truncate">{car.name}</p>
                     <p className="text-[10px] text-text-muted">{car.number}</p>
                   </div>
                   <div className="text-right">
@@ -554,18 +517,16 @@ function SummaryCard({
   value,
   icon,
   color,
-  gradient,
   isCurrency = true,
 }: {
   label: string
   value: string
   icon: React.ReactNode
   color: string
-  gradient: string
   isCurrency?: boolean
 }) {
   return (
-    <div className={`bg-gradient-to-br ${gradient} bg-surface-card rounded-2xl p-4 border border-border-dim`}>
+    <div className="bg-surface-card rounded-2xl p-4 border border-border-dim">
       <div className="flex items-center gap-2 mb-1">
         <span className={color}>{icon}</span>
         <span className="text-xs text-text-muted font-medium">{label}</span>

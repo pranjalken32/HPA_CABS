@@ -36,7 +36,7 @@ export default function DriverSettlement() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold text-text-primary flex items-center gap-2">
-          <Users size={22} className="text-accent" />
+          <Users size={22} className="text-white" />
           Driver Settlement
         </h2>
         <input
@@ -60,7 +60,7 @@ export default function DriverSettlement() {
           <p className="text-sm font-bold text-income">₹{fmt(totalAdvance)}</p>
         </div>
         <div className="bg-surface-card rounded-2xl p-3 border border-border-dim text-center">
-          <Wallet size={20} className="text-accent mx-auto mb-1" />
+          <Wallet size={20} className="text-white mx-auto mb-1" />
           <p className="text-[10px] text-text-muted">
             {balance >= 0 ? 'To Pay' : 'Overpaid'}
           </p>
@@ -79,7 +79,7 @@ export default function DriverSettlement() {
           </div>
           <div className="w-full h-3 bg-surface-elevated rounded-full overflow-hidden">
             <div
-              className="h-full bg-gradient-to-r from-accent to-accent-light rounded-full transition-all"
+              className="h-full bg-white rounded-full transition-all"
               style={{ width: `${Math.min(100, (totalAdvance / totalSalary) * 100)}%` }}
             />
           </div>

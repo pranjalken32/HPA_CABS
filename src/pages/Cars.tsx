@@ -31,7 +31,7 @@ export default function Cars() {
         <h2 className="text-xl font-bold text-text-primary">My Cars</h2>
         <button
           onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-1.5 bg-accent hover:bg-accent/80 text-white text-xs font-semibold px-3 py-2 rounded-xl transition-colors"
+          className="flex items-center gap-1.5 bg-white hover:bg-gray-200 text-black text-xs font-semibold px-3 py-2 rounded-xl transition-colors"
         >
           <Plus size={14} />
           Add Car
@@ -72,7 +72,7 @@ export default function Cars() {
           </div>
           <button
             type="submit"
-            className="w-full bg-gradient-to-r from-accent to-purple-500 text-white font-semibold py-2.5 rounded-xl text-sm shadow-lg shadow-accent/20"
+            className="w-full bg-white text-black font-semibold py-2.5 rounded-xl text-sm hover:bg-gray-200"
           >
             Save Car
           </button>
@@ -92,10 +92,10 @@ export default function Cars() {
           <button
             key={car.id}
             onClick={() => navigate(`/cars/${car.id}`)}
-            className="w-full bg-surface-card rounded-2xl p-4 border border-border-dim flex items-center gap-3 text-left hover:border-accent/40 transition-colors"
+            className="w-full bg-surface-card rounded-2xl p-4 border border-border-dim flex items-center gap-3 text-left hover:border-white/20 transition-colors"
           >
-            <div className="w-11 h-11 rounded-xl bg-accent/10 flex items-center justify-center shrink-0">
-              <Car size={20} className="text-accent-light" />
+            <div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
+              <Car size={20} className="text-white" />
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-text-primary truncate">{car.name}</p>

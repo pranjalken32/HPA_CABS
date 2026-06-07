@@ -22,13 +22,13 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-surface-base flex items-center justify-center px-4">
+    <div className="min-h-screen bg-black flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-accent to-accent-light flex items-center justify-center text-white font-bold text-2xl mx-auto mb-3">
+          <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center text-black font-bold text-2xl mx-auto mb-3">
             H
           </div>
-          <h1 className="text-2xl font-bold text-text-primary">HPA Cabs</h1>
+          <h1 className="text-2xl font-bold text-white">HPA Cabs</h1>
           <p className="text-sm text-text-muted mt-1">Sign in to continue</p>
         </div>
 
@@ -45,7 +45,7 @@ export default function Login() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full border border-border-dim bg-surface-elevated rounded-xl px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none transition-colors"
+              className="w-full border border-border-dim bg-surface-elevated rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-text-muted focus:border-white focus:outline-none transition-colors"
               placeholder="you@example.com"
               required
               autoComplete="email"
@@ -58,7 +58,7 @@ export default function Login() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full border border-border-dim bg-surface-elevated rounded-xl px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none transition-colors"
+              className="w-full border border-border-dim bg-surface-elevated rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-text-muted focus:border-white focus:outline-none transition-colors"
               placeholder="••••••••"
               minLength={6}
               required
@@ -69,13 +69,11 @@ export default function Login() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-gradient-to-r from-accent to-accent-light text-white font-semibold py-3 rounded-xl transition-all shadow-lg shadow-accent/20 disabled:opacity-60"
+            className="w-full bg-white text-black font-semibold py-3 rounded-xl transition-all hover:bg-gray-200 disabled:opacity-60"
           >
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
-
-
       </div>
     </div>
   )

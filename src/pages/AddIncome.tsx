@@ -71,7 +71,7 @@ export default function AddIncome() {
                 onClick={() => setPlatform(p)}
                 className={`px-4 py-1.5 rounded-full text-sm font-medium capitalize transition-all ${
                   platform === p
-                    ? 'bg-accent text-white shadow-lg shadow-accent/25'
+                    ? 'bg-white text-black'
                     : 'bg-surface-elevated text-text-secondary border border-border-dim'
                 }`}
               >
@@ -127,7 +127,7 @@ export default function AddIncome() {
 
         <button
           type="submit"
-          className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold py-3 rounded-xl transition-all shadow-lg shadow-green-500/20"
+          className="w-full bg-white text-black font-semibold py-3 rounded-xl transition-all hover:bg-gray-200"
         >
           Save Income
         </button>

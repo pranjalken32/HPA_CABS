@@ -112,7 +112,7 @@ export default function AddExpense() {
                 }}
                 className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
                   category === c
-                    ? 'bg-expense text-white shadow-lg shadow-expense/25'
+                    ? 'bg-white text-black'
                     : 'bg-surface-elevated text-text-secondary border border-border-dim'
                 }`}
               >
@@ -213,7 +213,7 @@ export default function AddExpense() {
         <button
           type="submit"
           disabled={uploading}
-          className="w-full bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white font-semibold py-3 rounded-xl transition-all shadow-lg shadow-red-500/20 disabled:opacity-60"
+          className="w-full bg-white text-black font-semibold py-3 rounded-xl transition-all hover:bg-gray-200 disabled:opacity-60"
         >
           {uploading ? 'Uploading receipt...' : 'Save Expense'}
         </button>

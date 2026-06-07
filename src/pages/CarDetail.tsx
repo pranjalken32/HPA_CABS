@@ -201,7 +201,7 @@ export default function CarDetail() {
             onClick={() => setTab(t.key)}
             className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-colors ${
               tab === t.key
-                ? 'bg-accent text-white shadow-md shadow-accent/20'
+                ? 'bg-white text-black'
                 : 'text-text-muted hover:text-text-secondary'
             }`}
           >
@@ -218,7 +218,7 @@ export default function CarDetail() {
             <h3 className="text-sm font-semibold text-text-secondary">Documents & Expiry</h3>
             <button
               onClick={() => setShowDocForm(!showDocForm)}
-              className="flex items-center gap-1 text-accent-light text-xs font-semibold"
+              className="flex items-center gap-1 text-white text-xs font-semibold"
             >
               <Plus size={14} /> Add
             </button>
@@ -236,7 +236,7 @@ export default function CarDetail() {
                       onClick={() => setDocType(dt)}
                       className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
                         docType === dt
-                          ? 'bg-accent text-white'
+                          ? 'bg-white text-black'
                           : 'bg-surface-card text-text-muted border border-border-dim'
                       }`}
                     >
@@ -266,7 +266,7 @@ export default function CarDetail() {
               </div>
               <button
                 type="submit"
-                className="w-full bg-accent text-white font-semibold py-2 rounded-lg text-xs"
+                className="w-full bg-white text-black font-semibold py-2 rounded-lg text-xs"
               >
                 Save Document
               </button>
@@ -336,13 +336,13 @@ export default function CarDetail() {
             {/* Circular progress */}
             <div className="relative w-32 h-32 mx-auto">
               <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-                <circle cx="50" cy="50" r="42" fill="none" stroke="#2a2a45" strokeWidth="8" />
+                <circle cx="50" cy="50" r="42" fill="none" stroke="#222222" strokeWidth="8" />
                 <circle
                   cx="50"
                   cy="50"
                   r="42"
                   fill="none"
-                  stroke={recoveryPercent >= 100 ? '#00e676' : '#6c5ce7'}
+                  stroke={recoveryPercent >= 100 ? '#06c167' : '#ffffff'}
                   strokeWidth="8"
                   strokeLinecap="round"
                   strokeDasharray={`${recoveryPercent * 2.64} 264`}
@@ -376,7 +376,7 @@ export default function CarDetail() {
             {monthlyAvg > 0 && remaining > 0 && (
               <div className="bg-surface-elevated rounded-xl p-3">
                 <p className="text-[10px] text-text-muted uppercase tracking-wider">Est. Time to Recover</p>
-                <p className="text-sm font-bold text-accent-light">
+                <p className="text-sm font-bold text-white">
                   ~{monthsToRecover} month{monthsToRecover !== 1 ? 's' : ''}
                 </p>
                 <p className="text-[10px] text-text-muted mt-0.5">
@@ -399,7 +399,7 @@ export default function CarDetail() {
             <h3 className="text-sm font-semibold text-text-secondary">CNG / Fuel Log</h3>
             <button
               onClick={() => setShowFuelForm(!showFuelForm)}
-              className="flex items-center gap-1 text-accent-light text-xs font-semibold"
+              className="flex items-center gap-1 text-white text-xs font-semibold"
             >
               <Plus size={14} /> Add
             </button>
@@ -409,7 +409,7 @@ export default function CarDetail() {
           {fuelEfficiency !== null && (
             <div className="bg-surface-card rounded-2xl p-4 border border-border-dim text-center">
               <p className="text-[10px] text-text-muted uppercase tracking-wider">Avg Fuel Efficiency</p>
-              <p className="text-2xl font-black text-accent-light">{fuelEfficiency.toFixed(1)} km/kg</p>
+              <p className="text-2xl font-black text-white">{fuelEfficiency.toFixed(1)} km/kg</p>
               <p className="text-[10px] text-text-muted mt-1">
                 Based on {fuelLogs.length} fill-ups
               </p>
@@ -463,7 +463,7 @@ export default function CarDetail() {
               </div>
               <button
                 type="submit"
-                className="w-full bg-accent text-white font-semibold py-2 rounded-lg text-xs"
+                className="w-full bg-white text-black font-semibold py-2 rounded-lg text-xs"
               >
                 Save Fill-up
               </button>
@@ -509,7 +509,7 @@ export default function CarDetail() {
             <h3 className="text-sm font-semibold text-text-secondary">Service History</h3>
             <button
               onClick={() => setShowServiceForm(!showServiceForm)}
-              className="flex items-center gap-1 text-accent-light text-xs font-semibold"
+              className="flex items-center gap-1 text-white text-xs font-semibold"
             >
               <Plus size={14} /> Add
             </button>
@@ -560,7 +560,7 @@ export default function CarDetail() {
               </div>
               <button
                 type="submit"
-                className="w-full bg-accent text-white font-semibold py-2 rounded-lg text-xs"
+                className="w-full bg-white text-black font-semibold py-2 rounded-lg text-xs"
               >
                 Save Record
               </button>

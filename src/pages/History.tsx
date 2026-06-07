@@ -138,7 +138,7 @@ export default function History() {
             onClick={() => setTab(t)}
             className={`flex-1 py-1.5 text-sm font-medium rounded-lg capitalize transition-all ${
               tab === t
-                ? 'bg-accent text-white shadow-lg shadow-accent/20'
+                ? 'bg-white text-black'
                 : 'text-text-muted'
             }`}
           >
@@ -169,7 +169,7 @@ export default function History() {
                     {entry.label}
                   </span>
                   {entry.recurring && (
-                    <span className="text-[10px] bg-accent/20 text-accent-light px-1.5 py-0.5 rounded-full">
+                    <span className="text-[10px] bg-white/10 text-text-secondary px-1.5 py-0.5 rounded-full">
                       Recurring
                     </span>
                   )}
@@ -180,8 +180,8 @@ export default function History() {
                 </div>
                 {entry.user_id && profiles.get(entry.user_id) && (
                   <div className="flex items-center gap-1 mt-0.5">
-                    <User size={10} className="text-accent-light" />
-                    <span className="text-[10px] text-accent-light capitalize">
+                    <User size={10} className="text-text-secondary" />
+                    <span className="text-[10px] text-text-secondary capitalize">
                       {profiles.get(entry.user_id)}
                     </span>
                   </div>
@@ -295,7 +295,7 @@ function EditModal({ entry, onClose }: { entry: Entry; onClose: () => void }) {
                       onClick={() => setPlatform(p)}
                       className={`px-4 py-1.5 rounded-full text-sm font-medium capitalize transition-all ${
                         platform === p
-                          ? 'bg-accent text-white shadow-lg shadow-accent/25'
+                          ? 'bg-white text-black'
                           : 'bg-surface-elevated text-text-secondary border border-border-dim'
                       }`}
                     >
@@ -345,7 +345,7 @@ function EditModal({ entry, onClose }: { entry: Entry; onClose: () => void }) {
                       }}
                       className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
                         category === c
-                          ? 'bg-expense text-white shadow-lg shadow-expense/25'
+                          ? 'bg-white text-black'
                           : 'bg-surface-elevated text-text-secondary border border-border-dim'
                       }`}
                     >
@@ -400,10 +400,10 @@ function EditModal({ entry, onClose }: { entry: Entry; onClose: () => void }) {
             </button>
             <button
               type="submit"
-              className={`flex-1 py-3 rounded-xl text-sm font-semibold text-white transition-all shadow-lg ${
+              className={`flex-1 py-3 rounded-xl text-sm font-semibold text-black transition-all ${
                 entry.kind === 'income'
-                  ? 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 shadow-green-500/20'
-                  : 'bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 shadow-red-500/20'
+                  ? 'bg-white shadow-none'
+                  : 'bg-white shadow-none'
               }`}
             >
               Save Changes
