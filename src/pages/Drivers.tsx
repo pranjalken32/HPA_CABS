@@ -347,7 +347,7 @@ export default function Drivers() {
                     carIdInput === String(c.id) ? 'bg-white text-black' : 'bg-surface-elevated text-text-muted border border-border-dim'
                   }`}
                 >
-                  {c.name}
+                  {c.number || c.name}
                 </button>
               ))}
             </div>

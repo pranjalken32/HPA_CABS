@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useMonthFilter } from '../hooks/useMonthFilter'
-import { useExpenses, useCars, useFuelLogs, addFuelLog } from '../hooks/useSupabase'
+import { useExpenses, useCars, useFuelLogs, addFuelLog, useDriverProfiles } from '../hooks/useSupabase'
+import { useAuth } from '../AuthContext'
 import { Fuel, Car, Wallet, ArrowUpCircle, ChevronRight, CheckCircle2 } from 'lucide-react'
 
 function todayStr(): string {
@@ -10,8 +11,10 @@ function todayStr(): string {
 
 export default function DriverHome() {
   const { month, setMonth, startDate, endDate } = useMonthFilter()
+  const { displayName } = useAuth()
   const expenses = useExpenses(startDate, endDate)
   const cars = useCars()
+  const driverProfiles = useDriverProfiles()
   const [selectedCarId, setSelectedCarId] = useState<number | null>(null)
   const [showFuelForm, setShowFuelForm] = useState(false)
   const [fuelDate, setFuelDate] = useState(todayStr())
@@ -20,14 +23,32 @@ export default function DriverHome() {
   const [saved, setSaved] = useState(false)
   const cngRate = Number(localStorage.getItem('hpa_cng_rate') || '95')
 
+  // Find this driver's profile by matching display name
+  const myProfile = driverProfiles.find(
+    (d) => d.name.toLowerCase() === displayName.toLowerCase()
+  )
+  const myName = myProfile?.name ?? displayName
+  const assignedCarId = myProfile?.car_id ?? null
+
+  // Auto-select assigned car on load
+  useEffect(() => {
+    if (assignedCarId && !selectedCarId) {
+      setSelectedCarId(assignedCarId)
+      setShowFuelForm(true)
+    }
+  }, [assignedCarId, selectedCarId])
+
   const selectedCar = cars.find((c) => c.id === selectedCarId)
   const fuelLogs = useFuelLogs(selectedCarId ?? 0)
 
-  const advanceEntries = (expenses ?? []).filter((e) => e.category === 'driver_advance')
+  // Only show advances that match this driver's name
+  const advanceEntries = (expenses ?? []).filter(
+    (e) => e.category === 'driver_advance' && e.note?.toLowerCase().includes(myName.toLowerCase())
+  )
   const totalAdvance = advanceEntries.reduce((s, e) => s + e.amount, 0)
 
-  const salaryEntries = (expenses ?? []).filter((e) => e.category === 'driver_salary')
-  const totalSalary = salaryEntries.reduce((s, e) => s + e.amount, 0)
+  // Calculate salary from driver profile (pro-rated if needed)
+  const totalSalary = myProfile?.monthly_salary ?? 0
   const balance = totalSalary - totalAdvance
 
   const fmt = (n: number) => Math.abs(n).toLocaleString('en-IN')
@@ -82,7 +103,9 @@ export default function DriverHome() {
       <div className="bg-surface-card rounded-2xl p-4 border border-border-dim">
         <div className="flex items-center gap-2 mb-3">
           <Wallet size={18} className="text-white" />
-          <h3 className="text-sm font-semibold text-white">My Settlement</h3>
+          <h3 className="text-sm font-semibold text-white">
+            {myName ? `${myName}'s Settlement` : 'My Settlement'}
+          </h3>
         </div>
         <div className="grid grid-cols-3 gap-2">
           <div className="bg-surface-elevated rounded-xl p-3 text-center">
@@ -125,34 +148,40 @@ export default function DriverHome() {
           <h3 className="text-sm font-semibold text-white">Fuel / CNG Log</h3>
         </div>
 
-        {/* Car selector */}
-        {cars.length === 0 ? (
-          <p className="text-sm text-text-muted text-center py-4">No cars added by owner yet</p>
-        ) : (
-          <div className="space-y-2 mb-3">
-            {cars.map((car) => (
-              <button
-                key={car.id}
-                onClick={() => {
-                  setSelectedCarId(car.id)
-                  setShowFuelForm(true)
-                }}
-                className={`w-full rounded-xl p-3 border flex items-center gap-3 text-left transition-colors ${
-                  selectedCarId === car.id
-                    ? 'border-white bg-white/5'
-                    : 'border-border-dim hover:border-white/20'
-                }`}
-              >
-                <Car size={18} className={selectedCarId === car.id ? 'text-white' : 'text-text-muted'} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-white truncate">{car.name}</p>
-                  <p className="text-[10px] text-text-muted font-mono">{car.number}</p>
-                </div>
-                <ChevronRight size={16} className="text-text-muted" />
-              </button>
-            ))}
-          </div>
-        )}
+        {/* Car selector — if driver has assigned car, show only that; otherwise show all */}
+        {(() => {
+          const availableCars = assignedCarId
+            ? cars.filter((c) => c.id === assignedCarId)
+            : cars
+          if (availableCars.length === 0) {
+            return <p className="text-sm text-text-muted text-center py-4">No car assigned yet</p>
+          }
+          return (
+            <div className="space-y-2 mb-3">
+              {availableCars.map((car) => (
+                <button
+                  key={car.id}
+                  onClick={() => {
+                    setSelectedCarId(car.id)
+                    setShowFuelForm(true)
+                  }}
+                  className={`w-full rounded-xl p-3 border flex items-center gap-3 text-left transition-colors ${
+                    selectedCarId === car.id
+                      ? 'border-white bg-white/5'
+                      : 'border-border-dim hover:border-white/20'
+                  }`}
+                >
+                  <Car size={18} className={selectedCarId === car.id ? 'text-white' : 'text-text-muted'} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-white truncate">{car.name}</p>
+                    <p className="text-[10px] text-text-muted font-mono">{car.number}</p>
+                  </div>
+                  <ChevronRight size={16} className="text-text-muted" />
+                </button>
+              ))}
+            </div>
+          )
+        })()}
 
         {/* Fuel form */}
         {showFuelForm && selectedCar && (
