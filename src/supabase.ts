@@ -87,6 +87,7 @@ export interface GoalRow {
 export interface DriverProfileRow {
   id: number
   user_id: string | null
+  auth_user_id: string | null
   name: string
   phone: string
   start_date: string
@@ -107,6 +108,7 @@ export interface DriverProfileRow {
 export interface DriverSettlementRow {
   id: number
   driver_name: string
+  driver_profile_id: number | null
   month: string
   amount: number
   settled_date: string

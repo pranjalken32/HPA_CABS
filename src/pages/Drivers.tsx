@@ -114,7 +114,7 @@ export default function Drivers() {
   const expenses = useExpenses(startDate, endDate)
   const incomes = useIncomes(startDate, endDate)
   const cars = useCars()
-  const settlements = useDriverSettlements()
+  const settlements = useDriverSettlements({})
   const [showForm, setShowForm] = useState(false)
   const [editDriver, setEditDriver] = useState<DriverProfileRow | null>(null)
   const [expandedId, setExpandedId] = useState<number | null>(null)
@@ -189,6 +189,7 @@ export default function Drivers() {
       aadhaar_url: editDriver?.aadhaar_url ?? null,
       pan_url: editDriver?.pan_url ?? null,
       active: !endDateInput,
+      auth_user_id: editDriver?.auth_user_id ?? null,
     }
 
     if (editDriver) {
@@ -457,10 +458,10 @@ export default function Drivers() {
                 </div>
               </div>
               <div className="text-right">
-                {settlements.find((s) => s.driver_name === driver.name && s.month === month) ? (
+                {settlements.find((s) => (s.driver_profile_id === driver.id || s.driver_name === driver.name) && s.month === month) ? (
                   <>
                     <p className="text-sm font-bold text-income">Settled</p>
-                    <p className="text-[10px] text-text-muted">₹{fmt(settlements.find((s) => s.driver_name === driver.name && s.month === month)?.amount ?? 0)}</p>
+                    <p className="text-[10px] text-text-muted">₹{fmt(settlements.find((s) => (s.driver_profile_id === driver.id || s.driver_name === driver.name) && s.month === month)?.amount ?? 0)}</p>
                   </>
                 ) : (
                   <>
@@ -530,7 +531,7 @@ export default function Drivers() {
 
                 {/* Settlement Status */}
                 {(() => {
-                  const settlement = settlements.find((s) => s.driver_name === driver.name && s.month === month)
+                  const settlement = settlements.find((s) => (s.driver_profile_id === driver.id || s.driver_name === driver.name) && s.month === month)
                   return (
                     <div className="bg-surface-elevated rounded-xl p-3">
                       {settlement ? (
@@ -543,7 +544,7 @@ export default function Drivers() {
                             </div>
                           </div>
                           <button
-                            onClick={() => removeSettlement(driver.name, month)}
+                            onClick={() => removeSettlement(driver.id, month)}
                             className="text-[10px] text-text-muted hover:text-white underline"
                           >
                             Undo
@@ -551,7 +552,7 @@ export default function Drivers() {
                         </div>
                       ) : (
                         <button
-                          onClick={() => addSettlement({ driver_name: driver.name, month, amount: netPayable, settled_date: todayStr() })}
+                          onClick={() => addSettlement({ driver_name: driver.name, driver_profile_id: driver.id, month, amount: netPayable, settled_date: todayStr() })}
                           disabled={netPayable <= 0}
                           className={`w-full py-2 rounded-lg text-sm font-semibold transition-all ${
                             netPayable > 0
