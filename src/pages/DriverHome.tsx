@@ -29,9 +29,9 @@ export default function DriverHome() {
 
   // Find this driver's profile by matching display name
   const myProfile = driverProfiles.find(
-    (d) => d.name && displayName && d.name.toLowerCase() === displayName.toLowerCase()
+    (d) => d.name && displayName && d.name.trim().toLowerCase() === displayName.trim().toLowerCase()
   )
-  const myName = myProfile?.name || displayName || ''
+  const myName = myProfile?.name?.trim() || displayName || ''
   const assignedCarId = myProfile?.car_id ?? null
 
   // Auto-select assigned car on load
