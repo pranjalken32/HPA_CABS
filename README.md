@@ -287,6 +287,57 @@ Sorted by expiry date ascending (nearest expiry first).
 
 ---
 
+## User & Role Management
+
+### Roles
+
+| Role | Access |
+|------|--------|
+| **owner** | Full access — Dashboard, Income, Expense, Cars, Drivers, Analytics, History |
+| **driver** | Restricted — only sees own settlement (salary/advance) and fuel/CNG log |
+
+### Adding a New Owner
+
+1. Go to [Supabase Auth → Users](https://supabase.com/dashboard/project/ueiixjkfxbzyuknrkmtk/auth/users) → **Add user**
+2. Enter email + password, check **"Auto Confirm User"** → **Create user**
+3. Go to [SQL Editor](https://supabase.com/dashboard/project/ueiixjkfxbzyuknrkmtk/sql/new) and run:
+```sql
+insert into profiles (id, display_name, role)
+select id, split_part(email, '@', 1), 'owner'
+from auth.users
+where id not in (select id from profiles);
+```
+
+### Adding a New Driver
+
+1. Go to [Supabase Auth → Users](https://supabase.com/dashboard/project/ueiixjkfxbzyuknrkmtk/auth/users) → **Add user**
+2. Enter email + password, check **"Auto Confirm User"** → **Create user**
+3. Go to [SQL Editor](https://supabase.com/dashboard/project/ueiixjkfxbzyuknrkmtk/sql/new) and run:
+```sql
+insert into profiles (id, display_name, role)
+select id, split_part(email, '@', 1), 'driver'
+from auth.users
+where id not in (select id from profiles);
+```
+
+### Changing Display Name
+
+```sql
+UPDATE profiles SET display_name = 'Arjun Singh' WHERE display_name = 'arjunsingh';
+```
+
+### Converting a User's Role
+
+```sql
+-- Make someone a driver
+UPDATE profiles SET role = 'driver' WHERE display_name = 'username';
+
+-- Make someone an owner
+UPDATE profiles SET role = 'owner' WHERE display_name = 'username';
+```
+
+---
+
 ## Project Structure
 
 ```
