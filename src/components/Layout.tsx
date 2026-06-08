@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { LayoutDashboard, PlusCircle, MinusCircle, List, Car, BarChart3, LogOut } from 'lucide-react'
+import { LayoutDashboard, PlusCircle, MinusCircle, List, Car, BarChart3, Users, LogOut } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useAuth } from '../AuthContext'
 import Logo from './Logo'
@@ -9,6 +9,7 @@ const navItems: { to: string; icon: LucideIcon; label: string; match?: string }[
   { to: '/add-income', icon: PlusCircle, label: 'Income' },
   { to: '/add-expense', icon: MinusCircle, label: 'Expense' },
   { to: '/cars', icon: Car, label: 'Cars', match: '/cars' },
+  { to: '/drivers', icon: Users, label: 'Drivers' },
   { to: '/analytics', icon: BarChart3, label: 'Analytics' },
   { to: '/history', icon: List, label: 'History' },
 ]

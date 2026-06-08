@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase'
-import type { IncomeRow, ExpenseRow, CarRow, CarDocumentRow, ServiceRecordRow, ProfileRow, FuelLogRow, GoalRow } from '../supabase'
+import type { IncomeRow, ExpenseRow, CarRow, CarDocumentRow, ServiceRecordRow, ProfileRow, FuelLogRow, GoalRow, DriverProfileRow } from '../supabase'
+
+export type { DriverProfileRow }
 
 // ---- Generic refresh counter ----
 let _refreshCounter = 0
@@ -396,4 +398,56 @@ export async function processRecurringExpenses() {
   }
 
   return toAdd.length
+}
+
+// ---- Driver Profiles ----
+
+export function useDriverProfiles() {
+  const [data, setData] = useState<DriverProfileRow[]>([])
+  const refresh = useRefresh()
+
+  useEffect(() => {
+    supabase
+      .from('driver_profiles')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .then(({ data }) => setData(data ?? []))
+  }, [refresh])
+
+  return data
+}
+
+export async function addDriverProfile(row: Omit<DriverProfileRow, 'id' | 'user_id' | 'created_at'>) {
+  const { error } = await supabase.from('driver_profiles').insert(row)
+  if (error) throw error
+  triggerRefresh()
+}
+
+export async function updateDriverProfile(id: number, updates: Partial<DriverProfileRow>) {
+  const { error } = await supabase.from('driver_profiles').update(updates).eq('id', id)
+  if (error) throw error
+  triggerRefresh()
+}
+
+export async function deleteDriverProfile(id: number) {
+  const { error } = await supabase.from('driver_profiles').delete().eq('id', id)
+  if (error) throw error
+  triggerRefresh()
+}
+
+export async function uploadDriverDoc(file: File): Promise<string> {
+  const ext = file.name.split('.').pop() ?? 'jpg'
+  const path = `driver-docs/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+  const { error } = await supabase.storage.from('receipts').upload(path, file)
+  if (error) throw error
+  const { data } = supabase.storage.from('receipts').getPublicUrl(path)
+  return data.publicUrl
+}
+
+// ---- Edit Car ----
+
+export async function updateCar(id: number, updates: Partial<CarRow>) {
+  const { error } = await supabase.from('cars').update(updates).eq('id', id)
+  if (error) throw error
+  triggerRefresh()
 }

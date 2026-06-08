@@ -81,3 +81,18 @@ export interface GoalRow {
   month: string
   target_revenue: number
 }
+
+export interface DriverProfileRow {
+  id: number
+  user_id: string
+  name: string
+  phone: string
+  start_date: string
+  end_date: string | null
+  monthly_salary: number
+  dl_url: string | null
+  aadhaar_url: string | null
+  pan_url: string | null
+  active: boolean
+  created_at: string
+}

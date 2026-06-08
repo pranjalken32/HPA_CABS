@@ -10,7 +10,7 @@ import History from './pages/History'
 import Cars from './pages/Cars'
 import CarDetail from './pages/CarDetail'
 import Analytics from './pages/Analytics'
-import DriverSettlement from './pages/DriverSettlement'
+import Drivers from './pages/Drivers'
 import DriverHome from './pages/DriverHome'
 import Login from './pages/Login'
 import Logo from './components/Logo'
@@ -63,7 +63,7 @@ export default function App() {
         <Route path="/cars" element={<Cars />} />
         <Route path="/cars/:id" element={<CarDetail />} />
         <Route path="/analytics" element={<Analytics />} />
-        <Route path="/driver" element={<DriverSettlement />} />
+        <Route path="/drivers" element={<Drivers />} />
       </Route>
     </Routes>
   )
