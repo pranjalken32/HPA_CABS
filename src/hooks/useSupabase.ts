@@ -439,7 +439,10 @@ export function useDriverProfiles() {
     supabase
       .from('driver_profiles')
       .select('*')
-      .then(({ data }) => setData(data ?? []))
+      .then(({ data, error }) => {
+        if (error) console.error('driver_profiles query error:', error)
+        setData(data ?? [])
+      })
   }, [refresh])
 
   return data

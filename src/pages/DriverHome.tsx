@@ -29,9 +29,9 @@ export default function DriverHome() {
 
   // Find this driver's profile by matching display name
   const myProfile = driverProfiles.find(
-    (d) => d.name && displayName && d.name.toLowerCase() === displayName.toLowerCase()
+    (d) => d.name && displayName && d.name.trim().toLowerCase() === displayName.trim().toLowerCase()
   )
-  const myName = myProfile?.name || displayName || ''
+  const myName = myProfile?.name?.trim() || displayName || ''
   const assignedCarId = myProfile?.car_id ?? null
 
   // Auto-select assigned car on load
@@ -247,9 +247,16 @@ export default function DriverHome() {
                 ₹{fmt(remainingForTarget)} more to earn target
               </p>
             ) : (
-              <p className="text-sm font-bold text-center mt-3 text-income">
-                Target hit! Earned ₹{fmt(currentWeek?.incentive ?? 0)} bonus
-              </p>
+              <div className="text-center mt-3">
+                <p className="text-sm font-bold text-income">
+                  Target hit! Earned ₹{fmt(currentWeek?.incentive ?? 0)} bonus
+                </p>
+                {incentiveSlab > 0 && (
+                  <p className="text-xs text-text-muted mt-1">
+                    Next ₹{fmt(incentiveStep)} bonus at ₹{fmt(weeklyTarget + (Math.floor((currentRevenue - weeklyTarget) / incentiveSlab) + 1) * incentiveSlab)}
+                  </p>
+                )}
+              </div>
             )}
           </div>
 
