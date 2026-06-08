@@ -1,8 +1,9 @@
 import { useState, useRef } from 'react'
-import { addExpense, uploadReceipt } from '../hooks/useSupabase'
-import { CheckCircle2, Camera, X } from 'lucide-react'
+import { addExpense, uploadReceipt, useCars } from '../hooks/useSupabase'
+import { CheckCircle2, Camera, X, Car } from 'lucide-react'
 
 const CATEGORIES = [
+  'commission',
   'emi',
   'fuel',
   'driver_salary',
@@ -11,10 +12,12 @@ const CATEGORIES = [
   'permit',
   'toll',
   'car_wash',
+  'service',
   'other',
 ]
 
 const CATEGORY_LABELS: Record<string, string> = {
+  commission: 'Commission',
   emi: 'EMI',
   fuel: 'Fuel / CNG',
   driver_salary: 'Driver Salary',
@@ -23,8 +26,11 @@ const CATEGORY_LABELS: Record<string, string> = {
   permit: 'Permit / RTO',
   toll: 'Toll / Parking',
   car_wash: 'Car Wash',
+  service: 'Service',
   other: 'Other',
 }
+
+const COMMISSION_PLATFORMS = ['Ola', 'Uber', 'Rapido', 'Namma Yatri', 'Other']
 
 function todayStr(): string {
   const d = new Date()
@@ -34,11 +40,14 @@ function todayStr(): string {
 }
 
 export default function AddExpense() {
+  const cars = useCars()
   const [date, setDate] = useState(todayStr())
   const [category, setCategory] = useState('fuel')
   const [amount, setAmount] = useState('')
   const [note, setNote] = useState('')
   const [recurring, setRecurring] = useState(false)
+  const [commissionPlatform, setCommissionPlatform] = useState('Rapido')
+  const [carId, setCarId] = useState<number | null>(null)
   const [saved, setSaved] = useState(false)
   const [receiptFile, setReceiptFile] = useState<File | null>(null)
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null)
@@ -62,9 +71,9 @@ export default function AddExpense() {
       date,
       category,
       amount: Number(amount),
-      note,
+      note: category === 'commission' ? `${commissionPlatform}${note ? ' - ' + note : ''}` : note,
       recurring,
-      car_id: null,
+      car_id: carId,
       receipt_url,
     })
     setSaved(true)
@@ -122,6 +131,28 @@ export default function AddExpense() {
           </div>
         </div>
 
+        {category === 'commission' && (
+          <div>
+            <label className="block text-sm font-medium text-text-secondary mb-2">Platform</label>
+            <div className="flex flex-wrap gap-2">
+              {COMMISSION_PLATFORMS.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setCommissionPlatform(p)}
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
+                    commissionPlatform === p
+                      ? 'bg-white text-black'
+                      : 'bg-surface-elevated text-text-secondary border border-border-dim'
+                  }`}
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div>
           <label className="block text-sm font-medium text-text-secondary mb-1">
             Amount (₹)
@@ -169,6 +200,42 @@ export default function AddExpense() {
             </p>
           )}
         </div>
+
+        {(cars?.length ?? 0) > 0 && (
+          <div>
+            <label className="block text-sm font-medium text-text-secondary mb-2">
+              <Car size={14} className="inline mr-1" />
+              Assign to Car (for recovery tracking)
+            </label>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setCarId(null)}
+                className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
+                  carId === null
+                    ? 'bg-white text-black'
+                    : 'bg-surface-elevated text-text-secondary border border-border-dim'
+                }`}
+              >
+                None
+              </button>
+              {cars?.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setCarId(c.id)}
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
+                    carId === c.id
+                      ? 'bg-white text-black'
+                      : 'bg-surface-elevated text-text-secondary border border-border-dim'
+                  }`}
+                >
+                  {c.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Receipt Upload */}
         <div>

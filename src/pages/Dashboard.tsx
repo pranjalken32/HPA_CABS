@@ -93,11 +93,13 @@ export default function Dashboard() {
   const cars = useCars()
   const goal = useGoal(month)
 
-  const totalIncome = incomes?.reduce((s, i) => s + i.amount, 0) ?? 0
-  const totalExpense = expenses?.reduce((s, e) => s + e.amount, 0) ?? 0
-  const netProfit = totalIncome - totalExpense
+  const totalRevenue = incomes?.reduce((s, i) => s + i.amount, 0) ?? 0
+  const totalCommission = expenses?.filter(e => e.category === 'commission').reduce((s, e) => s + e.amount, 0) ?? 0
+  const totalIncome = totalRevenue - totalCommission
+  const totalOtherExpenses = expenses?.filter(e => e.category !== 'commission').reduce((s, e) => s + e.amount, 0) ?? 0
+  const totalExpense = totalOtherExpenses
+  const netProfit = totalIncome - totalOtherExpenses
   const totalTrips = incomes?.reduce((s, i) => s + i.trips, 0) ?? 0
-  const totalRevenue = totalIncome
 
   const platformData = Object.entries(
     (incomes ?? []).reduce<Record<string, number>>((acc, i) => {
@@ -286,7 +288,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-2 gap-3">
         <SummaryCard label="Revenue" value={fmt(totalRevenue)} icon={<IndianRupee size={20} />} color="text-white" />
         <SummaryCard label="Net Profit" value={fmt(netProfit)} icon={<Wallet size={20} />} color={netProfit >= 0 ? 'text-income' : 'text-expense'} />
-        <SummaryCard label="Income" value={fmt(totalIncome)} icon={<TrendingUp size={20} />} color="text-income" />
+        <SummaryCard label="Income" value={fmt(totalIncome)} icon={<TrendingUp size={20} />} color="text-income" subtitle={totalCommission > 0 ? `−₹${fmt(totalCommission)} commission` : undefined} />
         <SummaryCard label="Expenses" value={fmt(totalExpense)} icon={<TrendingDown size={20} />} color="text-expense" />
         <SummaryCard label="Total Trips" value={String(totalTrips)} icon={<Car size={20} />} color="text-white" isCurrency={false} />
       </div>
@@ -518,12 +520,14 @@ function SummaryCard({
   icon,
   color,
   isCurrency = true,
+  subtitle,
 }: {
   label: string
   value: string
   icon: React.ReactNode
   color: string
   isCurrency?: boolean
+  subtitle?: string
 }) {
   return (
     <div className="bg-surface-card rounded-2xl p-4 border border-border-dim">
@@ -535,6 +539,7 @@ function SummaryCard({
         {isCurrency && '₹'}
         {value}
       </p>
+      {subtitle && <p className="text-[10px] text-text-muted mt-0.5">{subtitle}</p>}
     </div>
   )
 }
