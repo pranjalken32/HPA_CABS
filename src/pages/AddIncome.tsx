@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { addIncome } from '../hooks/useSupabase'
-import { CheckCircle2 } from 'lucide-react'
+import { addIncome, useCars } from '../hooks/useSupabase'
+import { CheckCircle2, Car } from 'lucide-react'
 
 const PLATFORMS = ['rapido', 'ola', 'uber', 'cash', 'other']
 
@@ -12,11 +12,13 @@ function todayStr(): string {
 }
 
 export default function AddIncome() {
+  const cars = useCars()
   const [date, setDate] = useState(todayStr())
   const [platform, setPlatform] = useState('rapido')
   const [amount, setAmount] = useState('')
   const [trips, setTrips] = useState('')
   const [note, setNote] = useState('')
+  const [carId, setCarId] = useState<number | null>(null)
   const [saved, setSaved] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -28,7 +30,7 @@ export default function AddIncome() {
       amount: Number(amount),
       trips: Number(trips) || 0,
       note,
-      car_id: null,
+      car_id: carId,
     })
     setSaved(true)
     setTimeout(() => {
@@ -124,6 +126,42 @@ export default function AddIncome() {
             className="w-full border border-border-dim bg-surface-elevated rounded-xl px-3 py-2.5 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none transition-colors"
           />
         </div>
+
+        {(cars?.length ?? 0) > 0 && (
+          <div>
+            <label className="block text-sm font-medium text-text-secondary mb-2">
+              <Car size={14} className="inline mr-1" />
+              Assign to Car
+            </label>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setCarId(null)}
+                className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
+                  carId === null
+                    ? 'bg-white text-black'
+                    : 'bg-surface-elevated text-text-secondary border border-border-dim'
+                }`}
+              >
+                None
+              </button>
+              {cars?.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setCarId(c.id)}
+                  className={`px-4 py-1.5 rounded-full text-sm font-medium transition-all ${
+                    carId === c.id
+                      ? 'bg-white text-black'
+                      : 'bg-surface-elevated text-text-secondary border border-border-dim'
+                  }`}
+                >
+                  {c.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <button
           type="submit"
