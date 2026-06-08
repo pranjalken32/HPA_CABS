@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useMonthFilter } from '../hooks/useMonthFilter'
 import { useIncomes, useExpenses, useCars, useGoal, upsertGoal } from '../hooks/useSupabase'
 import {
@@ -24,7 +23,6 @@ import {
   ChevronDown,
   ChevronUp,
   IndianRupee,
-  Users,
   Share2,
   Target,
 } from 'lucide-react'
@@ -86,7 +84,7 @@ export default function Dashboard() {
   const [expandedWeek, setExpandedWeek] = useState<number | null>(null)
   const [showGoalInput, setShowGoalInput] = useState(false)
   const [goalInput, setGoalInput] = useState('')
-  const navigate = useNavigate()
+
 
   const incomes = useIncomes(startDate, endDate)
   const expenses = useExpenses(startDate, endDate)
@@ -260,21 +258,14 @@ export default function Dashboard() {
       {/* Quick Actions */}
       <div className="flex gap-2">
         <button
-          onClick={() => navigate('/driver')}
-          className="flex-1 bg-surface-card rounded-2xl p-3 border border-border-dim flex items-center gap-2 hover:border-white/30 transition-colors"
-        >
-          <Users size={18} className="text-white" />
-          <span className="text-sm text-white">Driver Settlement</span>
-        </button>
-        <button
           onClick={() => {
             const text = generateMonthlySummary(month, incomes ?? [], expenses ?? [])
             shareViaWhatsApp(text)
           }}
-          className="bg-surface-card rounded-2xl p-3 border border-border-dim flex items-center gap-2 hover:border-income/30 transition-colors"
+          className="flex-1 bg-surface-card rounded-2xl p-3 border border-border-dim flex items-center gap-2 hover:border-income/30 transition-colors"
         >
           <Share2 size={18} className="text-income" />
-          <span className="text-sm text-white">Share</span>
+          <span className="text-sm text-white">Share Monthly Summary</span>
         </button>
       </div>
 
@@ -423,22 +414,18 @@ export default function Dashboard() {
                 <div className="border-t border-border-dim px-4 pb-4 pt-3 space-y-3">
                   {hasData ? (
                     <>
-                      <div className="grid grid-cols-4 gap-2 text-center">
+                      <div className="grid grid-cols-3 gap-2 text-center">
                         <div className="bg-surface-elevated rounded-lg p-2">
                           <p className="text-[9px] text-text-muted uppercase tracking-wider">Revenue</p>
                           <p className="text-xs font-bold text-white">₹{fmt(ws.revenue)}</p>
-                        </div>
-                        <div className="bg-surface-elevated rounded-lg p-2">
-                          <p className="text-[9px] text-text-muted uppercase tracking-wider">Income</p>
-                          <p className="text-xs font-bold text-income">₹{fmt(ws.income)}</p>
                         </div>
                         <div className="bg-surface-elevated rounded-lg p-2">
                           <p className="text-[9px] text-text-muted uppercase tracking-wider">Expense</p>
                           <p className="text-xs font-bold text-expense">₹{fmt(ws.expense)}</p>
                         </div>
                         <div className="bg-surface-elevated rounded-lg p-2">
-                          <p className="text-[9px] text-text-muted uppercase tracking-wider">Trips</p>
-                          <p className="text-xs font-bold text-white">{ws.trips}</p>
+                          <p className="text-[9px] text-text-muted uppercase tracking-wider">Profit</p>
+                          <p className={`text-xs font-bold ${ws.profit >= 0 ? 'text-income' : 'text-expense'}`}>₹{fmt(ws.profit)}</p>
                         </div>
                       </div>
 

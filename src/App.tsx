@@ -11,7 +11,6 @@ import Cars from './pages/Cars'
 import CarDetail from './pages/CarDetail'
 import Analytics from './pages/Analytics'
 import Drivers from './pages/Drivers'
-import DriverSettlement from './pages/DriverSettlement'
 import DriverHome from './pages/DriverHome'
 import More from './pages/More'
 import Login from './pages/Login'
@@ -66,7 +65,6 @@ export default function App() {
         <Route path="/cars/:id" element={<CarDetail />} />
         <Route path="/analytics" element={<Analytics />} />
         <Route path="/drivers" element={<Drivers />} />
-        <Route path="/driver" element={<DriverSettlement />} />
         <Route path="/more" element={<More />} />
       </Route>
     </Routes>

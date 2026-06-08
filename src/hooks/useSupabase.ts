@@ -232,7 +232,7 @@ export async function addServiceRecord(row: Omit<ServiceRecordRow, 'id' | 'user_
   if (row.cost > 0) {
     await supabase.from('expenses').insert({
       date: row.date,
-      category: 'Service',
+      category: 'service',
       amount: row.cost,
       note: row.description,
       recurring: false,
