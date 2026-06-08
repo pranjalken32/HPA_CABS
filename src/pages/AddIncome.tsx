@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { addIncome, useCars } from '../hooks/useSupabase'
+import { useLanguage } from '../LanguageContext'
 import { CheckCircle2, Car } from 'lucide-react'
 
 const PLATFORMS = ['rapido', 'ola', 'uber', 'namma_yatri', 'cash', 'other']
@@ -13,6 +14,7 @@ function todayStr(): string {
 
 export default function AddIncome() {
   const cars = useCars()
+  const { t } = useLanguage()
   const [date, setDate] = useState(todayStr())
   const [platform, setPlatform] = useState('rapido')
   const [amount, setAmount] = useState('')
@@ -43,17 +45,17 @@ export default function AddIncome() {
 
   return (
     <div>
-      <h2 className="text-xl font-bold text-text-primary mb-4">Add Income</h2>
+      <h2 className="text-xl font-bold text-text-primary mb-4">{t.addIncome}</h2>
 
       {saved && (
         <div className="bg-income/10 text-income border border-income/20 rounded-xl p-3 mb-4 flex items-center gap-2 text-sm font-medium">
-          <CheckCircle2 size={18} /> Income saved!
+          <CheckCircle2 size={18} /> {t.incomeSaved}
         </div>
       )}
 
       <form onSubmit={handleSubmit} className="bg-surface-card rounded-2xl p-5 border border-border-dim space-y-4">
         <div>
-          <label className="block text-sm font-medium text-text-secondary mb-1">Date</label>
+          <label className="block text-sm font-medium text-text-secondary mb-1">{t.date}</label>
           <input
             type="date"
             value={date}
@@ -64,7 +66,7 @@ export default function AddIncome() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-text-secondary mb-2">Platform</label>
+          <label className="block text-sm font-medium text-text-secondary mb-2">{t.platform}</label>
           <div className="flex flex-wrap gap-2">
             {PLATFORMS.map((p) => (
               <button
@@ -85,7 +87,7 @@ export default function AddIncome() {
 
         <div>
           <label className="block text-sm font-medium text-text-secondary mb-1">
-            Amount (₹)
+            {t.amount}
           </label>
           <input
             type="number"
@@ -101,7 +103,7 @@ export default function AddIncome() {
 
         <div>
           <label className="block text-sm font-medium text-text-secondary mb-1">
-            Number of Trips
+            {t.numberOfTrips}
           </label>
           <input
             type="number"
@@ -116,7 +118,7 @@ export default function AddIncome() {
 
         <div>
           <label className="block text-sm font-medium text-text-secondary mb-1">
-            Note (optional)
+            {t.noteOptional}
           </label>
           <input
             type="text"
@@ -131,7 +133,7 @@ export default function AddIncome() {
           <div>
             <label className="block text-sm font-medium text-text-secondary mb-2">
               <Car size={14} className="inline mr-1" />
-              Assign to Car
+              {t.assignToCar}
             </label>
             <div className="flex flex-wrap gap-2">
               <button
@@ -167,7 +169,7 @@ export default function AddIncome() {
           type="submit"
           className="w-full bg-white text-black font-semibold py-3 rounded-xl transition-all hover:bg-gray-200"
         >
-          Save Income
+          {t.saveIncome}
         </button>
       </form>
     </div>

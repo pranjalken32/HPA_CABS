@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../AuthContext'
+import { useLanguage } from '../LanguageContext'
+import { LANGUAGES } from '../i18n'
 import {
   BarChart3,
   Clock,
@@ -10,11 +12,13 @@ import {
   CheckCircle2,
   Target,
   AlertTriangle,
+  Globe,
 } from 'lucide-react'
 
 export default function More() {
   const navigate = useNavigate()
   const { signOut } = useAuth()
+  const { lang, t, setLang } = useLanguage()
   const [cngRate, setCngRate] = useState(localStorage.getItem('hpa_cng_rate') || '95')
   const [saved, setSaved] = useState(false)
 
@@ -47,7 +51,7 @@ export default function More() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-bold text-white">More</h2>
+      <h2 className="text-xl font-bold text-white">{t.more}</h2>
 
       {/* Navigation Items */}
       <div className="bg-surface-card rounded-2xl border border-border-dim overflow-hidden divide-y divide-border-dim">
@@ -57,7 +61,7 @@ export default function More() {
         >
           <div className="flex items-center gap-3">
             <BarChart3 size={18} className="text-white" />
-            <span className="text-sm font-medium text-white">Analytics</span>
+            <span className="text-sm font-medium text-white">{t.analytics}</span>
           </div>
           <ChevronRight size={16} className="text-text-muted" />
         </button>
@@ -67,20 +71,44 @@ export default function More() {
         >
           <div className="flex items-center gap-3">
             <Clock size={18} className="text-white" />
-            <span className="text-sm font-medium text-white">History</span>
+            <span className="text-sm font-medium text-white">{t.history}</span>
           </div>
           <ChevronRight size={16} className="text-text-muted" />
         </button>
+      </div>
+
+      {/* Language Selector */}
+      <div className="bg-surface-card rounded-2xl p-4 border border-border-dim space-y-3">
+        <div className="flex items-center gap-2">
+          <Globe size={18} className="text-blue-400" />
+          <h3 className="text-sm font-semibold text-white">{t.language}</h3>
+        </div>
+        <p className="text-xs text-text-muted">{t.languageDesc}</p>
+        <div className="grid grid-cols-2 gap-2">
+          {LANGUAGES.map((l) => (
+            <button
+              key={l.code}
+              onClick={() => setLang(l.code)}
+              className={`px-3 py-2 rounded-xl text-sm font-medium transition-colors ${
+                lang === l.code
+                  ? 'bg-white text-black'
+                  : 'bg-surface-elevated text-text-muted border border-border-dim hover:border-white/30'
+              }`}
+            >
+              {l.native}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* CNG Price Setting */}
       <div className="bg-surface-card rounded-2xl p-4 border border-border-dim space-y-3">
         <div className="flex items-center gap-2">
           <Fuel size={18} className="text-orange-400" />
-          <h3 className="text-sm font-semibold text-white">CNG Price Setting</h3>
+          <h3 className="text-sm font-semibold text-white">{t.cngPriceSetting}</h3>
         </div>
         <p className="text-xs text-text-muted">
-          Set the current CNG rate. This is used to auto-calculate quantity (kg) when you enter fuel amount.
+          {t.cngRateDesc}
         </p>
         <div className="flex items-center gap-2">
           <div className="flex-1 relative">
@@ -98,12 +126,12 @@ export default function More() {
             onClick={handleSaveRate}
             className="bg-white text-black font-semibold px-4 py-2.5 rounded-xl text-sm hover:bg-gray-200 transition-all"
           >
-            Save
+            {t.save}
           </button>
         </div>
         {saved && (
           <div className="flex items-center gap-2 text-income text-xs">
-            <CheckCircle2 size={14} /> CNG rate saved!
+            <CheckCircle2 size={14} /> {t.cngRateSaved}
           </div>
         )}
       </div>
@@ -112,14 +140,14 @@ export default function More() {
       <div className="bg-surface-card rounded-2xl p-4 border border-border-dim space-y-3">
         <div className="flex items-center gap-2">
           <Target size={18} className="text-income" />
-          <h3 className="text-sm font-semibold text-white">Incentive Defaults</h3>
+          <h3 className="text-sm font-semibold text-white">{t.incentiveDefaults}</h3>
         </div>
         <p className="text-xs text-text-muted">
-          Default values used when adding a new driver. You can override per-driver in their profile.
+          {t.incentiveDefaultsDesc}
         </p>
         <div className="grid grid-cols-3 gap-2">
           <div>
-            <label className="text-[9px] text-text-muted uppercase block mb-1">Base/week (₹)</label>
+            <label className="text-[9px] text-text-muted uppercase block mb-1">{t.basePerWeek}</label>
             <input
               type="number"
               inputMode="numeric"
@@ -130,7 +158,7 @@ export default function More() {
             />
           </div>
           <div>
-            <label className="text-[9px] text-text-muted uppercase block mb-1">Extra/slab (₹)</label>
+            <label className="text-[9px] text-text-muted uppercase block mb-1">{t.extraPerSlab}</label>
             <input
               type="number"
               inputMode="numeric"
@@ -141,7 +169,7 @@ export default function More() {
             />
           </div>
           <div>
-            <label className="text-[9px] text-text-muted uppercase block mb-1">Slab size (₹)</label>
+            <label className="text-[9px] text-text-muted uppercase block mb-1">{t.slabSize}</label>
             <input
               type="number"
               inputMode="numeric"
@@ -160,12 +188,12 @@ export default function More() {
             onClick={handleSaveIncentive}
             className="bg-white text-black font-semibold px-4 py-2 rounded-xl text-sm hover:bg-gray-200 transition-all"
           >
-            Save
+            {t.save}
           </button>
         </div>
         {incSaved && (
           <div className="flex items-center gap-2 text-income text-xs">
-            <CheckCircle2 size={14} /> Incentive defaults saved!
+            <CheckCircle2 size={14} /> {t.incentiveSaved}
           </div>
         )}
       </div>
@@ -174,10 +202,10 @@ export default function More() {
       <div className="bg-surface-card rounded-2xl p-4 border border-border-dim space-y-3">
         <div className="flex items-center gap-2">
           <AlertTriangle size={18} className="text-expense" />
-          <h3 className="text-sm font-semibold text-white">Revenue/KM Alert</h3>
+          <h3 className="text-sm font-semibold text-white">{t.revenueKmAlert}</h3>
         </div>
         <p className="text-xs text-text-muted">
-          Alert threshold for revenue per km. If a car's ₹/km drops below this, it flags possible unreported offline rides.
+          {t.revenueKmAlertDesc}
         </p>
         <div className="flex items-center gap-2">
           <div className="flex-1 relative">
@@ -199,12 +227,12 @@ export default function More() {
             }}
             className="bg-white text-black font-semibold px-4 py-2.5 rounded-xl text-sm hover:bg-gray-200 transition-all"
           >
-            Save
+            {t.save}
           </button>
         </div>
         {rpmSaved && (
           <div className="flex items-center gap-2 text-income text-xs">
-            <CheckCircle2 size={14} /> Threshold saved!
+            <CheckCircle2 size={14} /> {t.thresholdSaved}
           </div>
         )}
       </div>
@@ -215,7 +243,7 @@ export default function More() {
         className="w-full bg-surface-card rounded-2xl p-4 border border-border-dim flex items-center gap-3 hover:border-expense/30 transition-colors"
       >
         <LogOut size={18} className="text-expense" />
-        <span className="text-sm font-medium text-expense">Sign Out</span>
+        <span className="text-sm font-medium text-expense">{t.signOut}</span>
       </button>
     </div>
   )

@@ -2,20 +2,24 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { LayoutDashboard, PlusCircle, MinusCircle, Car, Users, MoreHorizontal } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useAuth } from '../AuthContext'
+import { useLanguage } from '../LanguageContext'
 import Logo from './Logo'
 
-const navItems: { to: string; icon: LucideIcon; label: string; match?: string }[] = [
-  { to: '/', icon: LayoutDashboard, label: 'Home' },
-  { to: '/add-income', icon: PlusCircle, label: 'Income' },
-  { to: '/add-expense', icon: MinusCircle, label: 'Expense' },
-  { to: '/cars', icon: Car, label: 'Cars', match: '/cars' },
-  { to: '/drivers', icon: Users, label: 'Drivers' },
-  { to: '/more', icon: MoreHorizontal, label: 'More', match: '/more' },
+type NavItem = { to: string; icon: LucideIcon; labelKey: 'dashboard' | 'income' | 'expenses' | 'cars' | 'drivers' | 'more'; match?: string }
+
+const navItems: NavItem[] = [
+  { to: '/', icon: LayoutDashboard, labelKey: 'dashboard' },
+  { to: '/add-income', icon: PlusCircle, labelKey: 'income' },
+  { to: '/add-expense', icon: MinusCircle, labelKey: 'expenses' },
+  { to: '/cars', icon: Car, labelKey: 'cars', match: '/cars' },
+  { to: '/drivers', icon: Users, labelKey: 'drivers' },
+  { to: '/more', icon: MoreHorizontal, labelKey: 'more', match: '/more' },
 ]
 
 export default function Layout() {
   const location = useLocation()
   const { displayName } = useAuth()
+  const { t } = useLanguage()
 
   return (
     <div className="min-h-screen bg-surface pb-20">
@@ -37,7 +41,7 @@ export default function Layout() {
 
       <nav className="fixed bottom-0 left-0 right-0 bg-surface-card border-t border-border-dim z-30">
         <div className="max-w-lg mx-auto flex">
-          {navItems.map(({ to, icon: Icon, label, match }) => {
+          {navItems.map(({ to, icon: Icon, labelKey, match }) => {
             const isActive = match === '/more'
               ? ['/more', '/analytics', '/history'].some(p => location.pathname.startsWith(p))
               : match
@@ -52,7 +56,7 @@ export default function Layout() {
                 }`}
               >
                 <Icon size={20} />
-                <span className="mt-0.5">{label}</span>
+                <span className="mt-0.5">{t[labelKey]}</span>
               </NavLink>
             )
           })}

@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
 import { addExpense, uploadReceipt, useCars } from '../hooks/useSupabase'
+import { useLanguage } from '../LanguageContext'
 import { CheckCircle2, Camera, X, Car } from 'lucide-react'
 
 const CATEGORIES = [
@@ -41,6 +42,7 @@ function todayStr(): string {
 
 export default function AddExpense() {
   const cars = useCars()
+  const { t } = useLanguage()
   const [date, setDate] = useState(todayStr())
   const [category, setCategory] = useState('emi')
   const [amount, setAmount] = useState('')
@@ -88,17 +90,17 @@ export default function AddExpense() {
 
   return (
     <div>
-      <h2 className="text-xl font-bold text-text-primary mb-4">Add Expense</h2>
+      <h2 className="text-xl font-bold text-text-primary mb-4">{t.addExpense}</h2>
 
       {saved && (
         <div className="bg-income/10 text-income border border-income/20 rounded-xl p-3 mb-4 flex items-center gap-2 text-sm font-medium">
-          <CheckCircle2 size={18} /> Expense saved!
+          <CheckCircle2 size={18} /> {t.expenseSaved}
         </div>
       )}
 
       <form onSubmit={handleSubmit} className="bg-surface-card rounded-2xl p-5 border border-border-dim space-y-4">
         <div>
-          <label className="block text-sm font-medium text-text-secondary mb-1">Date</label>
+          <label className="block text-sm font-medium text-text-secondary mb-1">{t.date}</label>
           <input
             type="date"
             value={date}
@@ -109,7 +111,7 @@ export default function AddExpense() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-text-secondary mb-2">Category</label>
+          <label className="block text-sm font-medium text-text-secondary mb-2">{t.category}</label>
           <div className="flex flex-wrap gap-2">
             {CATEGORIES.map((c) => (
               <button
@@ -155,7 +157,7 @@ export default function AddExpense() {
 
         <div>
           <label className="block text-sm font-medium text-text-secondary mb-1">
-            Amount (₹)
+            {t.amount}
           </label>
           <input
             type="number"
@@ -171,7 +173,7 @@ export default function AddExpense() {
 
         <div>
           <label className="block text-sm font-medium text-text-secondary mb-1">
-            Note (optional)
+            {t.noteOptional}
           </label>
           <input
             type="text"
@@ -191,7 +193,7 @@ export default function AddExpense() {
               className="w-5 h-5 rounded border-border-dim bg-surface-elevated accent-accent"
             />
             <span className="text-sm text-text-secondary">
-              Monthly recurring expense
+              {t.monthlyRecurring}
             </span>
           </label>
           {recurring && (
@@ -205,7 +207,7 @@ export default function AddExpense() {
           <div>
             <label className="block text-sm font-medium text-text-secondary mb-2">
               <Car size={14} className="inline mr-1" />
-              Assign to Car (for recovery tracking)
+              {t.assignToCar}
             </label>
             <div className="flex flex-wrap gap-2">
               <button
@@ -282,7 +284,7 @@ export default function AddExpense() {
           disabled={uploading}
           className="w-full bg-white text-black font-semibold py-3 rounded-xl transition-all hover:bg-gray-200 disabled:opacity-60"
         >
-          {uploading ? 'Uploading receipt...' : 'Save Expense'}
+          {uploading ? t.uploadingReceipt : t.saveExpense}
         </button>
       </form>
     </div>

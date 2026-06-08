@@ -16,6 +16,7 @@ import {
 } from '../hooks/useSupabase'
 import type { DriverProfileRow } from '../hooks/useSupabase'
 import { Users, Plus, Edit2, Trash2, FileText, Upload, X, Calendar, Phone, IndianRupee, CheckCircle2, Target, TrendingUp } from 'lucide-react'
+import { useLanguage } from '../LanguageContext'
 
 function todayStr(): string {
   const d = new Date()
@@ -108,6 +109,7 @@ function calcWeeklyIncentives(
 
 export default function Drivers() {
   const { month, setMonth, startDate, endDate } = useMonthFilter()
+  const { t } = useLanguage()
   const drivers = useDriverProfiles()
   const expenses = useExpenses(startDate, endDate)
   const incomes = useIncomes(startDate, endDate)
@@ -213,7 +215,7 @@ export default function Drivers() {
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold text-white flex items-center gap-2">
           <Users size={22} />
-          Drivers
+          {t.drivers}
         </h2>
         <div className="flex items-center gap-2">
           <input
@@ -236,7 +238,7 @@ export default function Drivers() {
         <form onSubmit={handleSubmit} className="bg-surface-card rounded-2xl p-4 border border-border-dim space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-white">
-              {editDriver ? 'Edit Driver' : 'Add Driver'}
+              {editDriver ? t.editDriver : t.addDriver}
             </h3>
             <button type="button" onClick={resetForm} className="text-text-muted hover:text-white">
               <X size={18} />
@@ -389,7 +391,7 @@ export default function Drivers() {
             type="submit"
             className="w-full bg-white text-black font-semibold rounded-xl py-2.5 text-sm"
           >
-            {editDriver ? 'Update Driver' : 'Add Driver'}
+            {editDriver ? t.updateDriver : t.addDriver}
           </button>
         </form>
       )}
