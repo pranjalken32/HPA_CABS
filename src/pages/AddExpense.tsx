@@ -5,7 +5,6 @@ import { CheckCircle2, Camera, X, Car } from 'lucide-react'
 const CATEGORIES = [
   'commission',
   'emi',
-  'fuel',
   'driver_salary',
   'driver_advance',
   'insurance',
@@ -19,7 +18,6 @@ const CATEGORIES = [
 const CATEGORY_LABELS: Record<string, string> = {
   commission: 'Commission',
   emi: 'EMI',
-  fuel: 'Fuel / CNG',
   driver_salary: 'Driver Salary',
   driver_advance: 'Driver Advance',
   insurance: 'Insurance',
@@ -42,7 +40,7 @@ function todayStr(): string {
 export default function AddExpense() {
   const cars = useCars()
   const [date, setDate] = useState(todayStr())
-  const [category, setCategory] = useState('fuel')
+  const [category, setCategory] = useState('emi')
   const [amount, setAmount] = useState('')
   const [note, setNote] = useState('')
   const [recurring, setRecurring] = useState(false)
