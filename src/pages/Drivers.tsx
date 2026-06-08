@@ -3,6 +3,8 @@ import { useMonthFilter } from '../hooks/useMonthFilter'
 import {
   useDriverProfiles,
   useExpenses,
+  useIncomes,
+  useCars,
   addDriverProfile,
   updateDriverProfile,
   deleteDriverProfile,
@@ -10,7 +12,7 @@ import {
   getSignedUrl,
 } from '../hooks/useSupabase'
 import type { DriverProfileRow } from '../hooks/useSupabase'
-import { Users, Plus, Edit2, Trash2, FileText, Upload, X, Calendar, Phone, IndianRupee, CheckCircle2 } from 'lucide-react'
+import { Users, Plus, Edit2, Trash2, FileText, Upload, X, Calendar, Phone, IndianRupee, CheckCircle2, Target, TrendingUp } from 'lucide-react'
 
 function getSettlementKey(driverName: string, month: string): string {
   return `hpa_settled_${driverName.toLowerCase().replace(/\s+/g, '_')}_${month}`
@@ -76,10 +78,64 @@ function calcProRatedSalary(
   return { proRated, workingDays, totalDays }
 }
 
+interface WeekIncentive {
+  weekNum: number
+  revenue: number
+  target: number
+  incentive: number
+  hit: boolean
+}
+
+function calcWeeklyIncentives(
+  incomes: { date: string; amount: number; car_id: number | null }[],
+  carId: number | null,
+  incentiveTarget: number,
+  incentiveBase: number,
+  incentiveStep: number,
+  incentiveSlab: number,
+  year: number,
+  monthNum: number
+): { weeks: WeekIncentive[]; totalIncentive: number } {
+  if (!carId || incentiveTarget <= 0) return { weeks: [], totalIncentive: 0 }
+
+  const weeklyTarget = incentiveTarget / 4
+  const carIncomes = incomes.filter((i) => i.car_id === carId)
+
+  // Group income by week of month
+  const weekRevenues: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0 }
+  for (const inc of carIncomes) {
+    const d = new Date(inc.date)
+    if (d.getFullYear() !== year || d.getMonth() + 1 !== monthNum) continue
+    const day = d.getDate()
+    const weekNum = Math.min(Math.ceil(day / 7), 4)
+    weekRevenues[weekNum] = (weekRevenues[weekNum] || 0) + inc.amount
+  }
+
+  const weeks: WeekIncentive[] = []
+  let totalIncentive = 0
+  for (let w = 1; w <= 4; w++) {
+    const revenue = weekRevenues[w] || 0
+    const hit = revenue >= weeklyTarget
+    let incentive = 0
+    if (hit && incentiveSlab > 0) {
+      const extraSlabs = Math.floor((revenue - weeklyTarget) / incentiveSlab)
+      incentive = incentiveBase + extraSlabs * incentiveStep
+    } else if (hit) {
+      incentive = incentiveBase
+    }
+    weeks.push({ weekNum: w, revenue, target: weeklyTarget, incentive, hit })
+    totalIncentive += incentive
+  }
+
+  return { weeks, totalIncentive }
+}
+
 export default function Drivers() {
   const { month, setMonth, startDate, endDate } = useMonthFilter()
   const drivers = useDriverProfiles()
   const expenses = useExpenses(startDate, endDate)
+  const incomes = useIncomes(startDate, endDate)
+  const cars = useCars()
   const [showForm, setShowForm] = useState(false)
   const [editDriver, setEditDriver] = useState<DriverProfileRow | null>(null)
   const [expandedId, setExpandedId] = useState<number | null>(null)
@@ -91,6 +147,11 @@ export default function Drivers() {
   const [startDateInput, setStartDateInput] = useState(todayStr())
   const [endDateInput, setEndDateInput] = useState('')
   const [salary, setSalary] = useState('')
+  const [carIdInput, setCarIdInput] = useState<string>('')
+  const [incTarget, setIncTarget] = useState('')
+  const [incBase, setIncBase] = useState('500')
+  const [incStep, setIncStep] = useState('250')
+  const [incSlab, setIncSlab] = useState('5000')
   const [uploading, setUploading] = useState(false)
 
   const [filterYear, filterMonth] = month.split('-').map(Number)
@@ -103,6 +164,11 @@ export default function Drivers() {
     setStartDateInput(todayStr())
     setEndDateInput('')
     setSalary('')
+    setCarIdInput('')
+    setIncTarget('')
+    setIncBase('500')
+    setIncStep('250')
+    setIncSlab('5000')
     setEditDriver(null)
     setShowForm(false)
   }
@@ -114,6 +180,11 @@ export default function Drivers() {
     setStartDateInput(d.start_date)
     setEndDateInput(d.end_date ?? '')
     setSalary(String(d.monthly_salary))
+    setCarIdInput(d.car_id ? String(d.car_id) : '')
+    setIncTarget(d.incentive_target ? String(d.incentive_target) : '')
+    setIncBase(d.incentive_base ? String(d.incentive_base) : '500')
+    setIncStep(d.incentive_step ? String(d.incentive_step) : '250')
+    setIncSlab(d.incentive_slab ? String(d.incentive_slab) : '5000')
     setShowForm(true)
   }
 
@@ -127,6 +198,11 @@ export default function Drivers() {
       start_date: startDateInput,
       end_date: endDateInput || null,
       monthly_salary: Number(salary),
+      car_id: carIdInput ? Number(carIdInput) : null,
+      incentive_target: Number(incTarget) || 0,
+      incentive_base: Number(incBase) || 500,
+      incentive_step: Number(incStep) || 250,
+      incentive_slab: Number(incSlab) || 5000,
       dl_url: editDriver?.dl_url ?? null,
       aadhaar_url: editDriver?.aadhaar_url ?? null,
       pan_url: editDriver?.pan_url ?? null,
@@ -245,6 +321,90 @@ export default function Drivers() {
             />
           </div>
 
+          {/* Car Assignment */}
+          <div>
+            <label className="text-[10px] text-text-muted uppercase block mb-1">Assigned Car</label>
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={() => setCarIdInput('')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  !carIdInput ? 'bg-white text-black' : 'bg-surface-elevated text-text-muted border border-border-dim'
+                }`}
+              >
+                None
+              </button>
+              {cars.map((c) => (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => setCarIdInput(String(c.id))}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    carIdInput === String(c.id) ? 'bg-white text-black' : 'bg-surface-elevated text-text-muted border border-border-dim'
+                  }`}
+                >
+                  {c.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Incentive Config */}
+          {carIdInput && (
+            <div className="bg-surface-elevated rounded-xl p-3 border border-border-dim space-y-2">
+              <p className="text-[10px] text-text-muted uppercase flex items-center gap-1">
+                <Target size={10} /> Incentive Configuration
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-[9px] text-text-muted block mb-0.5">Monthly Target (₹)</label>
+                  <input
+                    type="number"
+                    value={incTarget}
+                    onChange={(e) => setIncTarget(e.target.value)}
+                    className="w-full bg-surface-card border border-border-dim rounded-lg px-2.5 py-1.5 text-xs text-white"
+                    placeholder="90000"
+                  />
+                </div>
+                <div>
+                  <label className="text-[9px] text-text-muted block mb-0.5">Base/week (₹)</label>
+                  <input
+                    type="number"
+                    value={incBase}
+                    onChange={(e) => setIncBase(e.target.value)}
+                    className="w-full bg-surface-card border border-border-dim rounded-lg px-2.5 py-1.5 text-xs text-white"
+                    placeholder="500"
+                  />
+                </div>
+                <div>
+                  <label className="text-[9px] text-text-muted block mb-0.5">Extra per slab (₹)</label>
+                  <input
+                    type="number"
+                    value={incStep}
+                    onChange={(e) => setIncStep(e.target.value)}
+                    className="w-full bg-surface-card border border-border-dim rounded-lg px-2.5 py-1.5 text-xs text-white"
+                    placeholder="250"
+                  />
+                </div>
+                <div>
+                  <label className="text-[9px] text-text-muted block mb-0.5">Slab size (₹)</label>
+                  <input
+                    type="number"
+                    value={incSlab}
+                    onChange={(e) => setIncSlab(e.target.value)}
+                    className="w-full bg-surface-card border border-border-dim rounded-lg px-2.5 py-1.5 text-xs text-white"
+                    placeholder="5000"
+                  />
+                </div>
+              </div>
+              {Number(incTarget) > 0 && (
+                <p className="text-[9px] text-text-muted">
+                  Weekly target: ₹{fmt(Number(incTarget) / 4)} · Base ₹{incBase}/week + ₹{incStep} per extra ₹{incSlab}
+                </p>
+              )}
+            </div>
+          )}
+
           <button
             type="submit"
             className="w-full bg-white text-black font-semibold rounded-xl py-2.5 text-sm"
@@ -272,11 +432,22 @@ export default function Drivers() {
           filterMonth
         )
 
+        const { weeks: incentiveWeeks, totalIncentive } = calcWeeklyIncentives(
+          incomes ?? [],
+          driver.car_id,
+          driver.incentive_target,
+          driver.incentive_base,
+          driver.incentive_step,
+          driver.incentive_slab,
+          filterYear,
+          filterMonth
+        )
+
         const advanceEntries = (expenses ?? []).filter(
           (e) => e.category === 'driver_advance' && e.note?.toLowerCase().includes(driver.name.toLowerCase())
         )
         const totalAdvance = advanceEntries.reduce((s, e) => s + e.amount, 0)
-        const netPayable = proRated - totalAdvance
+        const netPayable = proRated + totalIncentive - totalAdvance
 
         const isExpanded = expandedId === driver.id
 
@@ -324,15 +495,21 @@ export default function Drivers() {
             {isExpanded && (
               <div className="border-t border-border-dim px-4 py-3 space-y-3">
                 {/* Salary Breakdown */}
-                <div className="grid grid-cols-3 gap-2">
+                <div className={`grid ${totalIncentive > 0 ? 'grid-cols-4' : 'grid-cols-3'} gap-2`}>
                   <div className="bg-surface-elevated rounded-xl p-2.5 text-center">
-                    <p className="text-[9px] text-text-muted uppercase">Pro-rated</p>
+                    <p className="text-[9px] text-text-muted uppercase">Salary</p>
                     <p className="text-sm font-bold text-white">₹{fmt(proRated)}</p>
                     <p className="text-[9px] text-text-muted">{workingDays}/{totalDays} days</p>
                   </div>
+                  {totalIncentive > 0 && (
+                    <div className="bg-surface-elevated rounded-xl p-2.5 text-center">
+                      <p className="text-[9px] text-text-muted uppercase">Incentive</p>
+                      <p className="text-sm font-bold text-income">+₹{fmt(totalIncentive)}</p>
+                    </div>
+                  )}
                   <div className="bg-surface-elevated rounded-xl p-2.5 text-center">
                     <p className="text-[9px] text-text-muted uppercase">Advance</p>
-                    <p className="text-sm font-bold text-income">₹{fmt(totalAdvance)}</p>
+                    <p className="text-sm font-bold text-white">−₹{fmt(totalAdvance)}</p>
                   </div>
                   <div className="bg-surface-elevated rounded-xl p-2.5 text-center">
                     <p className="text-[9px] text-text-muted uppercase">Net Pay</p>
@@ -341,6 +518,33 @@ export default function Drivers() {
                     </p>
                   </div>
                 </div>
+
+                {/* Weekly Incentive Breakdown */}
+                {incentiveWeeks.length > 0 && driver.incentive_target > 0 && (
+                  <div className="bg-surface-elevated rounded-xl p-3 border border-border-dim">
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <TrendingUp size={12} className="text-income" />
+                      <p className="text-[10px] text-text-muted uppercase">Weekly Incentive (Target: ₹{fmt(driver.incentive_target / 4)}/wk)</p>
+                    </div>
+                    <div className="space-y-1.5">
+                      {incentiveWeeks.map((w) => (
+                        <div key={w.weekNum} className="flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-2">
+                            <span className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-bold ${
+                              w.hit ? 'bg-income/10 text-income' : 'bg-surface-card text-text-muted'
+                            }`}>
+                              W{w.weekNum}
+                            </span>
+                            <span className="text-text-secondary">₹{fmt(w.revenue)}</span>
+                          </div>
+                          <span className={`font-semibold ${w.hit ? 'text-income' : 'text-text-muted'}`}>
+                            {w.hit ? `+₹${fmt(w.incentive)}` : 'Missed'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Settlement Status */}
                 {(() => {
