@@ -47,9 +47,23 @@ export default function DriverHome() {
   )
   const totalAdvance = advanceEntries.reduce((s, e) => s + e.amount, 0)
 
-  // Calculate salary from driver profile (pro-rated)
-  const totalSalary = myProfile?.monthly_salary ?? 0
-  const balance = totalSalary - totalAdvance
+  // Calculate salary from driver profile (pro-rated for partial months)
+  const totalSalary = (() => {
+    if (!myProfile) return 0
+    const salary = myProfile.monthly_salary ?? 0
+    const [fy, fm] = month.split('-').map(Number)
+    const totalDays = new Date(fy, fm, 0).getDate()
+    const monthStart = new Date(fy, fm - 1, 1)
+    const monthEnd = new Date(fy, fm - 1, totalDays)
+    const driverStart = new Date(myProfile.start_date)
+    const driverEnd = myProfile.end_date ? new Date(myProfile.end_date) : null
+    if (driverStart > monthEnd) return 0
+    if (driverEnd && driverEnd < monthStart) return 0
+    const effectiveStart = driverStart > monthStart ? driverStart : monthStart
+    const effectiveEnd = driverEnd && driverEnd < monthEnd ? driverEnd : monthEnd
+    const workingDays = Math.floor((effectiveEnd.getTime() - effectiveStart.getTime()) / (1000 * 60 * 60 * 24)) + 1
+    return Math.round((salary / totalDays) * workingDays)
+  })()
 
   // ---- Incentive Calculation ----
   const incomes = useIncomes(startDate, endDate)
@@ -95,6 +109,9 @@ export default function DriverHome() {
   const totalMonthIncentive = weeklyData.reduce((s, w) => s + w.incentive, 0)
   const currentRevenue = currentWeek?.revenue ?? 0
   const remainingForTarget = Math.max(weeklyTarget - currentRevenue, 0)
+
+  // Net payable = salary + incentive - advances (matches owner's calculation)
+  const balance = totalSalary + totalMonthIncentive - totalAdvance
 
   const fmt = (n: number) => Math.abs(n).toLocaleString('en-IN')
 

@@ -8,10 +8,10 @@ import { Trash2, Pencil, ArrowUpCircle, ArrowDownCircle, X, User, Download, File
 
 type Tab = 'all' | 'income' | 'expense'
 
-const PLATFORMS = ['rapido', 'ola', 'uber', 'cash', 'other']
+const PLATFORMS = ['rapido', 'ola', 'uber', 'namma_yatri', 'cash', 'other']
 
 const CATEGORIES = [
-  'commission', 'emi', 'driver_salary', 'driver_advance', 'driver_incentive',
+  'commission', 'emi', 'fuel', 'driver_salary', 'driver_advance', 'driver_incentive',
   'insurance', 'permit', 'toll', 'car_wash', 'service', 'other',
 ]
 
