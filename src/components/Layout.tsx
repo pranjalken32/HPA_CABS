@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { LayoutDashboard, PlusCircle, MinusCircle, List, Car, BarChart3, Users, LogOut } from 'lucide-react'
+import { LayoutDashboard, PlusCircle, MinusCircle, Car, Users, MoreHorizontal } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useAuth } from '../AuthContext'
 import Logo from './Logo'
@@ -10,13 +10,12 @@ const navItems: { to: string; icon: LucideIcon; label: string; match?: string }[
   { to: '/add-expense', icon: MinusCircle, label: 'Expense' },
   { to: '/cars', icon: Car, label: 'Cars', match: '/cars' },
   { to: '/drivers', icon: Users, label: 'Drivers' },
-  { to: '/analytics', icon: BarChart3, label: 'Analytics' },
-  { to: '/history', icon: List, label: 'History' },
+  { to: '/more', icon: MoreHorizontal, label: 'More', match: '/more' },
 ]
 
 export default function Layout() {
   const location = useLocation()
-  const { signOut, displayName } = useAuth()
+  const { displayName } = useAuth()
 
   return (
     <div className="min-h-screen bg-surface pb-20">
@@ -27,15 +26,8 @@ export default function Layout() {
             HPA <span className="text-text-secondary">Cabs</span>
           </h1>
           {displayName && (
-            <span className="text-xs text-text-muted ml-1 capitalize">{displayName}</span>
+            <span className="text-xs text-text-muted ml-auto capitalize">{displayName}</span>
           )}
-          <button
-            onClick={() => signOut()}
-            className="ml-auto text-text-muted hover:text-white transition-colors"
-            title="Sign out"
-          >
-            <LogOut size={18} />
-          </button>
         </div>
       </header>
 
@@ -46,9 +38,11 @@ export default function Layout() {
       <nav className="fixed bottom-0 left-0 right-0 bg-surface-card border-t border-border-dim z-30">
         <div className="max-w-lg mx-auto flex">
           {navItems.map(({ to, icon: Icon, label, match }) => {
-            const isActive = match
-              ? location.pathname.startsWith(match)
-              : location.pathname === to
+            const isActive = match === '/more'
+              ? ['/more', '/analytics', '/history'].some(p => location.pathname.startsWith(p))
+              : match
+                ? location.pathname.startsWith(match)
+                : location.pathname === to
             return (
               <NavLink
                 key={to}

@@ -65,9 +65,9 @@ export default function CarDetail() {
   // Fuel form
   const [showFuelForm, setShowFuelForm] = useState(false)
   const [fuelDate, setFuelDate] = useState(todayStr())
-  const [fuelQty, setFuelQty] = useState('')
-  const [fuelPrice, setFuelPrice] = useState('95')
+  const [fuelAmount, setFuelAmount] = useState('')
   const [fuelOdo, setFuelOdo] = useState('')
+  const cngRate = Number(localStorage.getItem('hpa_cng_rate') || '95')
 
   // Doc form
   const [showDocForm, setShowDocForm] = useState(false)
@@ -147,18 +147,19 @@ export default function CarDetail() {
 
   const handleAddFuel = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!fuelQty || Number(fuelQty) <= 0) return
-    const qty = Number(fuelQty)
-    const price = Number(fuelPrice) || 0
+    if (!fuelAmount || Number(fuelAmount) <= 0) return
+    const totalCost = Number(fuelAmount)
+    const price = cngRate
+    const qty = price > 0 ? Math.round((totalCost / price) * 100) / 100 : 0
     await addFuelLog({
       car_id: carId,
       date: fuelDate,
       quantity_kg: qty,
       price_per_kg: price,
-      total_cost: qty * price,
+      total_cost: totalCost,
       odometer_km: Number(fuelOdo) || 0,
     })
-    setFuelQty('')
+    setFuelAmount('')
     setFuelOdo('')
     setShowFuelForm(false)
   }
@@ -445,29 +446,19 @@ export default function CarDetail() {
                   className="w-full border border-border-dim bg-surface-card rounded-lg px-3 py-2 text-sm text-text-primary focus:border-accent focus:outline-none"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-[10px] text-text-muted uppercase tracking-wider mb-1">Quantity (kg)</label>
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={fuelQty}
-                    onChange={(e) => setFuelQty(e.target.value)}
-                    placeholder="e.g. 8"
-                    className="w-full border border-border-dim bg-surface-card rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] text-text-muted uppercase tracking-wider mb-1">Price/kg (₹)</label>
-                  <input
-                    type="number"
-                    value={fuelPrice}
-                    onChange={(e) => setFuelPrice(e.target.value)}
-                    placeholder="e.g. 95"
-                    className="w-full border border-border-dim bg-surface-card rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
-                  />
-                </div>
+              <div>
+                <label className="block text-[10px] text-text-muted uppercase tracking-wider mb-1">Amount Paid (₹)</label>
+                <input
+                  type="number"
+                  value={fuelAmount}
+                  onChange={(e) => setFuelAmount(e.target.value)}
+                  placeholder="e.g. 800"
+                  className="w-full border border-border-dim bg-surface-card rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                  required
+                />
+                {fuelAmount && Number(fuelAmount) > 0 && (
+                  <p className="text-[10px] text-text-muted mt-1">≈ {(Number(fuelAmount) / cngRate).toFixed(2)} kg @ ₹{cngRate}/kg</p>
+                )}
               </div>
               <div>
                 <label className="block text-[10px] text-text-muted uppercase tracking-wider mb-1">Odometer (km)</label>

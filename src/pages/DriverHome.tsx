@@ -15,10 +15,10 @@ export default function DriverHome() {
   const [selectedCarId, setSelectedCarId] = useState<number | null>(null)
   const [showFuelForm, setShowFuelForm] = useState(false)
   const [fuelDate, setFuelDate] = useState(todayStr())
-  const [fuelQty, setFuelQty] = useState('')
-  const [fuelPrice, setFuelPrice] = useState('95')
+  const [fuelAmount, setFuelAmount] = useState('')
   const [fuelOdo, setFuelOdo] = useState('')
   const [saved, setSaved] = useState(false)
+  const cngRate = Number(localStorage.getItem('hpa_cng_rate') || '95')
 
   const selectedCar = cars.find((c) => c.id === selectedCarId)
   const fuelLogs = useFuelLogs(selectedCarId ?? 0)
@@ -34,21 +34,22 @@ export default function DriverHome() {
 
   const handleAddFuel = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedCarId || !fuelQty || Number(fuelQty) <= 0) return
-    const qty = Number(fuelQty)
-    const price = Number(fuelPrice) || 0
+    if (!selectedCarId || !fuelAmount || Number(fuelAmount) <= 0) return
+    const totalCost = Number(fuelAmount)
+    const price = cngRate
+    const qty = price > 0 ? Math.round((totalCost / price) * 100) / 100 : 0
     await addFuelLog({
       car_id: selectedCarId,
       date: fuelDate,
       quantity_kg: qty,
       price_per_kg: price,
-      total_cost: qty * price,
+      total_cost: totalCost,
       odometer_km: Number(fuelOdo) || 0,
     })
     setSaved(true)
     setTimeout(() => {
       setSaved(false)
-      setFuelQty('')
+      setFuelAmount('')
       setFuelOdo('')
     }, 1200)
   }
@@ -180,32 +181,21 @@ export default function DriverHome() {
                   required
                 />
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-xs font-medium text-text-secondary mb-1">Quantity (kg)</label>
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    step="0.1"
-                    value={fuelQty}
-                    onChange={(e) => setFuelQty(e.target.value)}
-                    placeholder="e.g. 8"
-                    className="w-full border border-border-dim bg-surface-elevated rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-text-muted focus:border-white focus:outline-none"
-                    min="0.1"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-text-secondary mb-1">Price/kg (₹)</label>
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    step="0.01"
-                    value={fuelPrice}
-                    onChange={(e) => setFuelPrice(e.target.value)}
-                    className="w-full border border-border-dim bg-surface-elevated rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-text-muted focus:border-white focus:outline-none"
-                  />
-                </div>
+              <div>
+                <label className="block text-xs font-medium text-text-secondary mb-1">Amount Paid (₹)</label>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  value={fuelAmount}
+                  onChange={(e) => setFuelAmount(e.target.value)}
+                  placeholder="e.g. 800"
+                  className="w-full border border-border-dim bg-surface-elevated rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-text-muted focus:border-white focus:outline-none"
+                  min="1"
+                  required
+                />
+                {fuelAmount && Number(fuelAmount) > 0 && (
+                  <p className="text-[10px] text-text-muted mt-1">≈ {(Number(fuelAmount) / cngRate).toFixed(2)} kg @ ₹{cngRate}/kg</p>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-medium text-text-secondary mb-1">Odometer Reading (km)</label>
@@ -218,11 +208,7 @@ export default function DriverHome() {
                   className="w-full border border-border-dim bg-surface-elevated rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-text-muted focus:border-white focus:outline-none"
                 />
               </div>
-              {fuelQty && fuelPrice && (
-                <p className="text-xs text-text-muted text-right">
-                  Total: ₹{(Number(fuelQty) * Number(fuelPrice)).toLocaleString('en-IN')}
-                </p>
-              )}
+
               <button
                 type="submit"
                 className="w-full bg-white text-black font-semibold py-3 rounded-xl hover:bg-gray-200 transition-all"
