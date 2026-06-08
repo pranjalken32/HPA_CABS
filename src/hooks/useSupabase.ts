@@ -189,6 +189,14 @@ export function useCarDocuments(carId: number) {
   return data
 }
 
+export async function uploadCarDocFile(file: File): Promise<string> {
+  const ext = file.name.split('.').pop() ?? 'jpg'
+  const path = `car-docs/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+  const { error } = await supabase.storage.from('receipts').upload(path, file)
+  if (error) throw error
+  return path
+}
+
 export async function addCarDocument(row: Omit<CarDocumentRow, 'id' | 'user_id'>) {
   const { error } = await supabase.from('car_documents').insert(row)
   if (error) throw error
@@ -343,14 +351,20 @@ export async function upsertGoal(month: string, targetRevenue: number) {
 
 export async function uploadReceipt(file: File): Promise<string> {
   const ext = file.name.split('.').pop() ?? 'jpg'
-  const path = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+  const path = `receipts/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
   const { error } = await supabase.storage.from('receipts').upload(path, file)
   if (error) throw error
-  const { data } = supabase.storage.from('receipts').getPublicUrl(path)
-  return data.publicUrl
+  return path
 }
 
-export async function getReceiptUrl(path: string): Promise<string> {
+export async function getSignedUrl(path: string): Promise<string> {
+  if (!path) return ''
+  if (path.startsWith('http')) {
+    // Legacy full URL — extract path after /object/public/receipts/ or /object/sign/receipts/
+    const match = path.match(/\/receipts\/(.+)$/)
+    if (match) path = match[1]
+    else return path
+  }
   const { data } = await supabase.storage.from('receipts').createSignedUrl(path, 3600)
   return data?.signedUrl ?? ''
 }
@@ -452,8 +466,7 @@ export async function uploadDriverDoc(file: File): Promise<string> {
   const path = `driver-docs/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
   const { error } = await supabase.storage.from('receipts').upload(path, file)
   if (error) throw error
-  const { data } = supabase.storage.from('receipts').getPublicUrl(path)
-  return data.publicUrl
+  return path
 }
 
 // ---- Edit Car ----

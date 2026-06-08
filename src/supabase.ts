@@ -46,6 +46,7 @@ export interface CarDocumentRow {
   doc_type: string
   expiry_date: string
   note: string
+  file_url: string | null
 }
 
 export interface ServiceRecordRow {

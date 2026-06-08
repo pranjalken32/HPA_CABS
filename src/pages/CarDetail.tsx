@@ -4,6 +4,7 @@ import {
   useCar, useCarDocuments, useServiceRecords, useIncomes, useExpenses, useFuelLogs,
   addCarDocument, addServiceRecord, addFuelLog,
   deleteCarDocument, deleteServiceRecord, deleteCar, deleteFuelLog,
+  uploadCarDocFile, getSignedUrl,
 } from '../hooks/useSupabase'
 import {
   ArrowLeft,
@@ -16,6 +17,8 @@ import {
   CheckCircle2,
   Clock,
   Fuel,
+  Upload,
+  Eye,
 } from 'lucide-react'
 
 const DOC_TYPES = [
@@ -74,6 +77,8 @@ export default function CarDetail() {
   const [docType, setDocType] = useState(DOC_TYPES[0])
   const [docExpiry, setDocExpiry] = useState('')
   const [docNote, setDocNote] = useState('')
+  const [docFile, setDocFile] = useState<File | null>(null)
+  const [docUploading, setDocUploading] = useState(false)
 
   // Service form
   const [showServiceForm, setShowServiceForm] = useState(false)
@@ -113,14 +118,26 @@ export default function CarDetail() {
   const handleAddDoc = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!docExpiry) return
+    let file_url: string | null = null
+    if (docFile) {
+      setDocUploading(true)
+      try {
+        file_url = await uploadCarDocFile(docFile)
+      } catch {
+        // Continue without file if upload fails
+      }
+      setDocUploading(false)
+    }
     await addCarDocument({
       car_id: carId,
       doc_type: docType,
       expiry_date: docExpiry,
       note: docNote.trim(),
+      file_url,
     })
     setDocExpiry('')
     setDocNote('')
+    setDocFile(null)
     setShowDocForm(false)
   }
 
@@ -270,11 +287,27 @@ export default function CarDetail() {
                   className="w-full border border-border-dim bg-surface-card rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
                 />
               </div>
+              <div>
+                <label className="block text-[10px] text-text-muted uppercase tracking-wider mb-1">Upload Document (optional)</label>
+                <label className="flex items-center gap-2 border border-border-dim bg-surface-card rounded-lg px-3 py-2 cursor-pointer hover:border-white/30 transition-colors">
+                  <Upload size={14} className="text-text-muted shrink-0" />
+                  <span className="text-sm text-text-muted truncate">
+                    {docFile ? docFile.name : 'Choose file (image/PDF)'}
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/*,.pdf"
+                    className="hidden"
+                    onChange={(e) => setDocFile(e.target.files?.[0] ?? null)}
+                  />
+                </label>
+              </div>
               <button
                 type="submit"
-                className="w-full bg-white text-black font-semibold py-2 rounded-lg text-xs"
+                disabled={docUploading}
+                className="w-full bg-white text-black font-semibold py-2 rounded-lg text-xs disabled:opacity-50"
               >
-                Save Document
+                {docUploading ? 'Uploading...' : 'Save Document'}
               </button>
             </form>
           )}
@@ -320,12 +353,26 @@ export default function CarDetail() {
                   </p>
                   {doc.note && <p className="text-[10px] text-text-muted mt-0.5">{doc.note}</p>}
                 </div>
-                <button
-                  onClick={async () => { await deleteCarDocument(doc.id) }}
-                  className="text-text-muted hover:text-expense transition-colors shrink-0"
-                >
-                  <Trash2 size={14} />
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  {doc.file_url && (
+                    <button
+                      onClick={async () => {
+                        const url = await getSignedUrl(doc.file_url!)
+                        if (url) window.open(url, '_blank')
+                      }}
+                      className="text-text-muted hover:text-income transition-colors"
+                      title="View document"
+                    >
+                      <Eye size={14} />
+                    </button>
+                  )}
+                  <button
+                    onClick={async () => { await deleteCarDocument(doc.id) }}
+                    className="text-text-muted hover:text-expense transition-colors"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
               </div>
             )
           })}

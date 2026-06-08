@@ -7,6 +7,7 @@ import {
   updateDriverProfile,
   deleteDriverProfile,
   uploadDriverDoc,
+  getSignedUrl,
 } from '../hooks/useSupabase'
 import type { DriverProfileRow } from '../hooks/useSupabase'
 import { Users, Plus, Edit2, Trash2, FileText, Upload, X, Calendar, Phone, IndianRupee, CheckCircle2 } from 'lucide-react'
@@ -413,15 +414,16 @@ export default function Drivers() {
                       return (
                         <div key={docType} className="relative">
                           {url ? (
-                            <a
-                              href={url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="flex flex-col items-center gap-1 bg-surface-elevated rounded-xl p-2.5 border border-border-dim hover:border-white/30 transition-colors"
+                            <button
+                              onClick={async () => {
+                                const signedUrl = await getSignedUrl(url)
+                                if (signedUrl) window.open(signedUrl, '_blank')
+                              }}
+                              className="w-full flex flex-col items-center gap-1 bg-surface-elevated rounded-xl p-2.5 border border-border-dim hover:border-white/30 transition-colors"
                             >
                               <FileText size={16} className="text-income" />
                               <span className="text-[10px] text-text-secondary">{labels[docType]}</span>
-                            </a>
+                            </button>
                           ) : (
                             <label className="flex flex-col items-center gap-1 bg-surface-elevated rounded-xl p-2.5 border border-border-dim border-dashed cursor-pointer hover:border-white/30 transition-colors">
                               <Upload size={16} className="text-text-muted" />
