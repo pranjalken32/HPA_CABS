@@ -6,6 +6,7 @@ import {
   deleteCarDocument, deleteServiceRecord, deleteCar, deleteFuelLog,
   uploadCarDocFile, getSignedUrl,
 } from '../hooks/useSupabase'
+import { useAuth } from '../AuthContext'
 import {
   ArrowLeft,
   FileText,
@@ -52,6 +53,8 @@ type Tab = 'docs' | 'recovery' | 'service' | 'fuel'
 export default function CarDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { role } = useAuth()
+  const isOwner = role === 'owner'
   const carId = Number(id)
 
   const car = useCar(carId)
@@ -211,9 +214,11 @@ export default function CarDetail() {
           <h2 className="text-lg font-bold text-text-primary">{car.name}</h2>
           <p className="text-xs text-text-muted font-mono">{car.number}</p>
         </div>
-        <button onClick={handleDeleteCar} className="text-text-muted hover:text-expense transition-colors p-1">
-          <Trash2 size={16} />
-        </button>
+        {isOwner && (
+          <button onClick={handleDeleteCar} className="text-text-muted hover:text-expense transition-colors p-1">
+            <Trash2 size={16} />
+          </button>
+        )}
       </div>
 
       {/* Tabs */}
@@ -239,12 +244,14 @@ export default function CarDetail() {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-text-secondary">Documents & Expiry</h3>
-            <button
-              onClick={() => setShowDocForm(!showDocForm)}
-              className="flex items-center gap-1 text-white text-xs font-semibold"
-            >
-              <Plus size={14} /> Add
-            </button>
+            {isOwner && (
+              <button
+                onClick={() => setShowDocForm(!showDocForm)}
+                className="flex items-center gap-1 text-white text-xs font-semibold"
+              >
+                <Plus size={14} /> Add
+              </button>
+            )}
           </div>
 
           {showDocForm && (
@@ -366,12 +373,14 @@ export default function CarDetail() {
                       <Eye size={14} />
                     </button>
                   )}
-                  <button
-                    onClick={async () => { await deleteCarDocument(doc.id) }}
-                    className="text-text-muted hover:text-expense transition-colors"
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                  {isOwner && (
+                    <button
+                      onClick={async () => { await deleteCarDocument(doc.id) }}
+                      className="text-text-muted hover:text-expense transition-colors"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
                 </div>
               </div>
             )
@@ -464,12 +473,14 @@ export default function CarDetail() {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-text-secondary">CNG / Fuel Log</h3>
-            <button
-              onClick={() => setShowFuelForm(!showFuelForm)}
-              className="flex items-center gap-1 text-white text-xs font-semibold"
-            >
-              <Plus size={14} /> Add
-            </button>
+            {isOwner && (
+              <button
+                onClick={() => setShowFuelForm(!showFuelForm)}
+                className="flex items-center gap-1 text-white text-xs font-semibold"
+              >
+                <Plus size={14} /> Add
+              </button>
+            )}
           </div>
 
           {/* Efficiency card */}
@@ -547,12 +558,14 @@ export default function CarDetail() {
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <span className="text-xs font-bold text-expense">₹{fmt(log.total_cost)}</span>
-                <button
-                  onClick={async () => { await deleteFuelLog(log.id) }}
-                  className="text-text-muted hover:text-expense transition-colors"
-                >
-                  <Trash2 size={14} />
-                </button>
+                {isOwner && (
+                  <button
+                    onClick={async () => { await deleteFuelLog(log.id) }}
+                    className="text-text-muted hover:text-expense transition-colors"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
               </div>
             </div>
           ))}
@@ -564,12 +577,14 @@ export default function CarDetail() {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-text-secondary">Service History</h3>
-            <button
-              onClick={() => setShowServiceForm(!showServiceForm)}
-              className="flex items-center gap-1 text-white text-xs font-semibold"
-            >
-              <Plus size={14} /> Add
-            </button>
+            {isOwner && (
+              <button
+                onClick={() => setShowServiceForm(!showServiceForm)}
+                className="flex items-center gap-1 text-white text-xs font-semibold"
+              >
+                <Plus size={14} /> Add
+              </button>
+            )}
           </div>
 
           {showServiceForm && (
@@ -644,12 +659,14 @@ export default function CarDetail() {
                 {svc.cost > 0 && (
                   <span className="text-xs font-bold text-expense">₹{fmt(svc.cost)}</span>
                 )}
-                <button
-                  onClick={async () => { await deleteServiceRecord(svc.id) }}
-                  className="text-text-muted hover:text-expense transition-colors"
-                >
-                  <Trash2 size={14} />
-                </button>
+                {isOwner && (
+                  <button
+                    onClick={async () => { await deleteServiceRecord(svc.id) }}
+                    className="text-text-muted hover:text-expense transition-colors"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
               </div>
             </div>
           ))}
