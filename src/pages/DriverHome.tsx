@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useMonthFilter } from '../hooks/useMonthFilter'
-import { useExpenses, useCars, useFuelLogs, addFuelLog, useDriverProfiles } from '../hooks/useSupabase'
+import { useExpenses, useIncomes, useCars, useFuelLogs, addFuelLog, useDriverProfiles } from '../hooks/useSupabase'
 import { useAuth } from '../AuthContext'
-import { Fuel, Car, Wallet, ArrowUpCircle, ChevronRight, CheckCircle2 } from 'lucide-react'
+import { Fuel, Car, Wallet, ArrowUpCircle, ChevronRight, CheckCircle2, Target } from 'lucide-react'
 
 function todayStr(): string {
   const d = new Date()
@@ -50,6 +50,51 @@ export default function DriverHome() {
   // Calculate salary from driver profile (pro-rated)
   const totalSalary = myProfile?.monthly_salary ?? 0
   const balance = totalSalary - totalAdvance
+
+  // ---- Incentive Calculation ----
+  const incomes = useIncomes(startDate, endDate)
+  const incentiveTarget = myProfile?.incentive_target ?? 0
+  const incentiveBase = myProfile?.incentive_base ?? 500
+  const incentiveStep = myProfile?.incentive_step ?? 250
+  const incentiveSlab = myProfile?.incentive_slab ?? 5000
+  const weeklyTarget = incentiveTarget > 0 ? incentiveTarget / 4 : 0
+
+  // Current week number (1-4)
+  const today = new Date()
+  const currentWeekNum = Math.min(Math.ceil(today.getDate() / 7), 4)
+
+  // Calculate weekly incentives
+  const [filterYear, filterMonth] = month.split('-').map(Number)
+  const weeklyData = (() => {
+    if (!assignedCarId || incentiveTarget <= 0) return []
+    const carIncomes = (incomes ?? []).filter((i) => i.car_id === assignedCarId)
+    const weekRevenues: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0 }
+    for (const inc of carIncomes) {
+      const d = new Date(inc.date)
+      if (d.getFullYear() !== filterYear || d.getMonth() + 1 !== filterMonth) continue
+      const day = d.getDate()
+      const wk = Math.min(Math.ceil(day / 7), 4)
+      weekRevenues[wk] = (weekRevenues[wk] || 0) + inc.amount
+    }
+    const weeks = []
+    for (let w = 1; w <= 4; w++) {
+      const revenue = weekRevenues[w] || 0
+      const hit = revenue >= weeklyTarget
+      let incentive = 0
+      if (hit && incentiveSlab > 0) {
+        incentive = incentiveBase + Math.floor((revenue - weeklyTarget) / incentiveSlab) * incentiveStep
+      } else if (hit) {
+        incentive = incentiveBase
+      }
+      weeks.push({ weekNum: w, revenue, incentive, hit })
+    }
+    return weeks
+  })()
+
+  const currentWeek = weeklyData.find((w) => w.weekNum === currentWeekNum)
+  const totalMonthIncentive = weeklyData.reduce((s, w) => s + w.incentive, 0)
+  const currentRevenue = currentWeek?.revenue ?? 0
+  const remainingForTarget = Math.max(weeklyTarget - currentRevenue, 0)
 
   const fmt = (n: number) => Math.abs(n).toLocaleString('en-IN')
 
@@ -140,6 +185,73 @@ export default function DriverHome() {
           </div>
         )}
       </div>
+
+      {/* Incentive Tracker — only show if incentive is configured */}
+      {weeklyTarget > 0 && (
+        <div className="bg-surface-card rounded-2xl p-4 border border-border-dim space-y-4">
+          <div className="flex items-center gap-2">
+            <Target size={18} className="text-income" />
+            <h3 className="text-sm font-semibold text-white">My Incentive</h3>
+          </div>
+
+          {/* This Week Progress */}
+          <div className="bg-surface-elevated rounded-xl p-4">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-xs text-text-muted">Week {currentWeekNum} Progress</span>
+              <span className="text-xs font-bold text-white">
+                ₹{fmt(currentRevenue)} / ₹{fmt(weeklyTarget)}
+              </span>
+            </div>
+            <div className="w-full h-4 bg-black/30 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${
+                  currentRevenue >= weeklyTarget ? 'bg-income' : 'bg-white'
+                }`}
+                style={{ width: `${Math.min(100, weeklyTarget > 0 ? (currentRevenue / weeklyTarget) * 100 : 0)}%` }}
+              />
+            </div>
+            {remainingForTarget > 0 ? (
+              <p className="text-sm font-bold text-center mt-3 text-white">
+                ₹{fmt(remainingForTarget)} more to earn target
+              </p>
+            ) : (
+              <p className="text-sm font-bold text-center mt-3 text-income">
+                Target hit! Earned ₹{fmt(currentWeek?.incentive ?? 0)} bonus
+              </p>
+            )}
+          </div>
+
+          {/* Monthly Summary — big simple numbers */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-surface-elevated rounded-xl p-3 text-center">
+              <p className="text-[10px] text-text-muted uppercase">This Month Bonus</p>
+              <p className="text-xl font-black text-income">₹{fmt(totalMonthIncentive)}</p>
+            </div>
+            <div className="bg-surface-elevated rounded-xl p-3 text-center">
+              <p className="text-[10px] text-text-muted uppercase">Weekly Target</p>
+              <p className="text-xl font-black text-white">₹{fmt(weeklyTarget)}</p>
+            </div>
+          </div>
+
+          {/* Week-by-week status — simple dots */}
+          <div className="flex justify-between px-2">
+            {weeklyData.map((w) => (
+              <div key={w.weekNum} className="text-center">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
+                  w.weekNum === currentWeekNum
+                    ? w.hit ? 'bg-income text-black' : 'bg-white text-black'
+                    : w.hit ? 'bg-income/20 text-income' : 'bg-surface-elevated text-text-muted'
+                }`}>
+                  W{w.weekNum}
+                </div>
+                <p className="text-[9px] mt-1 text-text-muted">
+                  {w.hit ? `+₹${w.incentive}` : w.weekNum <= currentWeekNum ? 'Miss' : '—'}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Car Selection + Fuel Entry */}
       <div className="bg-surface-card rounded-2xl p-4 border border-border-dim">
