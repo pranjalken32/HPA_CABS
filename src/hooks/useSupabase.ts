@@ -439,7 +439,6 @@ export function useDriverProfiles() {
     supabase
       .from('driver_profiles')
       .select('*')
-      .order('created_at', { ascending: false })
       .then(({ data }) => setData(data ?? []))
   }, [refresh])
 
