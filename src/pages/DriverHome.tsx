@@ -25,9 +25,9 @@ export default function DriverHome() {
 
   // Find this driver's profile by matching display name
   const myProfile = driverProfiles.find(
-    (d) => d.name.toLowerCase() === displayName.toLowerCase()
+    (d) => d.name && displayName && d.name.toLowerCase() === displayName.toLowerCase()
   )
-  const myName = myProfile?.name ?? displayName
+  const myName = myProfile?.name || displayName || ''
   const assignedCarId = myProfile?.car_id ?? null
 
   // Auto-select assigned car on load
@@ -36,18 +36,18 @@ export default function DriverHome() {
       setSelectedCarId(assignedCarId)
       setShowFuelForm(true)
     }
-  }, [assignedCarId, selectedCarId])
+  }, [assignedCarId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectedCar = cars.find((c) => c.id === selectedCarId)
   const fuelLogs = useFuelLogs(selectedCarId ?? 0)
 
   // Only show advances that match this driver's name
   const advanceEntries = (expenses ?? []).filter(
-    (e) => e.category === 'driver_advance' && e.note?.toLowerCase().includes(myName.toLowerCase())
+    (e) => e.category === 'driver_advance' && myName && e.note?.toLowerCase().includes(myName.toLowerCase())
   )
   const totalAdvance = advanceEntries.reduce((s, e) => s + e.amount, 0)
 
-  // Calculate salary from driver profile (pro-rated if needed)
+  // Calculate salary from driver profile (pro-rated)
   const totalSalary = myProfile?.monthly_salary ?? 0
   const balance = totalSalary - totalAdvance
 
