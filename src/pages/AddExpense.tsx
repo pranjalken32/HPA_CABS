@@ -230,7 +230,7 @@ export default function AddExpense() {
                       : 'bg-surface-elevated text-text-secondary border border-border-dim'
                   }`}
                 >
-                  {c.name}
+                  {c.number || c.name}
                 </button>
               ))}
             </div>
