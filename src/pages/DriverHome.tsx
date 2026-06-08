@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useMonthFilter } from '../hooks/useMonthFilter'
 import { useExpenses, useIncomes, useCars, useFuelLogs, addFuelLog, useDriverProfiles } from '../hooks/useSupabase'
 import { useAuth } from '../AuthContext'
-import { Fuel, Car, Wallet, ArrowUpCircle, ChevronRight, CheckCircle2, Target } from 'lucide-react'
+import { Fuel, Car, Wallet, ArrowUpCircle, ChevronRight, CheckCircle2, Target, History } from 'lucide-react'
 
 function todayStr(): string {
   const d = new Date()
@@ -129,6 +129,29 @@ export default function DriverHome() {
     const totalKm = validLogs[validLogs.length - 1].odometer_km - validLogs[0].odometer_km
     const totalKg = validLogs.slice(1).reduce((s, l) => s + l.quantity_kg, 0)
     return totalKg > 0 ? totalKm / totalKg : null
+  })()
+
+  // Payment history — scan last 12 months of settlements from localStorage
+  const paymentHistory = (() => {
+    if (!myName) return []
+    const key = myName.toLowerCase().replace(/\s+/g, '_')
+    const payments: { month: string; monthLabel: string; date: string; amount: number }[] = []
+    const now = new Date()
+    for (let i = 0; i < 12; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const m = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      const raw = localStorage.getItem(`hpa_settled_${key}_${m}`)
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw)
+          if (parsed.settled) {
+            const monthLabel = d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
+            payments.push({ month: m, monthLabel, date: parsed.date, amount: parsed.amount })
+          }
+        } catch { /* skip invalid */ }
+      }
+    }
+    return payments
   })()
 
   return (
@@ -381,6 +404,30 @@ export default function DriverHome() {
           </>
         )}
       </div>
+
+      {/* Payment History */}
+      {paymentHistory.length > 0 && (
+        <div className="bg-surface-card rounded-2xl p-4 border border-border-dim">
+          <div className="flex items-center gap-2 mb-3">
+            <History size={18} className="text-white" />
+            <h3 className="text-sm font-semibold text-white">Payment History</h3>
+          </div>
+          <div className="space-y-2">
+            {paymentHistory.map((p) => (
+              <div key={p.month} className="flex items-center justify-between bg-surface-elevated rounded-xl px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium text-white">{p.monthLabel}</p>
+                  <p className="text-[10px] text-text-muted">Paid on {p.date}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-bold text-income">₹{fmt(p.amount)}</p>
+                  <p className="text-[9px] text-income uppercase">Paid</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
