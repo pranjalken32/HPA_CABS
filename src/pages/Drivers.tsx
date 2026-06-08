@@ -13,6 +13,7 @@ import {
   useDriverSettlements,
   addSettlement,
   removeSettlement,
+  useDriverUsers,
 } from '../hooks/useSupabase'
 import type { DriverProfileRow } from '../hooks/useSupabase'
 import { Users, Plus, Edit2, Trash2, FileText, Upload, X, Calendar, Phone, IndianRupee, CheckCircle2, Target, TrendingUp } from 'lucide-react'
@@ -131,6 +132,8 @@ export default function Drivers() {
   const [incStep, setIncStep] = useState(localStorage.getItem('hpa_incentive_step') || '250')
   const [incSlab, setIncSlab] = useState(localStorage.getItem('hpa_incentive_slab') || '5000')
   const [uploading, setUploading] = useState(false)
+  const [authUserIdInput, setAuthUserIdInput] = useState<string>('')
+  const driverUsers = useDriverUsers()
 
   const [filterYear, filterMonth] = month.split('-').map(Number)
 
@@ -151,6 +154,7 @@ export default function Drivers() {
     setIncBase(defaultBase)
     setIncStep(defaultStep)
     setIncSlab(defaultSlab)
+    setAuthUserIdInput('')
     setEditDriver(null)
     setShowForm(false)
   }
@@ -167,6 +171,7 @@ export default function Drivers() {
     setIncBase(d.incentive_base ? String(d.incentive_base) : '500')
     setIncStep(d.incentive_step ? String(d.incentive_step) : '250')
     setIncSlab(d.incentive_slab ? String(d.incentive_slab) : '5000')
+    setAuthUserIdInput(d.auth_user_id ?? '')
     setShowForm(true)
   }
 
@@ -189,7 +194,7 @@ export default function Drivers() {
       aadhaar_url: editDriver?.aadhaar_url ?? null,
       pan_url: editDriver?.pan_url ?? null,
       active: !endDateInput,
-      auth_user_id: editDriver?.auth_user_id ?? null,
+      auth_user_id: authUserIdInput || null,
     }
 
     if (editDriver) {
@@ -244,6 +249,30 @@ export default function Drivers() {
             <button type="button" onClick={resetForm} className="text-text-muted hover:text-white">
               <X size={18} />
             </button>
+          </div>
+
+          {/* Link Auth User */}
+          <div>
+            <label className="text-[10px] text-text-muted uppercase block mb-1">Link Auth User</label>
+            <select
+              value={authUserIdInput}
+              onChange={(e) => {
+                const uid = e.target.value
+                setAuthUserIdInput(uid)
+                if (uid) {
+                  const user = driverUsers.find((u) => u.id === uid)
+                  if (user) setName(user.display_name)
+                }
+              }}
+              className="w-full bg-surface-elevated border border-border-dim rounded-xl px-3 py-2 text-sm text-white"
+            >
+              <option value="">— Select driver user —</option>
+              {driverUsers.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.display_name} ({u.id.slice(0, 8)}…)
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="grid grid-cols-2 gap-3">

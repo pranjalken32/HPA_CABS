@@ -429,6 +429,23 @@ export async function processRecurringExpenses() {
   return toAdd.length
 }
 
+// ---- Driver Auth Users (profiles with role='driver') ----
+
+export function useDriverUsers() {
+  const [data, setData] = useState<ProfileRow[]>([])
+  const refresh = useRefresh()
+
+  useEffect(() => {
+    supabase
+      .from('profiles')
+      .select('*')
+      .eq('role', 'driver')
+      .then(({ data }) => setData(data ?? []))
+  }, [refresh])
+
+  return data
+}
+
 // ---- Driver Profiles ----
 
 export function useDriverProfiles() {
