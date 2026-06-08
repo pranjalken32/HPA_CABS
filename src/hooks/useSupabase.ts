@@ -189,6 +189,14 @@ export function useCarDocuments(carId: number) {
   return data
 }
 
+export async function uploadCarDocFile(file: File): Promise<string> {
+  const ext = file.name.split('.').pop() ?? 'jpg'
+  const path = `car-docs/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+  const { error } = await supabase.storage.from('receipts').upload(path, file)
+  if (error) throw error
+  return path
+}
+
 export async function addCarDocument(row: Omit<CarDocumentRow, 'id' | 'user_id'>) {
   const { error } = await supabase.from('car_documents').insert(row)
   if (error) throw error
