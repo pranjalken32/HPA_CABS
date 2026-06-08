@@ -11,20 +11,21 @@ type Tab = 'all' | 'income' | 'expense'
 const PLATFORMS = ['rapido', 'ola', 'uber', 'cash', 'other']
 
 const CATEGORIES = [
-  'emi', 'fuel', 'driver_salary', 'driver_advance',
-  'insurance', 'permit', 'toll', 'car_wash', 'other',
+  'commission', 'emi', 'driver_salary', 'driver_advance',
+  'insurance', 'permit', 'toll', 'car_wash', 'service', 'other',
 ]
 
 const CATEGORY_LABELS: Record<string, string> = {
+  commission: 'Commission',
   emi: 'EMI',
   fuel: 'Fuel / CNG',
-  maintenance: 'Maintenance',
   driver_salary: 'Driver Salary',
   driver_advance: 'Driver Advance',
   insurance: 'Insurance',
   permit: 'Permit / RTO',
   toll: 'Toll / Parking',
   car_wash: 'Car Wash',
+  service: 'Service',
   Service: 'Service',
   other: 'Other',
 }

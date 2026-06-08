@@ -414,22 +414,18 @@ export default function Dashboard() {
                 <div className="border-t border-border-dim px-4 pb-4 pt-3 space-y-3">
                   {hasData ? (
                     <>
-                      <div className="grid grid-cols-4 gap-2 text-center">
+                      <div className="grid grid-cols-3 gap-2 text-center">
                         <div className="bg-surface-elevated rounded-lg p-2">
                           <p className="text-[9px] text-text-muted uppercase tracking-wider">Revenue</p>
                           <p className="text-xs font-bold text-white">₹{fmt(ws.revenue)}</p>
-                        </div>
-                        <div className="bg-surface-elevated rounded-lg p-2">
-                          <p className="text-[9px] text-text-muted uppercase tracking-wider">Income</p>
-                          <p className="text-xs font-bold text-income">₹{fmt(ws.income)}</p>
                         </div>
                         <div className="bg-surface-elevated rounded-lg p-2">
                           <p className="text-[9px] text-text-muted uppercase tracking-wider">Expense</p>
                           <p className="text-xs font-bold text-expense">₹{fmt(ws.expense)}</p>
                         </div>
                         <div className="bg-surface-elevated rounded-lg p-2">
-                          <p className="text-[9px] text-text-muted uppercase tracking-wider">Trips</p>
-                          <p className="text-xs font-bold text-white">{ws.trips}</p>
+                          <p className="text-[9px] text-text-muted uppercase tracking-wider">Profit</p>
+                          <p className={`text-xs font-bold ${ws.profit >= 0 ? 'text-income' : 'text-expense'}`}>₹{fmt(ws.profit)}</p>
                         </div>
                       </div>
 

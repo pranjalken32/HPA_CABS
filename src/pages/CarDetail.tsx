@@ -91,7 +91,8 @@ export default function CarDetail() {
   }
 
   const totalGrossIncome = carIncomes.reduce((s, i) => s + i.amount, 0)
-  const totalCarExpenses = carExpenses.reduce((s, e) => s + e.amount, 0)
+  const nonServiceExpenses = carExpenses.filter((e) => e.category !== 'Service' && e.category !== 'service')
+  const totalCarExpenses = nonServiceExpenses.reduce((s, e) => s + e.amount, 0)
   const totalServiceCost = services?.reduce((s, r) => s + r.cost, 0) ?? 0
   const totalRecovered = Math.max(totalGrossIncome - totalCarExpenses - totalServiceCost, 0)
   const recoveryPercent = car.total_cost > 0 ? Math.min((totalRecovered / car.total_cost) * 100, 100) : 0
