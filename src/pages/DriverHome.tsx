@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useMonthFilter } from '../hooks/useMonthFilter'
-import { useExpenses, useIncomes, useCars, useFuelLogs, addFuelLog, useDriverProfiles } from '../hooks/useSupabase'
+import { useExpenses, useIncomes, useCars, useFuelLogs, addFuelLog, useDriverProfiles, useDriverSettlements } from '../hooks/useSupabase'
 import { useAuth } from '../AuthContext'
 import { Fuel, Car, Wallet, ArrowUpCircle, ChevronRight, CheckCircle2, Target, History } from 'lucide-react'
 
@@ -131,28 +131,14 @@ export default function DriverHome() {
     return totalKg > 0 ? totalKm / totalKg : null
   })()
 
-  // Payment history — scan last 12 months of settlements from localStorage
-  const paymentHistory = (() => {
-    if (!myName) return []
-    const key = myName.toLowerCase().replace(/\s+/g, '_')
-    const payments: { month: string; monthLabel: string; date: string; amount: number }[] = []
-    const now = new Date()
-    for (let i = 0; i < 12; i++) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
-      const m = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
-      const raw = localStorage.getItem(`hpa_settled_${key}_${m}`)
-      if (raw) {
-        try {
-          const parsed = JSON.parse(raw)
-          if (parsed.settled) {
-            const monthLabel = d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
-            payments.push({ month: m, monthLabel, date: parsed.date, amount: parsed.amount })
-          }
-        } catch { /* skip invalid */ }
-      }
-    }
-    return payments
-  })()
+  // Payment history from Supabase
+  const allSettlements = useDriverSettlements(myName || undefined)
+  const paymentHistory = allSettlements.map((s) => {
+    const [y, m] = s.month.split('-').map(Number)
+    const d = new Date(y, m - 1, 1)
+    const monthLabel = d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
+    return { month: s.month, monthLabel, date: s.settled_date, amount: s.amount }
+  })
 
   return (
     <div className="space-y-4">

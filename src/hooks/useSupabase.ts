@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase'
-import type { IncomeRow, ExpenseRow, CarRow, CarDocumentRow, ServiceRecordRow, ProfileRow, FuelLogRow, GoalRow, DriverProfileRow } from '../supabase'
+import type { IncomeRow, ExpenseRow, CarRow, CarDocumentRow, ServiceRecordRow, ProfileRow, FuelLogRow, GoalRow, DriverProfileRow, DriverSettlementRow } from '../supabase'
 
-export type { DriverProfileRow }
+export type { DriverProfileRow, DriverSettlementRow }
 
 // ---- Generic refresh counter ----
 let _refreshCounter = 0
@@ -473,6 +473,42 @@ export async function uploadDriverDoc(file: File): Promise<string> {
 
 export async function updateCar(id: number, updates: Partial<CarRow>) {
   const { error } = await supabase.from('cars').update(updates).eq('id', id)
+  if (error) throw error
+  triggerRefresh()
+}
+
+// ---- Driver Settlements ----
+
+export function useDriverSettlements(driverName?: string) {
+  const [data, setData] = useState<DriverSettlementRow[]>([])
+  const refresh = useRefresh()
+
+  useEffect(() => {
+    let query = supabase
+      .from('driver_settlements')
+      .select('*')
+      .order('month', { ascending: false })
+    if (driverName) {
+      query = query.eq('driver_name', driverName)
+    }
+    query.then(({ data }) => setData(data ?? []))
+  }, [driverName, refresh])
+
+  return data
+}
+
+export async function addSettlement(row: { driver_name: string; month: string; amount: number; settled_date: string }) {
+  const { error } = await supabase.from('driver_settlements').insert(row)
+  if (error) throw error
+  triggerRefresh()
+}
+
+export async function removeSettlement(driverName: string, month: string) {
+  const { error } = await supabase
+    .from('driver_settlements')
+    .delete()
+    .eq('driver_name', driverName)
+    .eq('month', month)
   if (error) throw error
   triggerRefresh()
 }

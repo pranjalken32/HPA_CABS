@@ -102,3 +102,12 @@ export interface DriverProfileRow {
   active: boolean
   created_at: string
 }
+
+export interface DriverSettlementRow {
+  id: number
+  driver_name: string
+  month: string
+  amount: number
+  settled_date: string
+  created_at: string
+}
