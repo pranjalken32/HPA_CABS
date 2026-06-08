@@ -27,6 +27,7 @@ import {
   Target,
 } from 'lucide-react'
 import { generateMonthlySummary, shareViaWhatsApp } from '../utils/share'
+import { useLanguage } from '../LanguageContext'
 
 const PLATFORM_COLORS: Record<string, string> = {
   rapido: '#f97316',
@@ -81,6 +82,7 @@ interface WeekStats {
 
 export default function Dashboard() {
   const { month, setMonth, startDate, endDate } = useMonthFilter()
+  const { t } = useLanguage()
   const [expandedWeek, setExpandedWeek] = useState<number | null>(null)
   const [showGoalInput, setShowGoalInput] = useState(false)
   const [goalInput, setGoalInput] = useState('')
@@ -277,11 +279,11 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <SummaryCard label="Revenue" value={fmt(totalRevenue)} icon={<IndianRupee size={20} />} color="text-white" />
-        <SummaryCard label="Net Profit" value={fmt(netProfit)} icon={<Wallet size={20} />} color={netProfit >= 0 ? 'text-income' : 'text-expense'} />
-        <SummaryCard label="Income" value={fmt(totalIncome)} icon={<TrendingUp size={20} />} color="text-income" subtitle={totalCommission > 0 ? `−₹${fmt(totalCommission)} commission` : undefined} />
-        <SummaryCard label="Expenses" value={fmt(totalExpense)} icon={<TrendingDown size={20} />} color="text-expense" />
-        <SummaryCard label="Total Trips" value={String(totalTrips)} icon={<Car size={20} />} color="text-white" isCurrency={false} />
+        <SummaryCard label={t.revenue} value={fmt(totalRevenue)} icon={<IndianRupee size={20} />} color="text-white" />
+        <SummaryCard label={t.netProfit} value={fmt(netProfit)} icon={<Wallet size={20} />} color={netProfit >= 0 ? 'text-income' : 'text-expense'} />
+        <SummaryCard label={t.income} value={fmt(totalIncome)} icon={<TrendingUp size={20} />} color="text-income" subtitle={totalCommission > 0 ? `−₹${fmt(totalCommission)} ${t.cat_commission}` : undefined} />
+        <SummaryCard label={t.expenses} value={fmt(totalExpense)} icon={<TrendingDown size={20} />} color="text-expense" />
+        <SummaryCard label={t.totalTrips} value={String(totalTrips)} icon={<Car size={20} />} color="text-white" isCurrency={false} />
       </div>
 
       {/* Monthly pie charts */}
@@ -345,7 +347,7 @@ export default function Dashboard() {
       {/* WEEKLY BREAKDOWN */}
       <div className="flex items-center gap-2 pt-2">
         <div className="h-px flex-1 bg-border-dim" />
-        <span className="text-[10px] uppercase tracking-widest text-text-muted font-semibold">Weekly Breakdown</span>
+        <span className="text-[10px] uppercase tracking-widest text-text-muted font-semibold">{t.weeklyBreakdown}</span>
         <div className="h-px flex-1 bg-border-dim" />
       </div>
 

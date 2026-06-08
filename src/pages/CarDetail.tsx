@@ -7,6 +7,7 @@ import {
   uploadCarDocFile, getSignedUrl,
 } from '../hooks/useSupabase'
 import { useAuth } from '../AuthContext'
+import { useLanguage } from '../LanguageContext'
 import {
   ArrowLeft,
   FileText,
@@ -54,6 +55,7 @@ export default function CarDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { role } = useAuth()
+  const { t } = useLanguage()
   const isOwner = role === 'owner'
   const carId = Number(id)
 
@@ -556,7 +558,7 @@ export default function CarDetail() {
                     fuelType === 'cng' ? 'bg-white text-black' : 'bg-surface-card text-text-muted border border-border-dim'
                   }`}
                 >
-                  CNG
+                  {t.cng}
                 </button>
                 <button
                   type="button"
@@ -565,11 +567,11 @@ export default function CarDetail() {
                     fuelType === 'petrol' ? 'bg-orange-500 text-white' : 'bg-surface-card text-text-muted border border-border-dim'
                   }`}
                 >
-                  Petrol
+                  {t.petrol}
                 </button>
               </div>
               <div>
-                <label className="block text-[10px] text-text-muted uppercase tracking-wider mb-1">Date</label>
+                <label className="block text-[10px] text-text-muted uppercase tracking-wider mb-1">{t.date}</label>
                 <input
                   type="date"
                   value={fuelDate}

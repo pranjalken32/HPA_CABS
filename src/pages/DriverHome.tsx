@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useMonthFilter } from '../hooks/useMonthFilter'
 import { useExpenses, useIncomes, useCars, useFuelLogs, addFuelLog, useDriverProfiles, useDriverSettlements } from '../hooks/useSupabase'
 import { useAuth } from '../AuthContext'
+import { useLanguage } from '../LanguageContext'
 import { Fuel, Car, Wallet, ArrowUpCircle, ChevronRight, CheckCircle2, Target, History } from 'lucide-react'
 
 function todayStr(): string {
@@ -12,6 +13,7 @@ function todayStr(): string {
 export default function DriverHome() {
   const { month, setMonth, startDate, endDate } = useMonthFilter()
   const { displayName } = useAuth()
+  const { t } = useLanguage()
   const expenses = useExpenses(startDate, endDate)
   const cars = useCars()
   const driverProfiles = useDriverProfiles()
@@ -178,20 +180,20 @@ export default function DriverHome() {
         <div className="flex items-center gap-2 mb-3">
           <Wallet size={18} className="text-white" />
           <h3 className="text-sm font-semibold text-white">
-            {myName ? `${myName}'s Settlement` : 'My Settlement'}
+            {myName ? `${myName} - ${t.mySettlement}` : t.mySettlement}
           </h3>
         </div>
         <div className="grid grid-cols-3 gap-2">
           <div className="bg-surface-elevated rounded-xl p-3 text-center">
-            <p className="text-[10px] text-text-muted uppercase">Salary</p>
+            <p className="text-[10px] text-text-muted uppercase">{t.salary}</p>
             <p className="text-sm font-bold text-white">₹{fmt(totalSalary)}</p>
           </div>
           <div className="bg-surface-elevated rounded-xl p-3 text-center">
-            <p className="text-[10px] text-text-muted uppercase">Advance</p>
+            <p className="text-[10px] text-text-muted uppercase">{t.advances}</p>
             <p className="text-sm font-bold text-income">₹{fmt(totalAdvance)}</p>
           </div>
           <div className="bg-surface-elevated rounded-xl p-3 text-center">
-            <p className="text-[10px] text-text-muted uppercase">{balance >= 0 ? 'Due' : 'Overpaid'}</p>
+            <p className="text-[10px] text-text-muted uppercase">{balance >= 0 ? t.due : 'Overpaid'}</p>
             <p className={`text-sm font-bold ${balance >= 0 ? 'text-expense' : 'text-income'}`}>₹{fmt(balance)}</p>
           </div>
         </div>
@@ -220,7 +222,7 @@ export default function DriverHome() {
         <div className="bg-surface-card rounded-2xl p-4 border border-border-dim space-y-4">
           <div className="flex items-center gap-2">
             <Target size={18} className="text-income" />
-            <h3 className="text-sm font-semibold text-white">My Incentive</h3>
+            <h3 className="text-sm font-semibold text-white">{t.myIncentive}</h3>
           </div>
 
           {/* This Week Progress */}
@@ -253,11 +255,11 @@ export default function DriverHome() {
           {/* Monthly Summary — big simple numbers */}
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-surface-elevated rounded-xl p-3 text-center">
-              <p className="text-[10px] text-text-muted uppercase">This Month Bonus</p>
+              <p className="text-[10px] text-text-muted uppercase">{t.thisMonthBonus}</p>
               <p className="text-xl font-black text-income">₹{fmt(totalMonthIncentive)}</p>
             </div>
             <div className="bg-surface-elevated rounded-xl p-3 text-center">
-              <p className="text-[10px] text-text-muted uppercase">Weekly Target</p>
+              <p className="text-[10px] text-text-muted uppercase">{t.weeklyTarget}</p>
               <p className="text-xl font-black text-white">₹{fmt(weeklyTarget)}</p>
             </div>
           </div>
@@ -286,7 +288,7 @@ export default function DriverHome() {
       <div className="bg-surface-card rounded-2xl p-4 border border-border-dim">
         <div className="flex items-center gap-2 mb-3">
           <Fuel size={18} className="text-white" />
-          <h3 className="text-sm font-semibold text-white">Fuel / CNG Log</h3>
+          <h3 className="text-sm font-semibold text-white">{t.fuelEntry}</h3>
         </div>
 
         {/* Car selector — if driver has assigned car, show only that; otherwise show all */}
@@ -350,7 +352,7 @@ export default function DriverHome() {
                     fuelType === 'cng' ? 'bg-white text-black' : 'bg-surface-elevated text-text-muted border border-border-dim'
                   }`}
                 >
-                  CNG
+                  {t.cng}
                 </button>
                 <button
                   type="button"
@@ -359,7 +361,7 @@ export default function DriverHome() {
                     fuelType === 'petrol' ? 'bg-orange-500 text-white' : 'bg-surface-elevated text-text-muted border border-border-dim'
                   }`}
                 >
-                  Petrol
+                  {t.petrol}
                 </button>
               </div>
               <div>
@@ -406,7 +408,7 @@ export default function DriverHome() {
                 type="submit"
                 className="w-full bg-white text-black font-semibold py-3 rounded-xl hover:bg-gray-200 transition-all"
               >
-                Save Fuel Entry
+                {t.saveFuelEntry}
               </button>
             </form>
 
@@ -442,7 +444,7 @@ export default function DriverHome() {
         <div className="bg-surface-card rounded-2xl p-4 border border-border-dim">
           <div className="flex items-center gap-2 mb-3">
             <History size={18} className="text-white" />
-            <h3 className="text-sm font-semibold text-white">Payment History</h3>
+            <h3 className="text-sm font-semibold text-white">{t.paymentHistory}</h3>
           </div>
           <div className="space-y-2">
             {paymentHistory.map((p) => (

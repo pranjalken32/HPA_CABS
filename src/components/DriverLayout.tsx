@@ -1,10 +1,12 @@
 import { Outlet } from 'react-router-dom'
 import { LogOut } from 'lucide-react'
 import { useAuth } from '../AuthContext'
+import { useLanguage } from '../LanguageContext'
 import Logo from './Logo'
 
 export default function DriverLayout() {
   const { signOut, displayName } = useAuth()
+  const { t } = useLanguage()
 
   return (
     <div className="min-h-screen bg-surface">
@@ -22,7 +24,7 @@ export default function DriverLayout() {
           <button
             onClick={() => signOut()}
             className="ml-auto text-text-muted hover:text-white transition-colors"
-            title="Sign out"
+            title={t.signOut}
           >
             <LogOut size={18} />
           </button>

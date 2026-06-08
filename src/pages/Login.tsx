@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { useAuth } from '../AuthContext'
+import { useLanguage } from '../LanguageContext'
 import Logo from '../components/Logo'
 
 export default function Login() {
   const { signIn } = useAuth()
+  const { t } = useLanguage()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -30,7 +32,7 @@ export default function Login() {
             <Logo size={64} />
           </div>
           <h1 className="text-2xl font-bold text-white tracking-tight">HPA Cabs</h1>
-          <p className="text-sm text-text-muted mt-1">Sign in to continue</p>
+          <p className="text-sm text-text-muted mt-1">{t.loginSubtitle}</p>
         </div>
 
         <form onSubmit={handleSubmit} className="bg-surface-card rounded-2xl border border-border-dim p-6 space-y-4">
@@ -72,7 +74,7 @@ export default function Login() {
             disabled={loading}
             className="w-full bg-white text-black font-semibold py-3 rounded-xl transition-all hover:bg-gray-200 disabled:opacity-60"
           >
-            {loading ? 'Signing in...' : 'Sign In'}
+            {loading ? t.signingIn : t.signIn}
           </button>
         </form>
       </div>
