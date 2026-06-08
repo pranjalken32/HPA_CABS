@@ -86,7 +86,7 @@ export interface GoalRow {
 
 export interface DriverProfileRow {
   id: number
-  user_id: string
+  user_id: string | null
   name: string
   phone: string
   start_date: string
@@ -101,7 +101,7 @@ export interface DriverProfileRow {
   aadhaar_url: string | null
   pan_url: string | null
   active: boolean
-  created_at: string
+  created_at: string | null
 }
 
 export interface DriverSettlementRow {
