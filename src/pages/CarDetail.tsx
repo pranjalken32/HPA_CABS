@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
-  useCar, useCarDocuments, useServiceRecords, useIncomes, useFuelLogs,
+  useCar, useCarDocuments, useServiceRecords, useIncomes, useExpenses, useFuelLogs,
   addCarDocument, addServiceRecord, addFuelLog,
   deleteCarDocument, deleteServiceRecord, deleteCar, deleteFuelLog,
 } from '../hooks/useSupabase'
@@ -56,6 +56,8 @@ export default function CarDetail() {
   const services = useServiceRecords(carId)
   const incomes = useIncomes('2000-01-01', '2099-12-31')
   const carIncomes = incomes.filter((i) => i.car_id === carId)
+  const allExpenses = useExpenses('2000-01-01', '2099-12-31')
+  const carExpenses = allExpenses.filter((e) => e.car_id === carId)
 
   const fuelLogs = useFuelLogs(carId)
   const [tab, setTab] = useState<Tab>('docs')
@@ -88,8 +90,10 @@ export default function CarDetail() {
     )
   }
 
-  const totalRecovered = carIncomes.reduce((s, i) => s + i.amount, 0)
+  const totalGrossIncome = carIncomes.reduce((s, i) => s + i.amount, 0)
+  const totalCarExpenses = carExpenses.reduce((s, e) => s + e.amount, 0)
   const totalServiceCost = services?.reduce((s, r) => s + r.cost, 0) ?? 0
+  const totalRecovered = Math.max(totalGrossIncome - totalCarExpenses - totalServiceCost, 0)
   const recoveryPercent = car.total_cost > 0 ? Math.min((totalRecovered / car.total_cost) * 100, 100) : 0
   const remaining = Math.max(car.total_cost - totalRecovered, 0)
 
@@ -331,7 +335,7 @@ export default function CarDetail() {
         <div className="space-y-4">
           {/* Progress ring / bar */}
           <div className="bg-surface-card rounded-2xl p-5 border border-border-dim text-center space-y-4">
-            <h3 className="text-sm font-semibold text-text-secondary">Cost Recovery</h3>
+            <h3 className="text-sm font-semibold text-text-secondary">Net Recovery</h3>
 
             {/* Circular progress */}
             <div className="relative w-32 h-32 mx-auto">
@@ -350,26 +354,40 @@ export default function CarDetail() {
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
                 <span className="text-2xl font-black text-text-primary">{recoveryPercent.toFixed(0)}%</span>
-                <span className="text-[10px] text-text-muted">recovered</span>
+                <span className="text-[10px] text-text-muted">net recovered</span>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-surface-elevated rounded-xl p-3">
-                <p className="text-[10px] text-text-muted uppercase tracking-wider">Total Cost</p>
+                <p className="text-[10px] text-text-muted uppercase tracking-wider">Car Cost</p>
                 <p className="text-sm font-bold text-text-primary">₹{fmt(car.total_cost)}</p>
               </div>
               <div className="bg-surface-elevated rounded-xl p-3">
-                <p className="text-[10px] text-text-muted uppercase tracking-wider">Recovered</p>
+                <p className="text-[10px] text-text-muted uppercase tracking-wider">Net Recovered</p>
                 <p className="text-sm font-bold text-income">₹{fmt(totalRecovered)}</p>
               </div>
               <div className="bg-surface-elevated rounded-xl p-3">
-                <p className="text-[10px] text-text-muted uppercase tracking-wider">Remaining</p>
-                <p className="text-sm font-bold text-expense">₹{fmt(remaining)}</p>
+                <p className="text-[10px] text-text-muted uppercase tracking-wider">Gross Income</p>
+                <p className="text-sm font-bold text-white">₹{fmt(totalGrossIncome)}</p>
               </div>
               <div className="bg-surface-elevated rounded-xl p-3">
-                <p className="text-[10px] text-text-muted uppercase tracking-wider">Service Cost</p>
-                <p className="text-sm font-bold text-yellow-400">₹{fmt(totalServiceCost)}</p>
+                <p className="text-[10px] text-text-muted uppercase tracking-wider">Car Expenses</p>
+                <p className="text-sm font-bold text-expense">₹{fmt(totalCarExpenses + totalServiceCost)}</p>
+              </div>
+              <div className="bg-surface-elevated rounded-xl p-3 col-span-2">
+                <p className="text-[10px] text-text-muted uppercase tracking-wider">Remaining to Recover</p>
+                <p className="text-sm font-bold text-yellow-400">₹{fmt(remaining)}</p>
+              </div>
+            </div>
+
+            <div className="bg-surface-elevated rounded-xl p-3 text-left">
+              <p className="text-[10px] text-text-muted uppercase tracking-wider mb-1">Breakdown</p>
+              <div className="space-y-1 text-xs">
+                <div className="flex justify-between"><span className="text-text-muted">Gross income from car</span><span className="text-white">₹{fmt(totalGrossIncome)}</span></div>
+                <div className="flex justify-between"><span className="text-text-muted">− Fuel/EMI/Expenses</span><span className="text-expense">−₹{fmt(totalCarExpenses)}</span></div>
+                <div className="flex justify-between"><span className="text-text-muted">− Service costs</span><span className="text-expense">−₹{fmt(totalServiceCost)}</span></div>
+                <div className="flex justify-between border-t border-border-dim pt-1 mt-1"><span className="text-text-secondary font-semibold">= Net recovered</span><span className="text-income font-bold">₹{fmt(totalRecovered)}</span></div>
               </div>
             </div>
 
@@ -380,7 +398,7 @@ export default function CarDetail() {
                   ~{monthsToRecover} month{monthsToRecover !== 1 ? 's' : ''}
                 </p>
                 <p className="text-[10px] text-text-muted mt-0.5">
-                  Based on ₹{fmt(Math.round(monthlyAvg))}/month avg revenue
+                  Based on ₹{fmt(Math.round(monthlyAvg))}/month net avg
                 </p>
               </div>
             )}

@@ -230,28 +230,29 @@ For each category C:
 
 ---
 
-## Car Cost Recovery Calculations
+## Car Cost Recovery Calculations (Net Recovery)
 
 Source: `src/pages/CarDetail.tsx`
 
 ### Recovery Tracker
 
 ```
-totalCost       = car.totalCost           (purchase price + accessories)
-totalRecovered  = SUM(income.amount) WHERE income.carId == car.id
+totalCost        = car.totalCost             (purchase price + accessories)
+grossIncome      = SUM(income.amount) WHERE income.carId == car.id
+carExpenses      = SUM(expense.amount) WHERE expense.carId == car.id
 totalServiceCost = SUM(serviceRecord.cost) WHERE serviceRecord.carId == car.id
-recoveryPercent = MIN((totalRecovered / totalCost) × 100, 100)
-remaining       = MAX(totalCost - totalRecovered, 0)
+netRecovered     = MAX(grossIncome - carExpenses - totalServiceCost, 0)
+recoveryPercent  = MIN((netRecovered / totalCost) × 100, 100)
+remaining        = MAX(totalCost - netRecovered, 0)
 ```
+
+**Important:** To make expenses count toward a car's recovery, assign the car when adding the expense (fuel, EMI, etc.). Unassigned expenses don't affect car recovery.
 
 ### Estimated Time to Recover
 
 ```
-monthsActive = MAX(
-  (today - car.createdAt) / (30 days in ms),
-  1
-)
-monthlyAvg     = totalRecovered / monthsActive
+monthsActive    = MAX((latestIncomeDate - earliestIncomeDate) / 30 days, 1)
+monthlyAvg      = netRecovered / monthsActive
 monthsToRecover = CEIL(remaining / monthlyAvg)
 ```
 
@@ -263,7 +264,19 @@ SVG circle with `circumference = 264` (radius 42 × 2π):
 
 ```
 strokeDasharray = "${recoveryPercent × 2.64} 264"
-color = recoveryPercent >= 100 ? green : purple
+color = recoveryPercent >= 100 ? green : white
+```
+
+---
+
+## Dashboard Metrics
+
+```
+Revenue    = SUM(all income entries for the month)  — what shows on platform apps
+Commission = SUM(expenses WHERE category == 'commission')
+Income     = Revenue - Commission  — actual money received after platform cuts
+Expenses   = SUM(non-commission expenses for the month)
+Net Profit = Income - Expenses  — what you actually keep
 ```
 
 ---
