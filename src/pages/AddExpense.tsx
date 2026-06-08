@@ -7,6 +7,7 @@ const CATEGORIES = [
   'emi',
   'driver_salary',
   'driver_advance',
+  'driver_incentive',
   'insurance',
   'permit',
   'toll',
@@ -20,6 +21,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   emi: 'EMI',
   driver_salary: 'Driver Salary',
   driver_advance: 'Driver Advance',
+  driver_incentive: 'Driver Incentive',
   insurance: 'Insurance',
   permit: 'Permit / RTO',
   toll: 'Toll / Parking',
@@ -228,7 +230,7 @@ export default function AddExpense() {
                       : 'bg-surface-elevated text-text-secondary border border-border-dim'
                   }`}
                 >
-                  {c.name}
+                  {c.number || c.name}
                 </button>
               ))}
             </div>

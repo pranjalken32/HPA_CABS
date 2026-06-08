@@ -8,6 +8,7 @@ import {
   LogOut,
   ChevronRight,
   CheckCircle2,
+  Target,
 } from 'lucide-react'
 
 export default function More() {
@@ -16,6 +17,12 @@ export default function More() {
   const [cngRate, setCngRate] = useState(localStorage.getItem('hpa_cng_rate') || '95')
   const [saved, setSaved] = useState(false)
 
+  // Incentive defaults
+  const [incBase, setIncBase] = useState(localStorage.getItem('hpa_incentive_base') || '500')
+  const [incStep, setIncStep] = useState(localStorage.getItem('hpa_incentive_step') || '250')
+  const [incSlab, setIncSlab] = useState(localStorage.getItem('hpa_incentive_slab') || '5000')
+  const [incSaved, setIncSaved] = useState(false)
+
   const handleSaveRate = () => {
     const rate = Number(cngRate)
     if (rate > 0) {
@@ -23,6 +30,14 @@ export default function More() {
       setSaved(true)
       setTimeout(() => setSaved(false), 1500)
     }
+  }
+
+  const handleSaveIncentive = () => {
+    localStorage.setItem('hpa_incentive_base', String(Number(incBase) || 500))
+    localStorage.setItem('hpa_incentive_step', String(Number(incStep) || 250))
+    localStorage.setItem('hpa_incentive_slab', String(Number(incSlab) || 5000))
+    setIncSaved(true)
+    setTimeout(() => setIncSaved(false), 1500)
   }
 
   return (
@@ -84,6 +99,68 @@ export default function More() {
         {saved && (
           <div className="flex items-center gap-2 text-income text-xs">
             <CheckCircle2 size={14} /> CNG rate saved!
+          </div>
+        )}
+      </div>
+
+      {/* Incentive Defaults */}
+      <div className="bg-surface-card rounded-2xl p-4 border border-border-dim space-y-3">
+        <div className="flex items-center gap-2">
+          <Target size={18} className="text-income" />
+          <h3 className="text-sm font-semibold text-white">Incentive Defaults</h3>
+        </div>
+        <p className="text-xs text-text-muted">
+          Default values used when adding a new driver. You can override per-driver in their profile.
+        </p>
+        <div className="grid grid-cols-3 gap-2">
+          <div>
+            <label className="text-[9px] text-text-muted uppercase block mb-1">Base/week (₹)</label>
+            <input
+              type="number"
+              inputMode="numeric"
+              value={incBase}
+              onChange={(e) => setIncBase(e.target.value)}
+              className="w-full border border-border-dim bg-surface-elevated rounded-xl px-3 py-2.5 text-sm text-white focus:border-white focus:outline-none"
+              placeholder="500"
+            />
+          </div>
+          <div>
+            <label className="text-[9px] text-text-muted uppercase block mb-1">Extra/slab (₹)</label>
+            <input
+              type="number"
+              inputMode="numeric"
+              value={incStep}
+              onChange={(e) => setIncStep(e.target.value)}
+              className="w-full border border-border-dim bg-surface-elevated rounded-xl px-3 py-2.5 text-sm text-white focus:border-white focus:outline-none"
+              placeholder="250"
+            />
+          </div>
+          <div>
+            <label className="text-[9px] text-text-muted uppercase block mb-1">Slab size (₹)</label>
+            <input
+              type="number"
+              inputMode="numeric"
+              value={incSlab}
+              onChange={(e) => setIncSlab(e.target.value)}
+              className="w-full border border-border-dim bg-surface-elevated rounded-xl px-3 py-2.5 text-sm text-white focus:border-white focus:outline-none"
+              placeholder="5000"
+            />
+          </div>
+        </div>
+        <div className="flex items-center justify-between">
+          <p className="text-[10px] text-text-muted">
+            Base ₹{incBase}/week + ₹{incStep} per extra ₹{incSlab} above target
+          </p>
+          <button
+            onClick={handleSaveIncentive}
+            className="bg-white text-black font-semibold px-4 py-2 rounded-xl text-sm hover:bg-gray-200 transition-all"
+          >
+            Save
+          </button>
+        </div>
+        {incSaved && (
+          <div className="flex items-center gap-2 text-income text-xs">
+            <CheckCircle2 size={14} /> Incentive defaults saved!
           </div>
         )}
       </div>

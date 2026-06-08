@@ -91,6 +91,11 @@ export interface DriverProfileRow {
   start_date: string
   end_date: string | null
   monthly_salary: number
+  car_id: number | null
+  incentive_target: number
+  incentive_base: number
+  incentive_step: number
+  incentive_slab: number
   dl_url: string | null
   aadhaar_url: string | null
   pan_url: string | null
