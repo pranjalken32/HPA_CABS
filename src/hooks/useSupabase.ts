@@ -484,7 +484,7 @@ export async function updateCar(id: number, updates: Partial<CarRow>) {
 
 // ---- Driver Settlements ----
 
-export function useDriverSettlements(driverName?: string) {
+export function useDriverSettlements(filter?: { driverProfileId?: number; driverName?: string }) {
   const [data, setData] = useState<DriverSettlementRow[]>([])
   const refresh = useRefresh()
 
@@ -493,26 +493,28 @@ export function useDriverSettlements(driverName?: string) {
       .from('driver_settlements')
       .select('*')
       .order('month', { ascending: false })
-    if (driverName) {
-      query = query.eq('driver_name', driverName)
+    if (filter?.driverProfileId) {
+      query = query.eq('driver_profile_id', filter.driverProfileId)
+    } else if (filter?.driverName) {
+      query = query.eq('driver_name', filter.driverName)
     }
     query.then(({ data }) => setData(data ?? []))
-  }, [driverName, refresh])
+  }, [filter?.driverProfileId, filter?.driverName, refresh])
 
   return data
 }
 
-export async function addSettlement(row: { driver_name: string; month: string; amount: number; settled_date: string }) {
+export async function addSettlement(row: { driver_name: string; driver_profile_id: number; month: string; amount: number; settled_date: string }) {
   const { error } = await supabase.from('driver_settlements').insert(row)
   if (error) throw error
   triggerRefresh()
 }
 
-export async function removeSettlement(driverName: string, month: string) {
+export async function removeSettlement(driverProfileId: number, month: string) {
   const { error } = await supabase
     .from('driver_settlements')
     .delete()
-    .eq('driver_name', driverName)
+    .eq('driver_profile_id', driverProfileId)
     .eq('month', month)
   if (error) throw error
   triggerRefresh()

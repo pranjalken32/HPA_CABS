@@ -13,7 +13,7 @@ function todayStr(): string {
 
 export default function DriverHome() {
   const { month, setMonth, startDate, endDate } = useMonthFilter()
-  const { displayName } = useAuth()
+  const { displayName, user } = useAuth()
   const { lang, t, setLang } = useLanguage()
   const expenses = useExpenses(startDate, endDate)
   const cars = useCars()
@@ -27,8 +27,10 @@ export default function DriverHome() {
   const [saved, setSaved] = useState(false)
   const cngRate = Number(localStorage.getItem('hpa_cng_rate') || '95')
 
-  // Find this driver's profile by matching display name
+  // Find this driver's profile by auth user ID (primary) or display name (fallback)
   const myProfile = driverProfiles.find(
+    (d) => d.auth_user_id && user?.id && d.auth_user_id === user.id
+  ) || driverProfiles.find(
     (d) => d.name && displayName && d.name.trim().toLowerCase() === displayName.trim().toLowerCase()
   )
   const myName = myProfile?.name?.trim() || displayName || ''
@@ -154,8 +156,10 @@ export default function DriverHome() {
     return totalKg > 0 ? totalKm / totalKg : null
   })()
 
-  // Payment history from Supabase
-  const allSettlements = useDriverSettlements(myName || undefined)
+  // Payment history from Supabase (by profile ID or name fallback)
+  const allSettlements = useDriverSettlements(
+    myProfile?.id ? { driverProfileId: myProfile.id } : myName ? { driverName: myName } : undefined
+  )
   const paymentHistory = allSettlements.map((s) => {
     const [y, m] = s.month.split('-').map(Number)
     const d = new Date(y, m - 1, 1)
