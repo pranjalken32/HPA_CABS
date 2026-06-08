@@ -3,7 +3,8 @@ import { useMonthFilter } from '../hooks/useMonthFilter'
 import { useExpenses, useIncomes, useCars, useFuelLogs, addFuelLog, useDriverProfiles, useDriverSettlements } from '../hooks/useSupabase'
 import { useAuth } from '../AuthContext'
 import { useLanguage } from '../LanguageContext'
-import { Fuel, Car, Wallet, ArrowUpCircle, ChevronRight, CheckCircle2, Target, History } from 'lucide-react'
+import { LANGUAGES } from '../i18n'
+import { Fuel, Car, Wallet, ArrowUpCircle, ChevronRight, CheckCircle2, Target, History, Globe } from 'lucide-react'
 
 function todayStr(): string {
   const d = new Date()
@@ -13,7 +14,7 @@ function todayStr(): string {
 export default function DriverHome() {
   const { month, setMonth, startDate, endDate } = useMonthFilter()
   const { displayName } = useAuth()
-  const { t } = useLanguage()
+  const { lang, t, setLang } = useLanguage()
   const expenses = useExpenses(startDate, endDate)
   const cars = useCars()
   const driverProfiles = useDriverProfiles()
@@ -462,6 +463,29 @@ export default function DriverHome() {
           </div>
         </div>
       )}
+
+      {/* Language Selector */}
+      <div className="bg-surface-card rounded-2xl p-4 border border-border-dim space-y-3">
+        <div className="flex items-center gap-2">
+          <Globe size={18} className="text-blue-400" />
+          <h3 className="text-sm font-semibold text-white">{t.language}</h3>
+        </div>
+        <div className="grid grid-cols-4 gap-2">
+          {LANGUAGES.map((l) => (
+            <button
+              key={l.code}
+              onClick={() => setLang(l.code)}
+              className={`px-2 py-2 rounded-xl text-xs font-medium transition-colors ${
+                lang === l.code
+                  ? 'bg-white text-black'
+                  : 'bg-surface-elevated text-text-muted border border-border-dim hover:border-white/30'
+              }`}
+            >
+              {l.native}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }
