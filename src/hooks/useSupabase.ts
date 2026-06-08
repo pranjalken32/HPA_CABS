@@ -302,11 +302,14 @@ export async function addFuelLog(row: Omit<FuelLogRow, 'id' | 'user_id'>) {
   if (error) throw error
   // Auto-create matching expense for this fuel fill
   if (row.total_cost > 0) {
+    const fuelNote = row.fuel_type === 'petrol'
+      ? `Petrol ₹${row.total_cost}`
+      : `${row.quantity_kg}kg CNG @ ₹${row.price_per_kg}/kg`
     await supabase.from('expenses').insert({
       date: row.date,
       category: 'fuel',
       amount: row.total_cost,
-      note: `${row.quantity_kg}kg CNG @ ₹${row.price_per_kg}/kg`,
+      note: fuelNote,
       recurring: false,
       car_id: row.car_id,
       receipt_url: null,

@@ -74,6 +74,7 @@ export interface FuelLogRow {
   price_per_kg: number
   total_cost: number
   odometer_km: number
+  fuel_type: 'cng' | 'petrol'
 }
 
 export interface GoalRow {

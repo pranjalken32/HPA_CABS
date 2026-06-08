@@ -73,6 +73,7 @@ export default function CarDetail() {
   const [fuelDate, setFuelDate] = useState(todayStr())
   const [fuelAmount, setFuelAmount] = useState('')
   const [fuelOdo, setFuelOdo] = useState('')
+  const [fuelType, setFuelType] = useState<'cng' | 'petrol'>('cng')
   const cngRate = Number(localStorage.getItem('hpa_cng_rate') || '95')
 
   // Doc form
@@ -170,7 +171,7 @@ export default function CarDetail() {
     e.preventDefault()
     if (!fuelAmount || Number(fuelAmount) <= 0) return
     const totalCost = Number(fuelAmount)
-    const price = cngRate
+    const price = fuelType === 'cng' ? cngRate : 0
     const qty = price > 0 ? Math.round((totalCost / price) * 100) / 100 : 0
     await addFuelLog({
       car_id: carId,
@@ -178,17 +179,19 @@ export default function CarDetail() {
       quantity_kg: qty,
       price_per_kg: price,
       total_cost: totalCost,
-      odometer_km: Number(fuelOdo) || 0,
+      odometer_km: fuelType === 'cng' ? (Number(fuelOdo) || 0) : 0,
+      fuel_type: fuelType,
     })
     setFuelAmount('')
     setFuelOdo('')
     setShowFuelForm(false)
   }
 
-  // Fuel efficiency calculation
+  // Fuel efficiency calculation (CNG only)
+  const cngLogs = fuelLogs.filter((l) => l.fuel_type !== 'petrol')
   const fuelEfficiency = (() => {
-    if (fuelLogs.length < 2) return null
-    const sorted = [...fuelLogs].sort((a, b) => a.odometer_km - b.odometer_km)
+    if (cngLogs.length < 2) return null
+    const sorted = [...cngLogs].sort((a, b) => a.odometer_km - b.odometer_km)
     const validLogs = sorted.filter((l) => l.odometer_km > 0)
     if (validLogs.length < 2) return null
     const totalKm = validLogs[validLogs.length - 1].odometer_km - validLogs[0].odometer_km
@@ -196,9 +199,9 @@ export default function CarDetail() {
     return totalKg > 0 ? totalKm / totalKg : null
   })()
 
-  // Revenue per KM — detect offline rides
+  // Revenue per KM — detect offline rides (CNG odometer only)
   const revenuePerKm = (() => {
-    const validLogs = [...fuelLogs].filter((l) => l.odometer_km > 0).sort((a, b) => a.odometer_km - b.odometer_km)
+    const validLogs = [...cngLogs].filter((l) => l.odometer_km > 0).sort((a, b) => a.odometer_km - b.odometer_km)
     if (validLogs.length < 2) return null
     const firstLog = validLogs[0]
     const lastLog = validLogs[validLogs.length - 1]
@@ -544,6 +547,27 @@ export default function CarDetail() {
 
           {showFuelForm && (
             <form onSubmit={handleAddFuel} className="bg-surface-elevated rounded-xl p-3 border border-border-dim space-y-2">
+              {/* Fuel Type Toggle */}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFuelType('cng')}
+                  className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-colors ${
+                    fuelType === 'cng' ? 'bg-white text-black' : 'bg-surface-card text-text-muted border border-border-dim'
+                  }`}
+                >
+                  CNG
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFuelType('petrol')}
+                  className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-colors ${
+                    fuelType === 'petrol' ? 'bg-orange-500 text-white' : 'bg-surface-card text-text-muted border border-border-dim'
+                  }`}
+                >
+                  Petrol
+                </button>
+              </div>
               <div>
                 <label className="block text-[10px] text-text-muted uppercase tracking-wider mb-1">Date</label>
                 <input
@@ -563,20 +587,22 @@ export default function CarDetail() {
                   className="w-full border border-border-dim bg-surface-card rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
                   required
                 />
-                {fuelAmount && Number(fuelAmount) > 0 && (
+                {fuelType === 'cng' && fuelAmount && Number(fuelAmount) > 0 && (
                   <p className="text-[10px] text-text-muted mt-1">≈ {(Number(fuelAmount) / cngRate).toFixed(2)} kg @ ₹{cngRate}/kg</p>
                 )}
               </div>
-              <div>
-                <label className="block text-[10px] text-text-muted uppercase tracking-wider mb-1">Odometer (km)</label>
-                <input
-                  type="number"
-                  value={fuelOdo}
-                  onChange={(e) => setFuelOdo(e.target.value)}
-                  placeholder="e.g. 15000"
-                  className="w-full border border-border-dim bg-surface-card rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
-                />
-              </div>
+              {fuelType === 'cng' && (
+                <div>
+                  <label className="block text-[10px] text-text-muted uppercase tracking-wider mb-1">Odometer (km)</label>
+                  <input
+                    type="number"
+                    value={fuelOdo}
+                    onChange={(e) => setFuelOdo(e.target.value)}
+                    placeholder="e.g. 15000"
+                    className="w-full border border-border-dim bg-surface-card rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                  />
+                </div>
+              )}
               <button
                 type="submit"
                 className="w-full bg-white text-black font-semibold py-2 rounded-lg text-xs"
@@ -592,16 +618,18 @@ export default function CarDetail() {
 
           {fuelLogs.map((log) => (
             <div key={log.id} className="bg-surface-card rounded-xl p-3 border border-border-dim flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-orange-500/10 flex items-center justify-center shrink-0">
-                <Fuel size={16} className="text-orange-400" />
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                log.fuel_type === 'petrol' ? 'bg-yellow-500/10' : 'bg-orange-500/10'
+              }`}>
+                <Fuel size={16} className={log.fuel_type === 'petrol' ? 'text-yellow-400' : 'text-orange-400'} />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-text-primary">
-                  {log.quantity_kg} kg @ ₹{log.price_per_kg}/kg
+                  {log.fuel_type === 'petrol' ? 'Petrol' : `${log.quantity_kg} kg @ ₹${log.price_per_kg}/kg`}
                 </p>
                 <p className="text-[11px] text-text-muted">
                   {log.date}
-                  {log.odometer_km > 0 && ` · ${fmt(log.odometer_km)} km`}
+                  {log.fuel_type !== 'petrol' && log.odometer_km > 0 && ` · ${fmt(log.odometer_km)} km`}
                 </p>
               </div>
               <div className="flex items-center gap-2 shrink-0">

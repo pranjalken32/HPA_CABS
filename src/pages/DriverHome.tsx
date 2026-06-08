@@ -20,6 +20,7 @@ export default function DriverHome() {
   const [fuelDate, setFuelDate] = useState(todayStr())
   const [fuelAmount, setFuelAmount] = useState('')
   const [fuelOdo, setFuelOdo] = useState('')
+  const [fuelType, setFuelType] = useState<'cng' | 'petrol'>('cng')
   const [saved, setSaved] = useState(false)
   const cngRate = Number(localStorage.getItem('hpa_cng_rate') || '95')
 
@@ -119,7 +120,7 @@ export default function DriverHome() {
     e.preventDefault()
     if (!selectedCarId || !fuelAmount || Number(fuelAmount) <= 0) return
     const totalCost = Number(fuelAmount)
-    const price = cngRate
+    const price = fuelType === 'cng' ? cngRate : 0
     const qty = price > 0 ? Math.round((totalCost / price) * 100) / 100 : 0
     await addFuelLog({
       car_id: selectedCarId,
@@ -127,7 +128,8 @@ export default function DriverHome() {
       quantity_kg: qty,
       price_per_kg: price,
       total_cost: totalCost,
-      odometer_km: Number(fuelOdo) || 0,
+      odometer_km: fuelType === 'cng' ? (Number(fuelOdo) || 0) : 0,
+      fuel_type: fuelType,
     })
     setSaved(true)
     setTimeout(() => {
@@ -137,10 +139,11 @@ export default function DriverHome() {
     }, 1200)
   }
 
-  // Fuel efficiency
+  // Fuel efficiency (CNG only)
+  const cngLogs = fuelLogs.filter((l) => l.fuel_type !== 'petrol')
   const fuelEfficiency = (() => {
-    if (fuelLogs.length < 2) return null
-    const sorted = [...fuelLogs].sort((a, b) => a.odometer_km - b.odometer_km)
+    if (cngLogs.length < 2) return null
+    const sorted = [...cngLogs].sort((a, b) => a.odometer_km - b.odometer_km)
     const validLogs = sorted.filter((l) => l.odometer_km > 0)
     if (validLogs.length < 2) return null
     const totalKm = validLogs[validLogs.length - 1].odometer_km - validLogs[0].odometer_km
@@ -338,6 +341,27 @@ export default function DriverHome() {
             )}
 
             <form onSubmit={handleAddFuel} className="space-y-3">
+              {/* Fuel Type Toggle */}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFuelType('cng')}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+                    fuelType === 'cng' ? 'bg-white text-black' : 'bg-surface-elevated text-text-muted border border-border-dim'
+                  }`}
+                >
+                  CNG
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFuelType('petrol')}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+                    fuelType === 'petrol' ? 'bg-orange-500 text-white' : 'bg-surface-elevated text-text-muted border border-border-dim'
+                  }`}
+                >
+                  Petrol
+                </button>
+              </div>
               <div>
                 <label className="block text-xs font-medium text-text-secondary mb-1">Date</label>
                 <input
@@ -360,21 +384,23 @@ export default function DriverHome() {
                   min="1"
                   required
                 />
-                {fuelAmount && Number(fuelAmount) > 0 && (
+                {fuelType === 'cng' && fuelAmount && Number(fuelAmount) > 0 && (
                   <p className="text-[10px] text-text-muted mt-1">≈ {(Number(fuelAmount) / cngRate).toFixed(2)} kg @ ₹{cngRate}/kg</p>
                 )}
               </div>
-              <div>
-                <label className="block text-xs font-medium text-text-secondary mb-1">Odometer Reading (km)</label>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  value={fuelOdo}
-                  onChange={(e) => setFuelOdo(e.target.value)}
-                  placeholder="e.g. 45230"
-                  className="w-full border border-border-dim bg-surface-elevated rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-text-muted focus:border-white focus:outline-none"
-                />
-              </div>
+              {fuelType === 'cng' && (
+                <div>
+                  <label className="block text-xs font-medium text-text-secondary mb-1">Odometer Reading (km)</label>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    value={fuelOdo}
+                    onChange={(e) => setFuelOdo(e.target.value)}
+                    placeholder="e.g. 45230"
+                    className="w-full border border-border-dim bg-surface-elevated rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-text-muted focus:border-white focus:outline-none"
+                  />
+                </div>
+              )}
 
               <button
                 type="submit"
@@ -393,8 +419,11 @@ export default function DriverHome() {
                     <div key={log.id} className="flex items-center justify-between bg-surface-elevated rounded-lg px-3 py-2">
                       <div>
                         <span className="text-xs text-white">{log.date}</span>
-                        <span className="text-xs text-text-muted ml-2">{log.quantity_kg} kg</span>
-                        {log.odometer_km > 0 && (
+                        <span className={`text-[9px] ml-1.5 px-1.5 py-0.5 rounded font-medium ${
+                          log.fuel_type === 'petrol' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-orange-500/20 text-orange-400'
+                        }`}>{log.fuel_type === 'petrol' ? 'Petrol' : 'CNG'}</span>
+                        {log.fuel_type !== 'petrol' && <span className="text-xs text-text-muted ml-2">{log.quantity_kg} kg</span>}
+                        {log.fuel_type !== 'petrol' && log.odometer_km > 0 && (
                           <span className="text-xs text-text-muted ml-2">{log.odometer_km.toLocaleString()} km</span>
                         )}
                       </div>
