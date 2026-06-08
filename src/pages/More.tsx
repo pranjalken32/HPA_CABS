@@ -9,6 +9,7 @@ import {
   ChevronRight,
   CheckCircle2,
   Target,
+  AlertTriangle,
 } from 'lucide-react'
 
 export default function More() {
@@ -22,6 +23,10 @@ export default function More() {
   const [incStep, setIncStep] = useState(localStorage.getItem('hpa_incentive_step') || '250')
   const [incSlab, setIncSlab] = useState(localStorage.getItem('hpa_incentive_slab') || '5000')
   const [incSaved, setIncSaved] = useState(false)
+
+  // Revenue per KM threshold
+  const [rpmThreshold, setRpmThreshold] = useState(localStorage.getItem('hpa_revenue_per_km_threshold') || '12')
+  const [rpmSaved, setRpmSaved] = useState(false)
 
   const handleSaveRate = () => {
     const rate = Number(cngRate)
@@ -161,6 +166,45 @@ export default function More() {
         {incSaved && (
           <div className="flex items-center gap-2 text-income text-xs">
             <CheckCircle2 size={14} /> Incentive defaults saved!
+          </div>
+        )}
+      </div>
+
+      {/* Revenue per KM Alert */}
+      <div className="bg-surface-card rounded-2xl p-4 border border-border-dim space-y-3">
+        <div className="flex items-center gap-2">
+          <AlertTriangle size={18} className="text-expense" />
+          <h3 className="text-sm font-semibold text-white">Revenue/KM Alert</h3>
+        </div>
+        <p className="text-xs text-text-muted">
+          Alert threshold for revenue per km. If a car's ₹/km drops below this, it flags possible unreported offline rides.
+        </p>
+        <div className="flex items-center gap-2">
+          <div className="flex-1 relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted text-sm">₹</span>
+            <input
+              type="number"
+              inputMode="decimal"
+              value={rpmThreshold}
+              onChange={(e) => setRpmThreshold(e.target.value)}
+              className="w-full border border-border-dim bg-surface-elevated rounded-xl pl-7 pr-12 py-2.5 text-sm text-white focus:border-white focus:outline-none"
+            />
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-text-muted text-xs">/km</span>
+          </div>
+          <button
+            onClick={() => {
+              localStorage.setItem('hpa_revenue_per_km_threshold', String(Number(rpmThreshold) || 12))
+              setRpmSaved(true)
+              setTimeout(() => setRpmSaved(false), 1500)
+            }}
+            className="bg-white text-black font-semibold px-4 py-2.5 rounded-xl text-sm hover:bg-gray-200 transition-all"
+          >
+            Save
+          </button>
+        </div>
+        {rpmSaved && (
+          <div className="flex items-center gap-2 text-income text-xs">
+            <CheckCircle2 size={14} /> Threshold saved!
           </div>
         )}
       </div>

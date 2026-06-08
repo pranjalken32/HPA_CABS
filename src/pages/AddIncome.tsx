@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { addIncome, useCars } from '../hooks/useSupabase'
 import { CheckCircle2, Car } from 'lucide-react'
 
-const PLATFORMS = ['rapido', 'ola', 'uber', 'cash', 'other']
+const PLATFORMS = ['rapido', 'ola', 'uber', 'namma_yatri', 'cash', 'other']
 
 function todayStr(): string {
   const d = new Date()

@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useMonthFilter } from '../hooks/useMonthFilter'
-import { useExpenses, useCars, useFuelLogs, addFuelLog, useDriverProfiles } from '../hooks/useSupabase'
+import { useExpenses, useIncomes, useCars, useFuelLogs, addFuelLog, useDriverProfiles, useDriverSettlements } from '../hooks/useSupabase'
 import { useAuth } from '../AuthContext'
-import { Fuel, Car, Wallet, ArrowUpCircle, ChevronRight, CheckCircle2 } from 'lucide-react'
+import { Fuel, Car, Wallet, ArrowUpCircle, ChevronRight, CheckCircle2, Target, History } from 'lucide-react'
 
 function todayStr(): string {
   const d = new Date()
@@ -20,6 +20,7 @@ export default function DriverHome() {
   const [fuelDate, setFuelDate] = useState(todayStr())
   const [fuelAmount, setFuelAmount] = useState('')
   const [fuelOdo, setFuelOdo] = useState('')
+  const [fuelType, setFuelType] = useState<'cng' | 'petrol'>('cng')
   const [saved, setSaved] = useState(false)
   const cngRate = Number(localStorage.getItem('hpa_cng_rate') || '95')
 
@@ -47,9 +48,71 @@ export default function DriverHome() {
   )
   const totalAdvance = advanceEntries.reduce((s, e) => s + e.amount, 0)
 
-  // Calculate salary from driver profile (pro-rated)
-  const totalSalary = myProfile?.monthly_salary ?? 0
-  const balance = totalSalary - totalAdvance
+  // Calculate salary from driver profile (pro-rated for partial months)
+  const totalSalary = (() => {
+    if (!myProfile) return 0
+    const salary = myProfile.monthly_salary ?? 0
+    const [fy, fm] = month.split('-').map(Number)
+    const totalDays = new Date(fy, fm, 0).getDate()
+    const monthStart = new Date(fy, fm - 1, 1)
+    const monthEnd = new Date(fy, fm - 1, totalDays)
+    const driverStart = new Date(myProfile.start_date)
+    const driverEnd = myProfile.end_date ? new Date(myProfile.end_date) : null
+    if (driverStart > monthEnd) return 0
+    if (driverEnd && driverEnd < monthStart) return 0
+    const effectiveStart = driverStart > monthStart ? driverStart : monthStart
+    const effectiveEnd = driverEnd && driverEnd < monthEnd ? driverEnd : monthEnd
+    const workingDays = Math.floor((effectiveEnd.getTime() - effectiveStart.getTime()) / (1000 * 60 * 60 * 24)) + 1
+    return Math.round((salary / totalDays) * workingDays)
+  })()
+
+  // ---- Incentive Calculation ----
+  const incomes = useIncomes(startDate, endDate)
+  const incentiveTarget = myProfile?.incentive_target ?? 0
+  const incentiveBase = myProfile?.incentive_base ?? 500
+  const incentiveStep = myProfile?.incentive_step ?? 250
+  const incentiveSlab = myProfile?.incentive_slab ?? 5000
+  const weeklyTarget = incentiveTarget > 0 ? incentiveTarget / 4 : 0
+
+  // Current week number (1-4)
+  const today = new Date()
+  const currentWeekNum = Math.min(Math.ceil(today.getDate() / 7), 4)
+
+  // Calculate weekly incentives
+  const [filterYear, filterMonth] = month.split('-').map(Number)
+  const weeklyData = (() => {
+    if (!assignedCarId || incentiveTarget <= 0) return []
+    const carIncomes = (incomes ?? []).filter((i) => i.car_id === assignedCarId)
+    const weekRevenues: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0 }
+    for (const inc of carIncomes) {
+      const d = new Date(inc.date)
+      if (d.getFullYear() !== filterYear || d.getMonth() + 1 !== filterMonth) continue
+      const day = d.getDate()
+      const wk = Math.min(Math.ceil(day / 7), 4)
+      weekRevenues[wk] = (weekRevenues[wk] || 0) + inc.amount
+    }
+    const weeks = []
+    for (let w = 1; w <= 4; w++) {
+      const revenue = weekRevenues[w] || 0
+      const hit = revenue >= weeklyTarget
+      let incentive = 0
+      if (hit && incentiveSlab > 0) {
+        incentive = incentiveBase + Math.floor((revenue - weeklyTarget) / incentiveSlab) * incentiveStep
+      } else if (hit) {
+        incentive = incentiveBase
+      }
+      weeks.push({ weekNum: w, revenue, incentive, hit })
+    }
+    return weeks
+  })()
+
+  const currentWeek = weeklyData.find((w) => w.weekNum === currentWeekNum)
+  const totalMonthIncentive = weeklyData.reduce((s, w) => s + w.incentive, 0)
+  const currentRevenue = currentWeek?.revenue ?? 0
+  const remainingForTarget = Math.max(weeklyTarget - currentRevenue, 0)
+
+  // Net payable = salary + incentive - advances (matches owner's calculation)
+  const balance = totalSalary + totalMonthIncentive - totalAdvance
 
   const fmt = (n: number) => Math.abs(n).toLocaleString('en-IN')
 
@@ -57,7 +120,7 @@ export default function DriverHome() {
     e.preventDefault()
     if (!selectedCarId || !fuelAmount || Number(fuelAmount) <= 0) return
     const totalCost = Number(fuelAmount)
-    const price = cngRate
+    const price = fuelType === 'cng' ? cngRate : 0
     const qty = price > 0 ? Math.round((totalCost / price) * 100) / 100 : 0
     await addFuelLog({
       car_id: selectedCarId,
@@ -65,7 +128,8 @@ export default function DriverHome() {
       quantity_kg: qty,
       price_per_kg: price,
       total_cost: totalCost,
-      odometer_km: Number(fuelOdo) || 0,
+      odometer_km: fuelType === 'cng' ? (Number(fuelOdo) || 0) : 0,
+      fuel_type: fuelType,
     })
     setSaved(true)
     setTimeout(() => {
@@ -75,16 +139,26 @@ export default function DriverHome() {
     }, 1200)
   }
 
-  // Fuel efficiency
+  // Fuel efficiency (CNG only)
+  const cngLogs = fuelLogs.filter((l) => l.fuel_type !== 'petrol')
   const fuelEfficiency = (() => {
-    if (fuelLogs.length < 2) return null
-    const sorted = [...fuelLogs].sort((a, b) => a.odometer_km - b.odometer_km)
+    if (cngLogs.length < 2) return null
+    const sorted = [...cngLogs].sort((a, b) => a.odometer_km - b.odometer_km)
     const validLogs = sorted.filter((l) => l.odometer_km > 0)
     if (validLogs.length < 2) return null
     const totalKm = validLogs[validLogs.length - 1].odometer_km - validLogs[0].odometer_km
     const totalKg = validLogs.slice(1).reduce((s, l) => s + l.quantity_kg, 0)
     return totalKg > 0 ? totalKm / totalKg : null
   })()
+
+  // Payment history from Supabase
+  const allSettlements = useDriverSettlements(myName || undefined)
+  const paymentHistory = allSettlements.map((s) => {
+    const [y, m] = s.month.split('-').map(Number)
+    const d = new Date(y, m - 1, 1)
+    const monthLabel = d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })
+    return { month: s.month, monthLabel, date: s.settled_date, amount: s.amount }
+  })
 
   return (
     <div className="space-y-4">
@@ -140,6 +214,73 @@ export default function DriverHome() {
           </div>
         )}
       </div>
+
+      {/* Incentive Tracker — only show if incentive is configured */}
+      {weeklyTarget > 0 && (
+        <div className="bg-surface-card rounded-2xl p-4 border border-border-dim space-y-4">
+          <div className="flex items-center gap-2">
+            <Target size={18} className="text-income" />
+            <h3 className="text-sm font-semibold text-white">My Incentive</h3>
+          </div>
+
+          {/* This Week Progress */}
+          <div className="bg-surface-elevated rounded-xl p-4">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-xs text-text-muted">Week {currentWeekNum} Progress</span>
+              <span className="text-xs font-bold text-white">
+                ₹{fmt(currentRevenue)} / ₹{fmt(weeklyTarget)}
+              </span>
+            </div>
+            <div className="w-full h-4 bg-black/30 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${
+                  currentRevenue >= weeklyTarget ? 'bg-income' : 'bg-white'
+                }`}
+                style={{ width: `${Math.min(100, weeklyTarget > 0 ? (currentRevenue / weeklyTarget) * 100 : 0)}%` }}
+              />
+            </div>
+            {remainingForTarget > 0 ? (
+              <p className="text-sm font-bold text-center mt-3 text-white">
+                ₹{fmt(remainingForTarget)} more to earn target
+              </p>
+            ) : (
+              <p className="text-sm font-bold text-center mt-3 text-income">
+                Target hit! Earned ₹{fmt(currentWeek?.incentive ?? 0)} bonus
+              </p>
+            )}
+          </div>
+
+          {/* Monthly Summary — big simple numbers */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-surface-elevated rounded-xl p-3 text-center">
+              <p className="text-[10px] text-text-muted uppercase">This Month Bonus</p>
+              <p className="text-xl font-black text-income">₹{fmt(totalMonthIncentive)}</p>
+            </div>
+            <div className="bg-surface-elevated rounded-xl p-3 text-center">
+              <p className="text-[10px] text-text-muted uppercase">Weekly Target</p>
+              <p className="text-xl font-black text-white">₹{fmt(weeklyTarget)}</p>
+            </div>
+          </div>
+
+          {/* Week-by-week status — simple dots */}
+          <div className="flex justify-between px-2">
+            {weeklyData.map((w) => (
+              <div key={w.weekNum} className="text-center">
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
+                  w.weekNum === currentWeekNum
+                    ? w.hit ? 'bg-income text-black' : 'bg-white text-black'
+                    : w.hit ? 'bg-income/20 text-income' : 'bg-surface-elevated text-text-muted'
+                }`}>
+                  W{w.weekNum}
+                </div>
+                <p className="text-[9px] mt-1 text-text-muted">
+                  {w.hit ? `+₹${w.incentive}` : w.weekNum <= currentWeekNum ? 'Miss' : '—'}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Car Selection + Fuel Entry */}
       <div className="bg-surface-card rounded-2xl p-4 border border-border-dim">
@@ -200,6 +341,27 @@ export default function DriverHome() {
             )}
 
             <form onSubmit={handleAddFuel} className="space-y-3">
+              {/* Fuel Type Toggle */}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFuelType('cng')}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+                    fuelType === 'cng' ? 'bg-white text-black' : 'bg-surface-elevated text-text-muted border border-border-dim'
+                  }`}
+                >
+                  CNG
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFuelType('petrol')}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-colors ${
+                    fuelType === 'petrol' ? 'bg-orange-500 text-white' : 'bg-surface-elevated text-text-muted border border-border-dim'
+                  }`}
+                >
+                  Petrol
+                </button>
+              </div>
               <div>
                 <label className="block text-xs font-medium text-text-secondary mb-1">Date</label>
                 <input
@@ -222,21 +384,23 @@ export default function DriverHome() {
                   min="1"
                   required
                 />
-                {fuelAmount && Number(fuelAmount) > 0 && (
+                {fuelType === 'cng' && fuelAmount && Number(fuelAmount) > 0 && (
                   <p className="text-[10px] text-text-muted mt-1">≈ {(Number(fuelAmount) / cngRate).toFixed(2)} kg @ ₹{cngRate}/kg</p>
                 )}
               </div>
-              <div>
-                <label className="block text-xs font-medium text-text-secondary mb-1">Odometer Reading (km)</label>
-                <input
-                  type="number"
-                  inputMode="numeric"
-                  value={fuelOdo}
-                  onChange={(e) => setFuelOdo(e.target.value)}
-                  placeholder="e.g. 45230"
-                  className="w-full border border-border-dim bg-surface-elevated rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-text-muted focus:border-white focus:outline-none"
-                />
-              </div>
+              {fuelType === 'cng' && (
+                <div>
+                  <label className="block text-xs font-medium text-text-secondary mb-1">Odometer Reading (km)</label>
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    value={fuelOdo}
+                    onChange={(e) => setFuelOdo(e.target.value)}
+                    placeholder="e.g. 45230"
+                    className="w-full border border-border-dim bg-surface-elevated rounded-xl px-3 py-2.5 text-sm text-white placeholder:text-text-muted focus:border-white focus:outline-none"
+                  />
+                </div>
+              )}
 
               <button
                 type="submit"
@@ -255,8 +419,11 @@ export default function DriverHome() {
                     <div key={log.id} className="flex items-center justify-between bg-surface-elevated rounded-lg px-3 py-2">
                       <div>
                         <span className="text-xs text-white">{log.date}</span>
-                        <span className="text-xs text-text-muted ml-2">{log.quantity_kg} kg</span>
-                        {log.odometer_km > 0 && (
+                        <span className={`text-[9px] ml-1.5 px-1.5 py-0.5 rounded font-medium ${
+                          log.fuel_type === 'petrol' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-orange-500/20 text-orange-400'
+                        }`}>{log.fuel_type === 'petrol' ? 'Petrol' : 'CNG'}</span>
+                        {log.fuel_type !== 'petrol' && <span className="text-xs text-text-muted ml-2">{log.quantity_kg} kg</span>}
+                        {log.fuel_type !== 'petrol' && log.odometer_km > 0 && (
                           <span className="text-xs text-text-muted ml-2">{log.odometer_km.toLocaleString()} km</span>
                         )}
                       </div>
@@ -269,6 +436,30 @@ export default function DriverHome() {
           </>
         )}
       </div>
+
+      {/* Payment History */}
+      {paymentHistory.length > 0 && (
+        <div className="bg-surface-card rounded-2xl p-4 border border-border-dim">
+          <div className="flex items-center gap-2 mb-3">
+            <History size={18} className="text-white" />
+            <h3 className="text-sm font-semibold text-white">Payment History</h3>
+          </div>
+          <div className="space-y-2">
+            {paymentHistory.map((p) => (
+              <div key={p.month} className="flex items-center justify-between bg-surface-elevated rounded-xl px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium text-white">{p.monthLabel}</p>
+                  <p className="text-[10px] text-text-muted">Paid on {p.date}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-bold text-income">₹{fmt(p.amount)}</p>
+                  <p className="text-[9px] text-income uppercase">Paid</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -6,6 +6,7 @@ import {
   deleteCarDocument, deleteServiceRecord, deleteCar, deleteFuelLog,
   uploadCarDocFile, getSignedUrl,
 } from '../hooks/useSupabase'
+import { useAuth } from '../AuthContext'
 import {
   ArrowLeft,
   FileText,
@@ -52,6 +53,8 @@ type Tab = 'docs' | 'recovery' | 'service' | 'fuel'
 export default function CarDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { role } = useAuth()
+  const isOwner = role === 'owner'
   const carId = Number(id)
 
   const car = useCar(carId)
@@ -70,6 +73,7 @@ export default function CarDetail() {
   const [fuelDate, setFuelDate] = useState(todayStr())
   const [fuelAmount, setFuelAmount] = useState('')
   const [fuelOdo, setFuelOdo] = useState('')
+  const [fuelType, setFuelType] = useState<'cng' | 'petrol'>('cng')
   const cngRate = Number(localStorage.getItem('hpa_cng_rate') || '95')
 
   // Doc form
@@ -167,7 +171,7 @@ export default function CarDetail() {
     e.preventDefault()
     if (!fuelAmount || Number(fuelAmount) <= 0) return
     const totalCost = Number(fuelAmount)
-    const price = cngRate
+    const price = fuelType === 'cng' ? cngRate : 0
     const qty = price > 0 ? Math.round((totalCost / price) * 100) / 100 : 0
     await addFuelLog({
       car_id: carId,
@@ -175,23 +179,42 @@ export default function CarDetail() {
       quantity_kg: qty,
       price_per_kg: price,
       total_cost: totalCost,
-      odometer_km: Number(fuelOdo) || 0,
+      odometer_km: fuelType === 'cng' ? (Number(fuelOdo) || 0) : 0,
+      fuel_type: fuelType,
     })
     setFuelAmount('')
     setFuelOdo('')
     setShowFuelForm(false)
   }
 
-  // Fuel efficiency calculation
+  // Fuel efficiency calculation (CNG only)
+  const cngLogs = fuelLogs.filter((l) => l.fuel_type !== 'petrol')
   const fuelEfficiency = (() => {
-    if (fuelLogs.length < 2) return null
-    const sorted = [...fuelLogs].sort((a, b) => a.odometer_km - b.odometer_km)
+    if (cngLogs.length < 2) return null
+    const sorted = [...cngLogs].sort((a, b) => a.odometer_km - b.odometer_km)
     const validLogs = sorted.filter((l) => l.odometer_km > 0)
     if (validLogs.length < 2) return null
     const totalKm = validLogs[validLogs.length - 1].odometer_km - validLogs[0].odometer_km
     const totalKg = validLogs.slice(1).reduce((s, l) => s + l.quantity_kg, 0)
     return totalKg > 0 ? totalKm / totalKg : null
   })()
+
+  // Revenue per KM — detect offline rides (CNG odometer only)
+  const revenuePerKm = (() => {
+    const validLogs = [...cngLogs].filter((l) => l.odometer_km > 0).sort((a, b) => a.odometer_km - b.odometer_km)
+    if (validLogs.length < 2) return null
+    const firstLog = validLogs[0]
+    const lastLog = validLogs[validLogs.length - 1]
+    const totalKmDriven = lastLog.odometer_km - firstLog.odometer_km
+    if (totalKmDriven <= 0) return null
+    // Get income between the first and last fuel log dates
+    const startD = firstLog.date
+    const endD = lastLog.date
+    const periodIncome = carIncomes.filter((i) => i.date >= startD && i.date <= endD)
+    const periodRevenue = periodIncome.reduce((s, i) => s + i.amount, 0)
+    return { perKm: periodRevenue / totalKmDriven, totalKm: totalKmDriven, revenue: periodRevenue }
+  })()
+  const revenuePerKmThreshold = Number(localStorage.getItem('hpa_revenue_per_km_threshold') || '12')
 
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
     { key: 'docs', label: 'Docs', icon: <FileText size={14} /> },
@@ -211,9 +234,11 @@ export default function CarDetail() {
           <h2 className="text-lg font-bold text-text-primary">{car.name}</h2>
           <p className="text-xs text-text-muted font-mono">{car.number}</p>
         </div>
-        <button onClick={handleDeleteCar} className="text-text-muted hover:text-expense transition-colors p-1">
-          <Trash2 size={16} />
-        </button>
+        {isOwner && (
+          <button onClick={handleDeleteCar} className="text-text-muted hover:text-expense transition-colors p-1">
+            <Trash2 size={16} />
+          </button>
+        )}
       </div>
 
       {/* Tabs */}
@@ -239,12 +264,14 @@ export default function CarDetail() {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-text-secondary">Documents & Expiry</h3>
-            <button
-              onClick={() => setShowDocForm(!showDocForm)}
-              className="flex items-center gap-1 text-white text-xs font-semibold"
-            >
-              <Plus size={14} /> Add
-            </button>
+            {isOwner && (
+              <button
+                onClick={() => setShowDocForm(!showDocForm)}
+                className="flex items-center gap-1 text-white text-xs font-semibold"
+              >
+                <Plus size={14} /> Add
+              </button>
+            )}
           </div>
 
           {showDocForm && (
@@ -366,12 +393,14 @@ export default function CarDetail() {
                       <Eye size={14} />
                     </button>
                   )}
-                  <button
-                    onClick={async () => { await deleteCarDocument(doc.id) }}
-                    className="text-text-muted hover:text-expense transition-colors"
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                  {isOwner && (
+                    <button
+                      onClick={async () => { await deleteCarDocument(doc.id) }}
+                      className="text-text-muted hover:text-expense transition-colors"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
                 </div>
               </div>
             )
@@ -464,12 +493,14 @@ export default function CarDetail() {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-text-secondary">CNG / Fuel Log</h3>
-            <button
-              onClick={() => setShowFuelForm(!showFuelForm)}
-              className="flex items-center gap-1 text-white text-xs font-semibold"
-            >
-              <Plus size={14} /> Add
-            </button>
+            {isOwner && (
+              <button
+                onClick={() => setShowFuelForm(!showFuelForm)}
+                className="flex items-center gap-1 text-white text-xs font-semibold"
+              >
+                <Plus size={14} /> Add
+              </button>
+            )}
           </div>
 
           {/* Efficiency card */}
@@ -483,8 +514,60 @@ export default function CarDetail() {
             </div>
           )}
 
+          {/* Revenue per KM — owner only */}
+          {isOwner && revenuePerKm && (
+            <div className={`rounded-2xl p-4 border text-center ${
+              revenuePerKm.perKm < revenuePerKmThreshold
+                ? 'bg-expense/10 border-expense/30'
+                : 'bg-surface-card border-border-dim'
+            }`}>
+              <p className="text-[10px] text-text-muted uppercase tracking-wider">Revenue per KM</p>
+              <p className={`text-2xl font-black ${
+                revenuePerKm.perKm < revenuePerKmThreshold ? 'text-expense' : 'text-income'
+              }`}>
+                ₹{revenuePerKm.perKm.toFixed(1)}/km
+              </p>
+              {revenuePerKm.perKm < revenuePerKmThreshold && (
+                <p className="text-xs text-expense mt-1 font-semibold">
+                  ⚠ Below ₹{revenuePerKmThreshold}/km — possible unreported rides
+                </p>
+              )}
+              <div className="mt-2 grid grid-cols-2 gap-2 text-[10px]">
+                <div className="bg-black/20 rounded-lg p-2">
+                  <p className="text-text-muted">KM Driven</p>
+                  <p className="text-white font-bold">{fmt(revenuePerKm.totalKm)} km</p>
+                </div>
+                <div className="bg-black/20 rounded-lg p-2">
+                  <p className="text-text-muted">Revenue Logged</p>
+                  <p className="text-white font-bold">₹{fmt(revenuePerKm.revenue)}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {showFuelForm && (
             <form onSubmit={handleAddFuel} className="bg-surface-elevated rounded-xl p-3 border border-border-dim space-y-2">
+              {/* Fuel Type Toggle */}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFuelType('cng')}
+                  className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-colors ${
+                    fuelType === 'cng' ? 'bg-white text-black' : 'bg-surface-card text-text-muted border border-border-dim'
+                  }`}
+                >
+                  CNG
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFuelType('petrol')}
+                  className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-colors ${
+                    fuelType === 'petrol' ? 'bg-orange-500 text-white' : 'bg-surface-card text-text-muted border border-border-dim'
+                  }`}
+                >
+                  Petrol
+                </button>
+              </div>
               <div>
                 <label className="block text-[10px] text-text-muted uppercase tracking-wider mb-1">Date</label>
                 <input
@@ -504,20 +587,22 @@ export default function CarDetail() {
                   className="w-full border border-border-dim bg-surface-card rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
                   required
                 />
-                {fuelAmount && Number(fuelAmount) > 0 && (
+                {fuelType === 'cng' && fuelAmount && Number(fuelAmount) > 0 && (
                   <p className="text-[10px] text-text-muted mt-1">≈ {(Number(fuelAmount) / cngRate).toFixed(2)} kg @ ₹{cngRate}/kg</p>
                 )}
               </div>
-              <div>
-                <label className="block text-[10px] text-text-muted uppercase tracking-wider mb-1">Odometer (km)</label>
-                <input
-                  type="number"
-                  value={fuelOdo}
-                  onChange={(e) => setFuelOdo(e.target.value)}
-                  placeholder="e.g. 15000"
-                  className="w-full border border-border-dim bg-surface-card rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
-                />
-              </div>
+              {fuelType === 'cng' && (
+                <div>
+                  <label className="block text-[10px] text-text-muted uppercase tracking-wider mb-1">Odometer (km)</label>
+                  <input
+                    type="number"
+                    value={fuelOdo}
+                    onChange={(e) => setFuelOdo(e.target.value)}
+                    placeholder="e.g. 15000"
+                    className="w-full border border-border-dim bg-surface-card rounded-lg px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-accent focus:outline-none"
+                  />
+                </div>
+              )}
               <button
                 type="submit"
                 className="w-full bg-white text-black font-semibold py-2 rounded-lg text-xs"
@@ -533,26 +618,30 @@ export default function CarDetail() {
 
           {fuelLogs.map((log) => (
             <div key={log.id} className="bg-surface-card rounded-xl p-3 border border-border-dim flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-orange-500/10 flex items-center justify-center shrink-0">
-                <Fuel size={16} className="text-orange-400" />
+              <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                log.fuel_type === 'petrol' ? 'bg-yellow-500/10' : 'bg-orange-500/10'
+              }`}>
+                <Fuel size={16} className={log.fuel_type === 'petrol' ? 'text-yellow-400' : 'text-orange-400'} />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-text-primary">
-                  {log.quantity_kg} kg @ ₹{log.price_per_kg}/kg
+                  {log.fuel_type === 'petrol' ? 'Petrol' : `${log.quantity_kg} kg @ ₹${log.price_per_kg}/kg`}
                 </p>
                 <p className="text-[11px] text-text-muted">
                   {log.date}
-                  {log.odometer_km > 0 && ` · ${fmt(log.odometer_km)} km`}
+                  {log.fuel_type !== 'petrol' && log.odometer_km > 0 && ` · ${fmt(log.odometer_km)} km`}
                 </p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <span className="text-xs font-bold text-expense">₹{fmt(log.total_cost)}</span>
-                <button
-                  onClick={async () => { await deleteFuelLog(log.id) }}
-                  className="text-text-muted hover:text-expense transition-colors"
-                >
-                  <Trash2 size={14} />
-                </button>
+                {isOwner && (
+                  <button
+                    onClick={async () => { await deleteFuelLog(log.id) }}
+                    className="text-text-muted hover:text-expense transition-colors"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
               </div>
             </div>
           ))}
@@ -564,12 +653,14 @@ export default function CarDetail() {
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-text-secondary">Service History</h3>
-            <button
-              onClick={() => setShowServiceForm(!showServiceForm)}
-              className="flex items-center gap-1 text-white text-xs font-semibold"
-            >
-              <Plus size={14} /> Add
-            </button>
+            {isOwner && (
+              <button
+                onClick={() => setShowServiceForm(!showServiceForm)}
+                className="flex items-center gap-1 text-white text-xs font-semibold"
+              >
+                <Plus size={14} /> Add
+              </button>
+            )}
           </div>
 
           {showServiceForm && (
@@ -644,12 +735,14 @@ export default function CarDetail() {
                 {svc.cost > 0 && (
                   <span className="text-xs font-bold text-expense">₹{fmt(svc.cost)}</span>
                 )}
-                <button
-                  onClick={async () => { await deleteServiceRecord(svc.id) }}
-                  className="text-text-muted hover:text-expense transition-colors"
-                >
-                  <Trash2 size={14} />
-                </button>
+                {isOwner && (
+                  <button
+                    onClick={async () => { await deleteServiceRecord(svc.id) }}
+                    className="text-text-muted hover:text-expense transition-colors"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
               </div>
             </div>
           ))}

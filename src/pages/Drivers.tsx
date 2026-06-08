@@ -10,36 +10,12 @@ import {
   deleteDriverProfile,
   uploadDriverDoc,
   getSignedUrl,
+  useDriverSettlements,
+  addSettlement,
+  removeSettlement,
 } from '../hooks/useSupabase'
 import type { DriverProfileRow } from '../hooks/useSupabase'
 import { Users, Plus, Edit2, Trash2, FileText, Upload, X, Calendar, Phone, IndianRupee, CheckCircle2, Target, TrendingUp } from 'lucide-react'
-
-function getSettlementKey(driverName: string, month: string): string {
-  return `hpa_settled_${driverName.toLowerCase().replace(/\s+/g, '_')}_${month}`
-}
-
-function getSettlement(driverName: string, month: string): { settled: boolean; date: string | null; amount: number } {
-  const raw = localStorage.getItem(getSettlementKey(driverName, month))
-  if (!raw) return { settled: false, date: null, amount: 0 }
-  try {
-    return JSON.parse(raw)
-  } catch {
-    return { settled: false, date: null, amount: 0 }
-  }
-}
-
-function markSettled(driverName: string, month: string, amount: number): void {
-  const today = new Date()
-  const dateStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-  localStorage.setItem(
-    getSettlementKey(driverName, month),
-    JSON.stringify({ settled: true, date: dateStr, amount })
-  )
-}
-
-function unmarkSettled(driverName: string, month: string): void {
-  localStorage.removeItem(getSettlementKey(driverName, month))
-}
 
 function todayStr(): string {
   const d = new Date()
@@ -136,10 +112,10 @@ export default function Drivers() {
   const expenses = useExpenses(startDate, endDate)
   const incomes = useIncomes(startDate, endDate)
   const cars = useCars()
+  const settlements = useDriverSettlements()
   const [showForm, setShowForm] = useState(false)
   const [editDriver, setEditDriver] = useState<DriverProfileRow | null>(null)
   const [expandedId, setExpandedId] = useState<number | null>(null)
-  const [, setSettleTick] = useState(0)
 
   // Form state
   const [name, setName] = useState('')
@@ -479,10 +455,10 @@ export default function Drivers() {
                 </div>
               </div>
               <div className="text-right">
-                {getSettlement(driver.name, month).settled ? (
+                {settlements.find((s) => s.driver_name === driver.name && s.month === month) ? (
                   <>
                     <p className="text-sm font-bold text-income">Settled</p>
-                    <p className="text-[10px] text-text-muted">₹{fmt(getSettlement(driver.name, month).amount)}</p>
+                    <p className="text-[10px] text-text-muted">₹{fmt(settlements.find((s) => s.driver_name === driver.name && s.month === month)?.amount ?? 0)}</p>
                   </>
                 ) : (
                   <>
@@ -552,20 +528,20 @@ export default function Drivers() {
 
                 {/* Settlement Status */}
                 {(() => {
-                  const settlement = getSettlement(driver.name, month)
+                  const settlement = settlements.find((s) => s.driver_name === driver.name && s.month === month)
                   return (
                     <div className="bg-surface-elevated rounded-xl p-3">
-                      {settlement.settled ? (
+                      {settlement ? (
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <CheckCircle2 size={16} className="text-income" />
                             <div>
                               <p className="text-xs font-semibold text-income">Settled</p>
-                              <p className="text-[10px] text-text-muted">Paid ₹{fmt(settlement.amount)} on {settlement.date}</p>
+                              <p className="text-[10px] text-text-muted">Paid ₹{fmt(settlement.amount)} on {settlement.settled_date}</p>
                             </div>
                           </div>
                           <button
-                            onClick={() => { unmarkSettled(driver.name, month); setSettleTick(t => t + 1) }}
+                            onClick={() => removeSettlement(driver.name, month)}
                             className="text-[10px] text-text-muted hover:text-white underline"
                           >
                             Undo
@@ -573,7 +549,7 @@ export default function Drivers() {
                         </div>
                       ) : (
                         <button
-                          onClick={() => { markSettled(driver.name, month, netPayable); setSettleTick(t => t + 1) }}
+                          onClick={() => addSettlement({ driver_name: driver.name, month, amount: netPayable, settled_date: todayStr() })}
                           disabled={netPayable <= 0}
                           className={`w-full py-2 rounded-lg text-sm font-semibold transition-all ${
                             netPayable > 0

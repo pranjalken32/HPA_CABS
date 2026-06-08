@@ -74,6 +74,7 @@ export interface FuelLogRow {
   price_per_kg: number
   total_cost: number
   odometer_km: number
+  fuel_type: 'cng' | 'petrol'
 }
 
 export interface GoalRow {
@@ -100,5 +101,14 @@ export interface DriverProfileRow {
   aadhaar_url: string | null
   pan_url: string | null
   active: boolean
+  created_at: string
+}
+
+export interface DriverSettlementRow {
+  id: number
+  driver_name: string
+  month: string
+  amount: number
+  settled_date: string
   created_at: string
 }
