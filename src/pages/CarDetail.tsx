@@ -196,6 +196,23 @@ export default function CarDetail() {
     return totalKg > 0 ? totalKm / totalKg : null
   })()
 
+  // Revenue per KM — detect offline rides
+  const revenuePerKm = (() => {
+    const validLogs = [...fuelLogs].filter((l) => l.odometer_km > 0).sort((a, b) => a.odometer_km - b.odometer_km)
+    if (validLogs.length < 2) return null
+    const firstLog = validLogs[0]
+    const lastLog = validLogs[validLogs.length - 1]
+    const totalKmDriven = lastLog.odometer_km - firstLog.odometer_km
+    if (totalKmDriven <= 0) return null
+    // Get income between the first and last fuel log dates
+    const startD = firstLog.date
+    const endD = lastLog.date
+    const periodIncome = carIncomes.filter((i) => i.date >= startD && i.date <= endD)
+    const periodRevenue = periodIncome.reduce((s, i) => s + i.amount, 0)
+    return { perKm: periodRevenue / totalKmDriven, totalKm: totalKmDriven, revenue: periodRevenue }
+  })()
+  const revenuePerKmThreshold = Number(localStorage.getItem('hpa_revenue_per_km_threshold') || '12')
+
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
     { key: 'docs', label: 'Docs', icon: <FileText size={14} /> },
     { key: 'recovery', label: 'Recovery', icon: <TrendingUp size={14} /> },
@@ -491,6 +508,37 @@ export default function CarDetail() {
               <p className="text-[10px] text-text-muted mt-1">
                 Based on {fuelLogs.length} fill-ups
               </p>
+            </div>
+          )}
+
+          {/* Revenue per KM — owner only */}
+          {isOwner && revenuePerKm && (
+            <div className={`rounded-2xl p-4 border text-center ${
+              revenuePerKm.perKm < revenuePerKmThreshold
+                ? 'bg-expense/10 border-expense/30'
+                : 'bg-surface-card border-border-dim'
+            }`}>
+              <p className="text-[10px] text-text-muted uppercase tracking-wider">Revenue per KM</p>
+              <p className={`text-2xl font-black ${
+                revenuePerKm.perKm < revenuePerKmThreshold ? 'text-expense' : 'text-income'
+              }`}>
+                ₹{revenuePerKm.perKm.toFixed(1)}/km
+              </p>
+              {revenuePerKm.perKm < revenuePerKmThreshold && (
+                <p className="text-xs text-expense mt-1 font-semibold">
+                  ⚠ Below ₹{revenuePerKmThreshold}/km — possible unreported rides
+                </p>
+              )}
+              <div className="mt-2 grid grid-cols-2 gap-2 text-[10px]">
+                <div className="bg-black/20 rounded-lg p-2">
+                  <p className="text-text-muted">KM Driven</p>
+                  <p className="text-white font-bold">{fmt(revenuePerKm.totalKm)} km</p>
+                </div>
+                <div className="bg-black/20 rounded-lg p-2">
+                  <p className="text-text-muted">Revenue Logged</p>
+                  <p className="text-white font-bold">₹{fmt(revenuePerKm.revenue)}</p>
+                </div>
+              </div>
             </div>
           )}
 
