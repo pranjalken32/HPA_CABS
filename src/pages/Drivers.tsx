@@ -149,14 +149,18 @@ export default function Drivers() {
   const [salary, setSalary] = useState('')
   const [carIdInput, setCarIdInput] = useState<string>('')
   const [incTarget, setIncTarget] = useState('')
-  const [incBase, setIncBase] = useState('500')
-  const [incStep, setIncStep] = useState('250')
-  const [incSlab, setIncSlab] = useState('5000')
+  const [incBase, setIncBase] = useState(localStorage.getItem('hpa_incentive_base') || '500')
+  const [incStep, setIncStep] = useState(localStorage.getItem('hpa_incentive_step') || '250')
+  const [incSlab, setIncSlab] = useState(localStorage.getItem('hpa_incentive_slab') || '5000')
   const [uploading, setUploading] = useState(false)
 
   const [filterYear, filterMonth] = month.split('-').map(Number)
 
   const fmt = (n: number) => Math.abs(n).toLocaleString('en-IN')
+
+  const defaultBase = localStorage.getItem('hpa_incentive_base') || '500'
+  const defaultStep = localStorage.getItem('hpa_incentive_step') || '250'
+  const defaultSlab = localStorage.getItem('hpa_incentive_slab') || '5000'
 
   const resetForm = () => {
     setName('')
@@ -166,9 +170,9 @@ export default function Drivers() {
     setSalary('')
     setCarIdInput('')
     setIncTarget('')
-    setIncBase('500')
-    setIncStep('250')
-    setIncSlab('5000')
+    setIncBase(defaultBase)
+    setIncStep(defaultStep)
+    setIncSlab(defaultSlab)
     setEditDriver(null)
     setShowForm(false)
   }
