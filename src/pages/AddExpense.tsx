@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { addExpense, uploadReceipt, useCars } from '../hooks/useSupabase'
+import { addExpense, uploadReceipt, useCars, useDriverProfiles } from '../hooks/useSupabase'
 import { useLanguage } from '../LanguageContext'
 import { CheckCircle2, Camera, X, Car } from 'lucide-react'
 
@@ -42,6 +42,7 @@ function todayStr(): string {
 
 export default function AddExpense() {
   const cars = useCars()
+  const driverProfiles = useDriverProfiles()
   const { t } = useLanguage()
   const [date, setDate] = useState(todayStr())
   const [category, setCategory] = useState('emi')
@@ -54,6 +55,7 @@ export default function AddExpense() {
   const [receiptFile, setReceiptFile] = useState<File | null>(null)
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [selectedDriverId, setSelectedDriverId] = useState<number | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -73,7 +75,15 @@ export default function AddExpense() {
       date,
       category,
       amount: Number(amount),
-      note: category === 'commission' ? `${commissionPlatform}${note ? ' - ' + note : ''}` : note,
+      note: category === 'commission'
+        ? `${commissionPlatform}${note ? ' - ' + note : ''}`
+        : (category === 'driver_advance' || category === 'driver_salary' || category === 'driver_incentive')
+          ? (() => {
+              const driver = driverProfiles.find((d) => d.id === selectedDriverId)
+              const driverTag = driver ? `[${driver.name}]` : ''
+              return driverTag + (note ? (driverTag ? ' ' : '') + note : '')
+            })()
+          : note,
       recurring,
       car_id: carId,
       receipt_url,
@@ -85,6 +95,7 @@ export default function AddExpense() {
       setNote('')
       setReceiptFile(null)
       setReceiptPreview(null)
+      setSelectedDriverId(null)
     }, 1200)
   }
 
@@ -132,6 +143,28 @@ export default function AddExpense() {
             ))}
           </div>
         </div>
+
+        {(category === 'driver_advance' || category === 'driver_salary' || category === 'driver_incentive') && driverProfiles.length > 0 && (
+          <div>
+            <label className="block text-sm font-medium text-text-secondary mb-2">Select Driver</label>
+            <div className="flex flex-wrap gap-2">
+              {driverProfiles.map((d) => (
+                <button
+                  key={d.id}
+                  type="button"
+                  onClick={() => setSelectedDriverId(d.id)}
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
+                    selectedDriverId === d.id
+                      ? 'bg-white text-black'
+                      : 'bg-surface-elevated text-text-secondary border border-border-dim'
+                  }`}
+                >
+                  {d.name}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {category === 'commission' && (
           <div>
