@@ -96,10 +96,8 @@ export default function Analytics() {
 
   // ---- KPIs ----
   const totalRevenue = allIncomes.reduce((s, i) => s + i.amount, 0)
-  const totalCommission = allExpenses.filter(e => e.category === 'commission').reduce((s, e) => s + e.amount, 0)
-  const totalIncome = totalRevenue - totalCommission
-  const totalExpense = allExpenses.filter(e => e.category !== 'commission').reduce((s, e) => s + e.amount, 0)
-  const netProfit = totalIncome - totalExpense
+  const totalExpense = allExpenses.reduce((s, e) => s + e.amount, 0)
+  const netProfit = totalRevenue - totalExpense
   const totalTrips = allIncomes.reduce((s, i) => s + i.trips, 0)
   const uniqueDays = new Set(allIncomes.map((i) => i.date)).size
   const avgRevenuePerDay = uniqueDays > 0 ? totalRevenue / uniqueDays : 0
@@ -360,15 +358,10 @@ export default function Analytics() {
         open={openSection === 'overview'}
         onToggle={() => toggleSection('overview')}
       >
-        <div className="grid grid-cols-2 gap-2 mb-3">
+        <div className="grid grid-cols-3 gap-2 mb-3">
           <div className="text-center">
             <div className="text-[10px] text-text-muted uppercase">Revenue</div>
             <div className="text-sm font-bold text-white">₹{fmt(totalRevenue)}</div>
-          </div>
-          <div className="text-center">
-            <div className="text-[10px] text-text-muted uppercase">Income</div>
-            <div className="text-sm font-bold text-income">₹{fmt(totalIncome)}</div>
-            {totalCommission > 0 && <div className="text-[9px] text-text-muted">−₹{fmt(totalCommission)} comm.</div>}
           </div>
           <div className="text-center">
             <div className="text-[10px] text-text-muted uppercase">Expenses</div>
