@@ -15,7 +15,6 @@ import {
 } from 'recharts'
 import type { PieLabelRenderProps } from 'recharts'
 import {
-  TrendingUp,
   TrendingDown,
   Wallet,
   Car,
@@ -93,11 +92,8 @@ export default function Dashboard() {
   const goal = useGoal(month)
 
   const totalRevenue = incomes?.reduce((s, i) => s + i.amount, 0) ?? 0
-  const totalCommission = expenses?.filter(e => e.category === 'commission').reduce((s, e) => s + e.amount, 0) ?? 0
-  const totalIncome = totalRevenue - totalCommission
-  const totalOtherExpenses = expenses?.filter(e => e.category !== 'commission').reduce((s, e) => s + e.amount, 0) ?? 0
-  const totalExpense = totalOtherExpenses
-  const netProfit = totalIncome - totalOtherExpenses
+  const totalExpense = expenses?.reduce((s, e) => s + e.amount, 0) ?? 0
+  const netProfit = totalRevenue - totalExpense
   const totalTrips = incomes?.reduce((s, i) => s + i.trips, 0) ?? 0
 
   const platformData = Object.entries(
@@ -284,7 +280,6 @@ export default function Dashboard() {
       <div className="grid grid-cols-2 gap-3">
         <SummaryCard label={t.revenue} value={fmt(totalRevenue)} icon={<IndianRupee size={20} />} color="text-white" />
         <SummaryCard label={t.netProfit} value={fmt(netProfit)} icon={<Wallet size={20} />} color={netProfit >= 0 ? 'text-income' : 'text-expense'} />
-        <SummaryCard label={t.income} value={fmt(totalIncome)} icon={<TrendingUp size={20} />} color="text-income" subtitle={totalCommission > 0 ? `−₹${fmt(totalCommission)} ${t.cat_commission}` : undefined} />
         <SummaryCard label={t.expenses} value={fmt(totalExpense)} icon={<TrendingDown size={20} />} color="text-expense" />
         <SummaryCard label={t.totalTrips} value={String(totalTrips)} icon={<Car size={20} />} color="text-white" isCurrency={false} />
       </div>
@@ -301,7 +296,7 @@ export default function Dashboard() {
           </div>
           <div className="flex items-center justify-between">
             <span className="text-xs text-text-muted">{t.cashOut}</span>
-            <span className="text-sm font-bold text-expense">₹{fmt(totalCommission + totalOtherExpenses)}</span>
+            <span className="text-sm font-bold text-expense">₹{fmt(totalExpense)}</span>
           </div>
           <div className="h-px bg-border-dim" />
           <div className="flex items-center justify-between">
