@@ -253,8 +253,16 @@ export async function addServiceRecord(row: Omit<ServiceRecordRow, 'id' | 'user_
 }
 
 export async function deleteServiceRecord(id: number) {
+  const { data: rec } = await supabase.from('service_records').select('*').eq('id', id).single()
   const { error } = await supabase.from('service_records').delete().eq('id', id)
   if (error) throw error
+  if (rec) {
+    await supabase.from('expenses').delete()
+      .eq('category', 'service')
+      .eq('date', rec.date)
+      .eq('amount', rec.cost)
+      .eq('car_id', rec.car_id)
+  }
   triggerRefresh()
 }
 
@@ -319,8 +327,17 @@ export async function addFuelLog(row: Omit<FuelLogRow, 'id' | 'user_id'>) {
 }
 
 export async function deleteFuelLog(id: number) {
+  // Fetch the log first so we can remove the linked expense
+  const { data: log } = await supabase.from('fuel_logs').select('*').eq('id', id).single()
   const { error } = await supabase.from('fuel_logs').delete().eq('id', id)
   if (error) throw error
+  if (log) {
+    await supabase.from('expenses').delete()
+      .eq('category', 'fuel')
+      .eq('date', log.date)
+      .eq('amount', log.total_cost)
+      .eq('car_id', log.car_id)
+  }
   triggerRefresh()
 }
 
