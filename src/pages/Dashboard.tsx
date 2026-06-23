@@ -76,7 +76,7 @@ interface WeekStats {
   expense: number
   profit: number
   trips: number
-  dailyChart: { date: string; income: number; expense: number }[]
+  dailyChart: { date: string; income: number; expense: number; profit: number }[]
 }
 
 export default function Dashboard() {
@@ -117,7 +117,7 @@ export default function Dashboard() {
     income: number
     expense: number
     trips: number
-    daily: Record<string, { date: string; income: number; expense: number }>
+    daily: Record<string, { date: string; income: number; expense: number; profit: number }>
   }> = {}
 
   for (let w = 1; w <= totalWeeksInMonth; w++) {
@@ -130,7 +130,7 @@ export default function Dashboard() {
     weekMap[w].income += i.amount
     weekMap[w].trips += i.trips
     const dayLabel = i.date.slice(5)
-    if (!weekMap[w].daily[i.date]) weekMap[w].daily[i.date] = { date: dayLabel, income: 0, expense: 0 }
+    if (!weekMap[w].daily[i.date]) weekMap[w].daily[i.date] = { date: dayLabel, income: 0, expense: 0, profit: 0 }
     weekMap[w].daily[i.date].income += i.amount
   }
   const WEEKLY_EXCLUDED = ['driver_salary', 'driver_advance', 'driver_incentive', 'emi', 'service']
@@ -140,7 +140,7 @@ export default function Dashboard() {
     if (!weekMap[w]) weekMap[w] = { income: 0, expense: 0, trips: 0, daily: {} }
     weekMap[w].expense += e.amount
     const dayLabel = e.date.slice(5)
-    if (!weekMap[w].daily[e.date]) weekMap[w].daily[e.date] = { date: dayLabel, income: 0, expense: 0 }
+    if (!weekMap[w].daily[e.date]) weekMap[w].daily[e.date] = { date: dayLabel, income: 0, expense: 0, profit: 0 }
     weekMap[w].daily[e.date].expense += e.amount
   }
 
@@ -153,7 +153,7 @@ export default function Dashboard() {
       expense: data.expense,
       profit: data.income - data.expense,
       trips: data.trips,
-      dailyChart: Object.values(data.daily).sort((a, b) => a.date.localeCompare(b.date)),
+      dailyChart: Object.values(data.daily).map(d => ({ ...d, profit: d.income - d.expense })).sort((a, b) => a.date.localeCompare(b.date)),
     }))
     .sort((a, b) => a.weekNum - b.weekNum)
 
@@ -460,7 +460,25 @@ export default function Dashboard() {
                             <BarChart data={ws.dailyChart}>
                               <XAxis dataKey="date" tick={{ fontSize: 9, fill: '#666666' }} axisLine={false} tickLine={false} />
                               <YAxis tick={{ fontSize: 9, fill: '#666666' }} axisLine={false} tickLine={false} />
-                              <Tooltip {...tooltipStyle} />
+                              <Tooltip
+                                {...tooltipStyle}
+                                content={({ active, payload, label }) => {
+                                  if (!active || !payload?.length) return null
+                                  const inc = payload.find(p => p.dataKey === 'income')?.value as number ?? 0
+                                  const exp = payload.find(p => p.dataKey === 'expense')?.value as number ?? 0
+                                  const prof = inc - exp
+                                  return (
+                                    <div style={{ background: '#111', border: '1px solid #222', borderRadius: 12, padding: '8px 12px', fontSize: 12 }}>
+                                      <p style={{ color: '#fff', fontWeight: 600, marginBottom: 4 }}>{label}</p>
+                                      <p style={{ color: '#06c167' }}>income: {fmt(inc)}</p>
+                                      <p style={{ color: '#ff4444' }}>expense: {fmt(exp)}</p>
+                                      <p style={{ color: prof >= 0 ? '#06c167' : '#ff4444', fontWeight: 600, marginTop: 2, borderTop: '1px solid #333', paddingTop: 4 }}>
+                                        profit: {prof >= 0 ? '+' : ''}{fmt(prof)}
+                                      </p>
+                                    </div>
+                                  )
+                                }}
+                              />
                               <Bar dataKey="income" fill="#06c167" radius={[4, 4, 0, 0]} />
                               <Bar dataKey="expense" fill="#ff4444" radius={[4, 4, 0, 0]} />
                             </BarChart>
