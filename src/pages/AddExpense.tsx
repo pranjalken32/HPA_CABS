@@ -81,7 +81,7 @@ export default function AddExpense() {
       amount: Number(amount),
       note: category === 'commission'
         ? `${commissionPlatform}${note ? ' - ' + note : ''}`
-        : (category === 'driver_advance' || category === 'driver_salary' || category === 'driver_incentive')
+        : isDriverCategory
           ? (() => {
               const driver = driverProfiles.find((d) => d.id === selectedDriverId)
               const driverTag = driver ? `[${driver.name}]` : ''
@@ -91,6 +91,7 @@ export default function AddExpense() {
       recurring,
       car_id: carId,
       receipt_url,
+      driver_profile_id: isDriverCategory ? selectedDriverId : null,
     })
     setSaved(true)
     setTimeout(() => {
