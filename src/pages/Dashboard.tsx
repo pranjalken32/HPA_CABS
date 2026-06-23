@@ -229,6 +229,8 @@ export default function Dashboard() {
         <div className="bg-surface-card rounded-2xl p-4 border border-border-dim space-y-3">
           <input
             type="number"
+            step="0.01"
+            inputMode="decimal"
             placeholder="Target revenue (e.g. 100000)"
             value={goalInput}
             onChange={(e) => setGoalInput(e.target.value)}

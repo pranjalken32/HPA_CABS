@@ -116,6 +116,7 @@ export default function More() {
             <input
               type="number"
               inputMode="decimal"
+              step="0.01"
               value={cngRate}
               onChange={(e) => setCngRate(e.target.value)}
               className="w-full border border-border-dim bg-surface-elevated rounded-xl pl-7 pr-12 py-2.5 text-sm text-white focus:border-white focus:outline-none"
@@ -150,7 +151,8 @@ export default function More() {
             <label className="text-[9px] text-text-muted uppercase block mb-1">{t.basePerWeek}</label>
             <input
               type="number"
-              inputMode="numeric"
+              inputMode="decimal"
+              step="0.01"
               value={incBase}
               onChange={(e) => setIncBase(e.target.value)}
               className="w-full border border-border-dim bg-surface-elevated rounded-xl px-3 py-2.5 text-sm text-white focus:border-white focus:outline-none"
@@ -161,7 +163,8 @@ export default function More() {
             <label className="text-[9px] text-text-muted uppercase block mb-1">{t.extraPerSlab}</label>
             <input
               type="number"
-              inputMode="numeric"
+              inputMode="decimal"
+              step="0.01"
               value={incStep}
               onChange={(e) => setIncStep(e.target.value)}
               className="w-full border border-border-dim bg-surface-elevated rounded-xl px-3 py-2.5 text-sm text-white focus:border-white focus:outline-none"
@@ -172,7 +175,8 @@ export default function More() {
             <label className="text-[9px] text-text-muted uppercase block mb-1">{t.slabSize}</label>
             <input
               type="number"
-              inputMode="numeric"
+              inputMode="decimal"
+              step="0.01"
               value={incSlab}
               onChange={(e) => setIncSlab(e.target.value)}
               className="w-full border border-border-dim bg-surface-elevated rounded-xl px-3 py-2.5 text-sm text-white focus:border-white focus:outline-none"
@@ -213,6 +217,7 @@ export default function More() {
             <input
               type="number"
               inputMode="decimal"
+              step="0.01"
               value={rpmThreshold}
               onChange={(e) => setRpmThreshold(e.target.value)}
               className="w-full border border-border-dim bg-surface-elevated rounded-xl pl-7 pr-12 py-2.5 text-sm text-white focus:border-white focus:outline-none"

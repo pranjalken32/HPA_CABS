@@ -583,6 +583,8 @@ export default function CarDetail() {
                 <label className="block text-[10px] text-text-muted uppercase tracking-wider mb-1">Amount Paid (₹)</label>
                 <input
                   type="number"
+                  step="0.01"
+                  inputMode="decimal"
                   value={fuelAmount}
                   onChange={(e) => setFuelAmount(e.target.value)}
                   placeholder="e.g. 800"
@@ -691,6 +693,8 @@ export default function CarDetail() {
                   <label className="block text-[10px] text-text-muted uppercase tracking-wider mb-1">Cost (₹)</label>
                   <input
                     type="number"
+                    step="0.01"
+                    inputMode="decimal"
                     value={svcCost}
                     onChange={(e) => setSvcCost(e.target.value)}
                     placeholder="e.g. 2500"

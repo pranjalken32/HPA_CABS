@@ -91,7 +91,8 @@ export default function AddIncome() {
           </label>
           <input
             type="number"
-            inputMode="numeric"
+            inputMode="decimal"
+            step="0.01"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             placeholder="e.g. 1500"

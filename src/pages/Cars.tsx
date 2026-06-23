@@ -94,6 +94,8 @@ export default function Cars() {
             <label className="block text-xs font-medium text-text-secondary mb-1">Total Cost (₹)</label>
             <input
               type="number"
+              step="0.01"
+              inputMode="decimal"
               value={totalCost}
               onChange={(e) => setTotalCost(e.target.value)}
               placeholder="e.g. 800000"

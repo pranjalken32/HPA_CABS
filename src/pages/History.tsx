@@ -312,11 +312,12 @@ function EditModal({ entry, onClose }: { entry: Entry; onClose: () => void }) {
                 <label className="block text-sm font-medium text-text-secondary mb-1">Amount (₹)</label>
                 <input
                   type="number"
-                  inputMode="numeric"
+                  inputMode="decimal"
+                  step="0.01"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   className="w-full border border-border-dim bg-surface-elevated rounded-xl px-3 py-2.5 text-sm text-text-primary focus:border-accent focus:outline-none transition-colors"
-                  min="1"
+                  min="0.01"
                   required
                 />
               </div>
@@ -362,11 +363,12 @@ function EditModal({ entry, onClose }: { entry: Entry; onClose: () => void }) {
                 <label className="block text-sm font-medium text-text-secondary mb-1">Amount (₹)</label>
                 <input
                   type="number"
-                  inputMode="numeric"
+                  inputMode="decimal"
+                  step="0.01"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   className="w-full border border-border-dim bg-surface-elevated rounded-xl px-3 py-2.5 text-sm text-text-primary focus:border-accent focus:outline-none transition-colors"
-                  min="1"
+                  min="0.01"
                   required
                 />
               </div>

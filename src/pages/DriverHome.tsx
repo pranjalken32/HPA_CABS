@@ -390,7 +390,8 @@ export default function DriverHome() {
                 <label className="block text-xs font-medium text-text-secondary mb-1">Amount Paid (₹)</label>
                 <input
                   type="number"
-                  inputMode="numeric"
+                  inputMode="decimal"
+                  step="0.01"
                   value={fuelAmount}
                   onChange={(e) => setFuelAmount(e.target.value)}
                   placeholder="e.g. 800"
