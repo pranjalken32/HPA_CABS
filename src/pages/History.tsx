@@ -8,11 +8,11 @@ import { Trash2, Pencil, ArrowUpCircle, ArrowDownCircle, X, User, Download, File
 
 type Tab = 'all' | 'income' | 'expense'
 
-const PLATFORMS = ['rapido', 'ola', 'uber', 'namma_yatri', 'cash', 'other']
+const PLATFORMS = ['rapido', 'ola', 'uber', 'namma_yatri', 'cash', 'refund', 'other']
 
 const CATEGORIES = [
   'commission', 'emi', 'fuel', 'driver_salary', 'driver_advance', 'driver_incentive',
-  'insurance', 'permit', 'toll', 'car_wash', 'service', 'other',
+  'fare_fraud', 'insurance', 'permit', 'toll', 'car_wash', 'other',
 ]
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -22,6 +22,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   driver_salary: 'Driver Salary',
   driver_advance: 'Driver Advance',
   driver_incentive: 'Driver Incentive',
+  fare_fraud: 'Fare Fraud',
   insurance: 'Insurance',
   permit: 'Permit / RTO',
   toll: 'Toll / Parking',

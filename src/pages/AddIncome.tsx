@@ -3,7 +3,7 @@ import { addIncome, useCars } from '../hooks/useSupabase'
 import { useLanguage } from '../LanguageContext'
 import { CheckCircle2, Car } from 'lucide-react'
 
-const PLATFORMS = ['rapido', 'ola', 'uber', 'namma_yatri', 'cash', 'other']
+const PLATFORMS = ['rapido', 'ola', 'uber', 'namma_yatri', 'cash', 'refund', 'other']
 
 function todayStr(): string {
   const d = new Date()

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   useCar, useCarDocuments, useServiceRecords, useIncomes, useExpenses, useFuelLogs,
-  addCarDocument, addServiceRecord, addFuelLog,
+  addCarDocument, addServiceRecord, addFuelLog, addExpense,
   deleteCarDocument, deleteServiceRecord, deleteCar, deleteFuelLog,
   uploadCarDocFile, getSignedUrl,
 } from '../hooks/useSupabase'
@@ -150,13 +150,25 @@ export default function CarDetail() {
   const handleAddService = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!svcDesc.trim()) return
+    const cost = Number(svcCost) || 0
     await addServiceRecord({
       car_id: carId,
       date: svcDate,
       description: svcDesc.trim(),
-      cost: Number(svcCost) || 0,
+      cost,
       odometer_km: Number(svcOdo) || 0,
     })
+    if (cost > 0) {
+      await addExpense({
+        date: svcDate,
+        category: 'service',
+        amount: cost,
+        note: `${car.name} - ${svcDesc.trim()}`,
+        recurring: false,
+        car_id: carId,
+        receipt_url: null,
+      })
+    }
     setSvcDesc('')
     setSvcCost('')
     setSvcOdo('')

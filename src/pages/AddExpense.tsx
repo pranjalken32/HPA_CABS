@@ -14,7 +14,6 @@ const CATEGORIES = [
   'permit',
   'toll',
   'car_wash',
-  'service',
   'other',
 ]
 

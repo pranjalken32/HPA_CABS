@@ -106,6 +106,7 @@ const en = {
   plat_uber: 'Uber',
   plat_namma_yatri: 'Namma Yatri',
   plat_cash: 'Cash',
+  plat_refund: 'Refund',
   plat_other: 'Other',
 
   // Cars
@@ -324,6 +325,7 @@ const hi: TranslationKeys = {
   plat_uber: 'उबर',
   plat_namma_yatri: 'नम्मा यात्री',
   plat_cash: 'नकद',
+  plat_refund: 'रिफंड',
   plat_other: 'अन्य',
   addCar: 'गाड़ी जोड़ें',
   carName: 'गाड़ी का नाम',
@@ -520,6 +522,7 @@ const ne: TranslationKeys = {
   plat_uber: 'उबर',
   plat_namma_yatri: 'नम्मा यात्री',
   plat_cash: 'नगद',
+  plat_refund: 'फिर्ता',
   plat_other: 'अन्य',
   addCar: 'गाडी थप्नुहोस्',
   carName: 'गाडीको नाम',
@@ -716,6 +719,7 @@ const kn: TranslationKeys = {
   plat_uber: 'ಉಬರ್',
   plat_namma_yatri: 'ನಮ್ಮ ಯಾತ್ರಿ',
   plat_cash: 'ನಗದು',
+  plat_refund: 'ಮರುಪಾವತಿ',
   plat_other: 'ಇತರೆ',
   addCar: 'ಕಾರು ಸೇರಿಸಿ',
   carName: 'ಕಾರಿನ ಹೆಸರು',
