@@ -290,6 +290,30 @@ export default function Dashboard() {
         <SummaryCard label={t.totalTrips} value={String(totalTrips)} icon={<Car size={20} />} color="text-white" isCurrency={false} />
       </div>
 
+      {/* CASH FLOW */}
+      <div className="bg-surface-card rounded-2xl p-4 border border-border-dim space-y-3">
+        <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+          <Wallet size={16} className="text-accent" /> {t.cashFlow}
+        </h3>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-text-muted">{t.cashIn}</span>
+            <span className="text-sm font-bold text-income">₹{fmt(totalRevenue)}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-text-muted">{t.cashOut}</span>
+            <span className="text-sm font-bold text-expense">₹{fmt(totalCommission + totalOtherExpenses)}</span>
+          </div>
+          <div className="h-px bg-border-dim" />
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-text-secondary">{t.netCashFlow}</span>
+            <span className={`text-sm font-bold ${netProfit >= 0 ? 'text-income' : 'text-expense'}`}>
+              {netProfit >= 0 ? '+' : ''}₹{fmt(netProfit)}
+            </span>
+          </div>
+        </div>
+      </div>
+
       {/* Monthly pie charts */}
       {platformData.length > 0 && (
         <div className="bg-surface-card rounded-2xl p-4 border border-border-dim">
