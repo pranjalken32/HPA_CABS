@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useMonthFilter } from '../hooks/useMonthFilter'
-import { useIncomes, useExpenses, useCars, useGoal, upsertGoal } from '../hooks/useSupabase'
+import { useIncomes, useExpenses, useGoal, upsertGoal } from '../hooks/useSupabase'
 import {
   BarChart,
   Bar,
@@ -90,7 +90,6 @@ export default function Dashboard() {
 
   const incomes = useIncomes(startDate, endDate)
   const expenses = useExpenses(startDate, endDate)
-  const cars = useCars()
   const goal = useGoal(month)
 
   const totalRevenue = incomes?.reduce((s, i) => s + i.amount, 0) ?? 0
