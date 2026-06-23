@@ -138,7 +138,9 @@ export default function Dashboard() {
     if (!weekMap[w].daily[i.date]) weekMap[w].daily[i.date] = { date: dayLabel, income: 0, expense: 0 }
     weekMap[w].daily[i.date].income += i.amount
   }
+  const WEEKLY_EXCLUDED = ['driver_salary', 'driver_advance', 'driver_incentive', 'emi', 'service']
   for (const e of expenses ?? []) {
+    if (WEEKLY_EXCLUDED.includes(e.category)) continue
     const w = getWeekNumber(e.date)
     if (!weekMap[w]) weekMap[w] = { income: 0, expense: 0, trips: 0, daily: {} }
     weekMap[w].expense += e.amount
@@ -229,6 +231,8 @@ export default function Dashboard() {
         <div className="bg-surface-card rounded-2xl p-4 border border-border-dim space-y-3">
           <input
             type="number"
+            step="0.01"
+            inputMode="decimal"
             placeholder="Target revenue (e.g. 100000)"
             value={goalInput}
             onChange={(e) => setGoalInput(e.target.value)}
@@ -286,6 +290,30 @@ export default function Dashboard() {
         <SummaryCard label={t.totalTrips} value={String(totalTrips)} icon={<Car size={20} />} color="text-white" isCurrency={false} />
       </div>
 
+      {/* CASH FLOW */}
+      <div className="bg-surface-card rounded-2xl p-4 border border-border-dim space-y-3">
+        <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+          <Wallet size={16} className="text-accent" /> {t.cashFlow}
+        </h3>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-text-muted">{t.cashIn}</span>
+            <span className="text-sm font-bold text-income">₹{fmt(totalRevenue)}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-text-muted">{t.cashOut}</span>
+            <span className="text-sm font-bold text-expense">₹{fmt(totalCommission + totalOtherExpenses)}</span>
+          </div>
+          <div className="h-px bg-border-dim" />
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-text-secondary">{t.netCashFlow}</span>
+            <span className={`text-sm font-bold ${netProfit >= 0 ? 'text-income' : 'text-expense'}`}>
+              {netProfit >= 0 ? '+' : ''}₹{fmt(netProfit)}
+            </span>
+          </div>
+        </div>
+      </div>
+
       {/* Monthly pie charts */}
       {platformData.length > 0 && (
         <div className="bg-surface-card rounded-2xl p-4 border border-border-dim">
@@ -316,21 +344,21 @@ export default function Dashboard() {
       )}
 
       {categoryData.length > 0 && (
-        <div className="bg-surface-card rounded-2xl p-4 border border-border-dim">
+        <div className="bg-surface-card rounded-2xl p-4 border border-border-dim overflow-hidden">
           <h3 className="text-sm font-semibold text-text-secondary mb-3">Expenses by Category</h3>
-          <ResponsiveContainer width="100%" height={220}>
+          <ResponsiveContainer width="100%" height={260}>
             <PieChart>
               <Pie
                 data={categoryData}
                 cx="50%"
-                cy="50%"
-                innerRadius={50}
-                outerRadius={80}
+                cy="45%"
+                innerRadius={40}
+                outerRadius={65}
                 paddingAngle={3}
                 dataKey="value"
                 stroke="none"
                 label={(props: PieLabelRenderProps) =>
-                  `${props.name ?? ''} ${((props.percent ?? 0) * 100).toFixed(0)}%`
+                  `${((props.percent ?? 0) * 100).toFixed(0)}%`
                 }
               >
                 {categoryData.map((_, idx) => (
@@ -338,7 +366,7 @@ export default function Dashboard() {
                 ))}
               </Pie>
               <Tooltip {...tooltipStyle} />
-              <Legend wrapperStyle={{ color: '#999999', fontSize: '12px' }} />
+              <Legend wrapperStyle={{ color: '#999999', fontSize: '11px' }} />
             </PieChart>
           </ResponsiveContainer>
         </div>
@@ -456,41 +484,7 @@ export default function Dashboard() {
         })}
       </div>
 
-      {/* MULTI-CAR PROFITABILITY */}
-      {cars.length > 0 && (incomes ?? []).some((i) => i.car_id) && (
-        <>
-          <div className="flex items-center gap-2 pt-2">
-            <div className="h-px flex-1 bg-border-dim" />
-            <span className="text-[10px] uppercase tracking-widest text-text-muted font-semibold">Car Profitability</span>
-            <div className="h-px flex-1 bg-border-dim" />
-          </div>
-          <div className="space-y-2">
-            {cars.map((car) => {
-              const carIncome = (incomes ?? []).filter((i) => i.car_id === car.id).reduce((s, i) => s + i.amount, 0)
-              const carExpense = (expenses ?? []).filter((e) => e.car_id === car.id).reduce((s, e) => s + e.amount, 0)
-              const carProfit = carIncome - carExpense
-              if (carIncome === 0 && carExpense === 0) return null
-              return (
-                <div key={car.id} className="bg-surface-card rounded-2xl p-3 border border-border-dim flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
-                    <Car size={20} className="text-white" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-white truncate">{car.name}</p>
-                    <p className="text-[10px] text-text-muted">{car.number}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs text-text-muted">Income ₹{fmt(carIncome)}</p>
-                    <p className={`text-sm font-bold ${carProfit >= 0 ? 'text-income' : 'text-expense'}`}>
-                      {carProfit >= 0 ? '+' : ''}₹{fmt(carProfit)}
-                    </p>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </>
-      )}
+
 
       {/* Empty state */}
       {(incomes?.length ?? 0) === 0 && (expenses?.length ?? 0) === 0 && weeklyStats.length === 0 && (

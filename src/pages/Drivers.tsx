@@ -325,6 +325,8 @@ export default function Drivers() {
             <label className="text-[10px] text-text-muted uppercase block mb-1">Monthly Salary (₹) *</label>
             <input
               type="number"
+              step="0.01"
+              inputMode="decimal"
               value={salary}
               onChange={(e) => setSalary(e.target.value)}
               className="w-full bg-surface-elevated border border-border-dim rounded-xl px-3 py-2 text-sm text-white"
@@ -372,6 +374,8 @@ export default function Drivers() {
                   <label className="text-[9px] text-text-muted block mb-0.5">Monthly Target (₹)</label>
                   <input
                     type="number"
+                    step="0.01"
+                    inputMode="decimal"
                     value={incTarget}
                     onChange={(e) => setIncTarget(e.target.value)}
                     className="w-full bg-surface-card border border-border-dim rounded-lg px-2.5 py-1.5 text-xs text-white"
@@ -382,6 +386,8 @@ export default function Drivers() {
                   <label className="text-[9px] text-text-muted block mb-0.5">Base/week (₹)</label>
                   <input
                     type="number"
+                    step="0.01"
+                    inputMode="decimal"
                     value={incBase}
                     onChange={(e) => setIncBase(e.target.value)}
                     className="w-full bg-surface-card border border-border-dim rounded-lg px-2.5 py-1.5 text-xs text-white"
@@ -392,6 +398,8 @@ export default function Drivers() {
                   <label className="text-[9px] text-text-muted block mb-0.5">Extra per slab (₹)</label>
                   <input
                     type="number"
+                    step="0.01"
+                    inputMode="decimal"
                     value={incStep}
                     onChange={(e) => setIncStep(e.target.value)}
                     className="w-full bg-surface-card border border-border-dim rounded-lg px-2.5 py-1.5 text-xs text-white"
@@ -402,6 +410,8 @@ export default function Drivers() {
                   <label className="text-[9px] text-text-muted block mb-0.5">Slab size (₹)</label>
                   <input
                     type="number"
+                    step="0.01"
+                    inputMode="decimal"
                     value={incSlab}
                     onChange={(e) => setIncSlab(e.target.value)}
                     className="w-full bg-surface-card border border-border-dim rounded-lg px-2.5 py-1.5 text-xs text-white"

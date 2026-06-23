@@ -14,7 +14,6 @@ const CATEGORIES = [
   'permit',
   'toll',
   'car_wash',
-  'service',
   'other',
 ]
 
@@ -196,7 +195,8 @@ export default function AddExpense() {
           </label>
           <input
             type="number"
-            inputMode="numeric"
+            inputMode="decimal"
+            step="0.01"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             placeholder="e.g. 5000"

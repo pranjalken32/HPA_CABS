@@ -8,11 +8,11 @@ import { Trash2, Pencil, ArrowUpCircle, ArrowDownCircle, X, User, Download, File
 
 type Tab = 'all' | 'income' | 'expense'
 
-const PLATFORMS = ['rapido', 'ola', 'uber', 'namma_yatri', 'cash', 'other']
+const PLATFORMS = ['rapido', 'ola', 'uber', 'namma_yatri', 'cash', 'refund', 'other']
 
 const CATEGORIES = [
   'commission', 'emi', 'fuel', 'driver_salary', 'driver_advance', 'driver_incentive',
-  'insurance', 'permit', 'toll', 'car_wash', 'service', 'other',
+  'fare_fraud', 'insurance', 'permit', 'toll', 'car_wash', 'other',
 ]
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -22,6 +22,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   driver_salary: 'Driver Salary',
   driver_advance: 'Driver Advance',
   driver_incentive: 'Driver Incentive',
+  fare_fraud: 'Fare Fraud',
   insurance: 'Insurance',
   permit: 'Permit / RTO',
   toll: 'Toll / Parking',
@@ -312,11 +313,12 @@ function EditModal({ entry, onClose }: { entry: Entry; onClose: () => void }) {
                 <label className="block text-sm font-medium text-text-secondary mb-1">Amount (₹)</label>
                 <input
                   type="number"
-                  inputMode="numeric"
+                  inputMode="decimal"
+                  step="0.01"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   className="w-full border border-border-dim bg-surface-elevated rounded-xl px-3 py-2.5 text-sm text-text-primary focus:border-accent focus:outline-none transition-colors"
-                  min="1"
+                  min="0.01"
                   required
                 />
               </div>
@@ -362,11 +364,12 @@ function EditModal({ entry, onClose }: { entry: Entry; onClose: () => void }) {
                 <label className="block text-sm font-medium text-text-secondary mb-1">Amount (₹)</label>
                 <input
                   type="number"
-                  inputMode="numeric"
+                  inputMode="decimal"
+                  step="0.01"
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
                   className="w-full border border-border-dim bg-surface-elevated rounded-xl px-3 py-2.5 text-sm text-text-primary focus:border-accent focus:outline-none transition-colors"
-                  min="1"
+                  min="0.01"
                   required
                 />
               </div>
