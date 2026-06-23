@@ -488,7 +488,9 @@ export default function Drivers() {
         )
 
         const advanceEntries = (expenses ?? []).filter(
-          (e) => e.category === 'driver_advance' && e.note?.toLowerCase().includes(driver.name.toLowerCase())
+          (e) => e.category === 'driver_advance' && (
+            e.driver_profile_id === driver.id || e.note?.toLowerCase().includes(driver.name.toLowerCase())
+          )
         )
         const totalAdvance = advanceEntries.reduce((s, e) => s + e.amount, 0)
 
@@ -504,7 +506,9 @@ export default function Drivers() {
           const pmStart = `${pm}-01`
           const pmEnd = `${pm}-${String(daysInMonth(py, pmm)).padStart(2, '0')}`
           const pmAdvances = (allPrevExpenses ?? []).filter(
-            (e) => e.category === 'driver_advance' && e.note?.toLowerCase().includes(driver.name.toLowerCase()) && e.date >= pmStart && e.date <= pmEnd
+            (e) => e.category === 'driver_advance' && (
+              e.driver_profile_id === driver.id || e.note?.toLowerCase().includes(driver.name.toLowerCase())
+            ) && e.date >= pmStart && e.date <= pmEnd
           ).reduce((s, e) => s + e.amount, 0)
           const { totalIncentive: pmIncentive } = calcWeeklyIncentives(
             (allPrevIncomes ?? []).filter((i) => i.date >= pmStart && i.date <= pmEnd),

@@ -167,6 +167,12 @@ export async function addCar(row: Omit<CarRow, 'id' | 'user_id' | 'created_at'>)
 }
 
 export async function deleteCar(id: number) {
+  // Clean up all child records first
+  await supabase.from('fuel_logs').delete().eq('car_id', id)
+  await supabase.from('service_records').delete().eq('car_id', id)
+  await supabase.from('car_documents').delete().eq('car_id', id)
+  await supabase.from('expenses').delete().eq('car_id', id)
+  await supabase.from('incomes').delete().eq('car_id', id)
   const { error } = await supabase.from('cars').delete().eq('id', id)
   if (error) throw error
   triggerRefresh()
@@ -495,6 +501,7 @@ export async function updateDriverProfile(id: number, updates: Partial<DriverPro
 }
 
 export async function deleteDriverProfile(id: number) {
+  await supabase.from('driver_settlements').delete().eq('driver_profile_id', id)
   const { error } = await supabase.from('driver_profiles').delete().eq('id', id)
   if (error) throw error
   triggerRefresh()

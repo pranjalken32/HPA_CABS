@@ -47,9 +47,12 @@ export default function DriverHome() {
   const selectedCar = cars.find((c) => c.id === selectedCarId)
   const fuelLogs = useFuelLogs(selectedCarId ?? 0)
 
-  // Only show advances that match this driver's name
+  // Only show advances that match this driver (by ID or name fallback)
   const advanceEntries = (expenses ?? []).filter(
-    (e) => e.category === 'driver_advance' && myName && e.note?.toLowerCase().includes(myName.toLowerCase())
+    (e) => e.category === 'driver_advance' && (
+      (myProfile && e.driver_profile_id === myProfile.id) ||
+      (myName && e.note?.toLowerCase().includes(myName.toLowerCase()))
+    )
   )
   const totalAdvance = advanceEntries.reduce((s, e) => s + e.amount, 0)
 
