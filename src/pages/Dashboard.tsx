@@ -344,21 +344,21 @@ export default function Dashboard() {
       )}
 
       {categoryData.length > 0 && (
-        <div className="bg-surface-card rounded-2xl p-4 border border-border-dim">
+        <div className="bg-surface-card rounded-2xl p-4 border border-border-dim overflow-hidden">
           <h3 className="text-sm font-semibold text-text-secondary mb-3">Expenses by Category</h3>
-          <ResponsiveContainer width="100%" height={220}>
+          <ResponsiveContainer width="100%" height={260}>
             <PieChart>
               <Pie
                 data={categoryData}
                 cx="50%"
-                cy="50%"
-                innerRadius={50}
-                outerRadius={80}
+                cy="45%"
+                innerRadius={40}
+                outerRadius={65}
                 paddingAngle={3}
                 dataKey="value"
                 stroke="none"
                 label={(props: PieLabelRenderProps) =>
-                  `${props.name ?? ''} ${((props.percent ?? 0) * 100).toFixed(0)}%`
+                  `${((props.percent ?? 0) * 100).toFixed(0)}%`
                 }
               >
                 {categoryData.map((_, idx) => (
@@ -366,7 +366,7 @@ export default function Dashboard() {
                 ))}
               </Pie>
               <Tooltip {...tooltipStyle} />
-              <Legend wrapperStyle={{ color: '#999999', fontSize: '12px' }} />
+              <Legend wrapperStyle={{ color: '#999999', fontSize: '11px' }} />
             </PieChart>
           </ResponsiveContainer>
         </div>
