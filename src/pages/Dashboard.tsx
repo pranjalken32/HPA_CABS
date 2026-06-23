@@ -138,7 +138,9 @@ export default function Dashboard() {
     if (!weekMap[w].daily[i.date]) weekMap[w].daily[i.date] = { date: dayLabel, income: 0, expense: 0 }
     weekMap[w].daily[i.date].income += i.amount
   }
+  const WEEKLY_EXCLUDED = ['driver_salary', 'driver_advance', 'driver_incentive', 'emi']
   for (const e of expenses ?? []) {
+    if (WEEKLY_EXCLUDED.includes(e.category)) continue
     const w = getWeekNumber(e.date)
     if (!weekMap[w]) weekMap[w] = { income: 0, expense: 0, trips: 0, daily: {} }
     weekMap[w].expense += e.amount
