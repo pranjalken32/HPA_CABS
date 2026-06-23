@@ -59,9 +59,12 @@ export default function AddExpense() {
   const [selectedDriverId, setSelectedDriverId] = useState<number | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
+  const isDriverCategory = category === 'driver_advance' || category === 'driver_salary' || category === 'driver_incentive'
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!amount || Number(amount) <= 0) return
+    if (isDriverCategory && !selectedDriverId) return
     let receipt_url: string | null = null
     if (receiptFile) {
       setUploading(true)
@@ -145,25 +148,34 @@ export default function AddExpense() {
           </div>
         </div>
 
-        {(category === 'driver_advance' || category === 'driver_salary' || category === 'driver_incentive') && driverProfiles.length > 0 && (
+        {isDriverCategory && (
           <div>
-            <label className="block text-sm font-medium text-text-secondary mb-2">Select Driver</label>
-            <div className="flex flex-wrap gap-2">
-              {driverProfiles.map((d) => (
-                <button
-                  key={d.id}
-                  type="button"
-                  onClick={() => setSelectedDriverId(d.id)}
-                  className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
-                    selectedDriverId === d.id
-                      ? 'bg-white text-black'
-                      : 'bg-surface-elevated text-text-secondary border border-border-dim'
-                  }`}
-                >
-                  {d.name}
-                </button>
-              ))}
-            </div>
+            <label className="block text-sm font-medium text-text-secondary mb-2">
+              Select Driver <span className="text-expense">*</span>
+            </label>
+            {driverProfiles.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {driverProfiles.map((d) => (
+                  <button
+                    key={d.id}
+                    type="button"
+                    onClick={() => setSelectedDriverId(d.id)}
+                    className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
+                      selectedDriverId === d.id
+                        ? 'bg-white text-black'
+                        : 'bg-surface-elevated text-text-secondary border border-border-dim'
+                    }`}
+                  >
+                    {d.name}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-text-muted">No drivers added yet. Add a driver first.</p>
+            )}
+            {!selectedDriverId && (
+              <p className="text-[10px] text-expense mt-1">Please select a driver to continue</p>
+            )}
           </div>
         )}
 
