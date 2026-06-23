@@ -484,41 +484,7 @@ export default function Dashboard() {
         })}
       </div>
 
-      {/* MULTI-CAR PROFITABILITY */}
-      {cars.length > 0 && (incomes ?? []).some((i) => i.car_id) && (
-        <>
-          <div className="flex items-center gap-2 pt-2">
-            <div className="h-px flex-1 bg-border-dim" />
-            <span className="text-[10px] uppercase tracking-widest text-text-muted font-semibold">Car Profitability</span>
-            <div className="h-px flex-1 bg-border-dim" />
-          </div>
-          <div className="space-y-2">
-            {cars.map((car) => {
-              const carIncome = (incomes ?? []).filter((i) => i.car_id === car.id).reduce((s, i) => s + i.amount, 0)
-              const carExpense = (expenses ?? []).filter((e) => e.car_id === car.id).reduce((s, e) => s + e.amount, 0)
-              const carProfit = carIncome - carExpense
-              if (carIncome === 0 && carExpense === 0) return null
-              return (
-                <div key={car.id} className="bg-surface-card rounded-2xl p-3 border border-border-dim flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center">
-                    <Car size={20} className="text-white" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-white truncate">{car.name}</p>
-                    <p className="text-[10px] text-text-muted">{car.number}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs text-text-muted">Income ₹{fmt(carIncome)}</p>
-                    <p className={`text-sm font-bold ${carProfit >= 0 ? 'text-income' : 'text-expense'}`}>
-                      {carProfit >= 0 ? '+' : ''}₹{fmt(carProfit)}
-                    </p>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </>
-      )}
+
 
       {/* Empty state */}
       {(incomes?.length ?? 0) === 0 && (expenses?.length ?? 0) === 0 && weeklyStats.length === 0 && (
