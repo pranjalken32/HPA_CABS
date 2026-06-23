@@ -108,12 +108,34 @@ function calcWeeklyIncentives(
   return { weeks, totalIncentive }
 }
 
+function prevMonthEnd(startDate: string): string {
+  const d = new Date(startDate)
+  d.setDate(0)
+  return d.toISOString().slice(0, 10)
+}
+
+function getMonthsBetween(from: string, toMonth: string): string[] {
+  const months: string[] = []
+  const [fy, fm] = from.slice(0, 7).split('-').map(Number)
+  const [ty, tm] = toMonth.split('-').map(Number)
+  let y = fy, m = fm
+  while (y < ty || (y === ty && m < tm)) {
+    months.push(`${y}-${String(m).padStart(2, '0')}`)
+    m++
+    if (m > 12) { m = 1; y++ }
+  }
+  return months
+}
+
 export default function Drivers() {
   const { month, setMonth, startDate, endDate } = useMonthFilter()
   const { t } = useLanguage()
   const drivers = useDriverProfiles()
   const expenses = useExpenses(startDate, endDate)
   const incomes = useIncomes(startDate, endDate)
+  const prevEnd = prevMonthEnd(startDate)
+  const allPrevExpenses = useExpenses('2000-01-01', prevEnd)
+  const allPrevIncomes = useIncomes('2000-01-01', prevEnd)
   const cars = useCars()
   const settlements = useDriverSettlements({})
   const [showForm, setShowForm] = useState(false)
@@ -469,7 +491,29 @@ export default function Drivers() {
           (e) => e.category === 'driver_advance' && e.note?.toLowerCase().includes(driver.name.toLowerCase())
         )
         const totalAdvance = advanceEntries.reduce((s, e) => s + e.amount, 0)
-        const netPayable = proRated + totalIncentive - totalAdvance
+
+        // Carry-forward: sum unsettled balances from all previous months
+        const driverStartMonth = driver.start_date.slice(0, 7)
+        const prevMonths = getMonthsBetween(driverStartMonth, month)
+        let carryForward = 0
+        for (const pm of prevMonths) {
+          const settled = settlements.find((s) => (s.driver_profile_id === driver.id || s.driver_name === driver.name) && s.month === pm)
+          if (settled) continue
+          const [py, pmm] = pm.split('-').map(Number)
+          const { proRated: pmSalary } = calcProRatedSalary(driver.monthly_salary, driver.start_date, driver.end_date, py, pmm)
+          const pmStart = `${pm}-01`
+          const pmEnd = `${pm}-${String(daysInMonth(py, pmm)).padStart(2, '0')}`
+          const pmAdvances = (allPrevExpenses ?? []).filter(
+            (e) => e.category === 'driver_advance' && e.note?.toLowerCase().includes(driver.name.toLowerCase()) && e.date >= pmStart && e.date <= pmEnd
+          ).reduce((s, e) => s + e.amount, 0)
+          const { totalIncentive: pmIncentive } = calcWeeklyIncentives(
+            (allPrevIncomes ?? []).filter((i) => i.date >= pmStart && i.date <= pmEnd),
+            driver.car_id, driver.incentive_target, driver.incentive_base, driver.incentive_step, driver.incentive_slab, py, pmm
+          )
+          carryForward += pmSalary + pmIncentive - pmAdvances
+        }
+
+        const netPayable = proRated + totalIncentive - totalAdvance + carryForward
 
         const isExpanded = expandedId === driver.id
 
@@ -517,7 +561,7 @@ export default function Drivers() {
             {isExpanded && (
               <div className="border-t border-border-dim px-4 py-3 space-y-3">
                 {/* Salary Breakdown */}
-                <div className={`grid ${totalIncentive > 0 ? 'grid-cols-4' : 'grid-cols-3'} gap-2`}>
+                <div className="grid grid-cols-3 gap-2">
                   <div className="bg-surface-elevated rounded-xl p-2.5 text-center">
                     <p className="text-[9px] text-text-muted uppercase">Salary</p>
                     <p className="text-sm font-bold text-white">₹{fmt(proRated)}</p>
@@ -533,6 +577,15 @@ export default function Drivers() {
                     <p className="text-[9px] text-text-muted uppercase">Advance</p>
                     <p className="text-sm font-bold text-white">−₹{fmt(totalAdvance)}</p>
                   </div>
+                  {carryForward !== 0 && (
+                    <div className="bg-surface-elevated rounded-xl p-2.5 text-center">
+                      <p className="text-[9px] text-text-muted uppercase">Carry Fwd</p>
+                      <p className={`text-sm font-bold ${carryForward >= 0 ? 'text-expense' : 'text-income'}`}>
+                        {carryForward >= 0 ? '+' : ''}₹{fmt(carryForward)}
+                      </p>
+                      <p className="text-[9px] text-text-muted">prev months</p>
+                    </div>
+                  )}
                   <div className="bg-surface-elevated rounded-xl p-2.5 text-center">
                     <p className="text-[9px] text-text-muted uppercase">Net Pay</p>
                     <p className={`text-sm font-bold ${netPayable >= 0 ? 'text-expense' : 'text-income'}`}>
@@ -716,8 +769,8 @@ export default function Drivers() {
       <div className="bg-surface-card rounded-2xl p-3 border border-border-dim">
         <p className="text-[10px] text-text-muted leading-relaxed">
           💡 <strong className="text-text-secondary">Pro-rated salary</strong> is calculated based on the driver's start/end date
-          within the selected month. To track advances, add an expense with category "Driver Advance" and include the
-          driver's name in the note field.
+          within the selected month. Unsettled balances from previous months are automatically carried forward.
+          To track advances, add an expense with category "Driver Advance" and select the driver.
         </p>
       </div>
     </div>
