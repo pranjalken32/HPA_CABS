@@ -30,6 +30,8 @@ import {
   BarChart3,
   Download,
   FileSpreadsheet,
+  Maximize2,
+  X,
 } from 'lucide-react'
 
 const PLATFORM_COLORS: Record<string, string> = {
@@ -71,9 +73,13 @@ function getDayName(dateStr: string): string {
 
 type Section = 'overview' | 'revenue' | 'expenses' | 'daily' | 'alerts'
 
+type TimelineFilter = '1w' | '2w' | '3w' | '4w' | 'all'
+
 export default function Analytics() {
   const [range, setRange] = useState<'1m' | '2m' | '3m' | '6m'>('2m')
   const [openSection, setOpenSection] = useState<Section | null>('overview')
+  const [showTimeline, setShowTimeline] = useState(false)
+  const [timelineFilter, setTimelineFilter] = useState<TimelineFilter>('all')
 
   // Calculate date range based on selected range
   const { startDate, endDate, months } = useMemo(() => {
@@ -204,13 +210,25 @@ export default function Analytics() {
     if (!dailyMap[e.date]) dailyMap[e.date] = { revenue: 0, expense: 0, trips: 0 }
     dailyMap[e.date].expense += e.amount
   }
-  const dailyTimeline = Object.entries(dailyMap)
+  const dailyTimelineAll = Object.entries(dailyMap)
     .map(([date, data]) => ({
-      date: date.slice(5),
+      date,
+      label: date.slice(5),
       ...data,
       profit: data.revenue - data.expense,
     }))
     .sort((a, b) => a.date.localeCompare(b.date))
+
+  const dailyTimeline = dailyTimelineAll.map(d => ({ date: d.label, revenue: d.revenue, expense: d.expense, profit: d.profit, trips: d.trips }))
+
+  const filteredTimeline = useMemo(() => {
+    if (timelineFilter === 'all') return dailyTimelineAll
+    const weeks = parseInt(timelineFilter)
+    const cutoff = new Date()
+    cutoff.setDate(cutoff.getDate() - weeks * 7)
+    const cutoffStr = `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, '0')}-${String(cutoff.getDate()).padStart(2, '0')}`
+    return dailyTimelineAll.filter(d => d.date >= cutoffStr)
+  }, [dailyTimelineAll, timelineFilter])
 
   // ---- Alerts / Issues ----
   const alerts: { type: 'warning' | 'danger' | 'info'; message: string }[] = []
@@ -587,7 +605,15 @@ export default function Analytics() {
 
         {/* Daily timeline */}
         <div className="mt-4">
-          <div className="text-xs text-text-muted mb-1">Daily Revenue Timeline</div>
+          <div className="flex items-center justify-between mb-1">
+            <div className="text-xs text-text-muted">Daily Revenue Timeline</div>
+            <button
+              onClick={() => { setShowTimeline(true); setTimelineFilter('all') }}
+              className="flex items-center gap-1 text-[10px] text-text-muted hover:text-white transition-colors"
+            >
+              <Maximize2 size={12} /> Expand
+            </button>
+          </div>
           <div className="h-44">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={dailyTimeline}>
@@ -640,6 +666,97 @@ export default function Analytics() {
           </div>
         )}
       </CollapsibleSection>
+
+      {/* Fullscreen Timeline Modal */}
+      {showTimeline && (
+        <div className="fixed inset-0 z-50 bg-black/95 flex flex-col">
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border-dim">
+            <h3 className="text-sm font-semibold text-white">Daily Revenue Timeline</h3>
+            <button onClick={() => setShowTimeline(false)} className="text-text-muted hover:text-white transition-colors">
+              <X size={20} />
+            </button>
+          </div>
+
+          {/* Week filters */}
+          <div className="flex gap-2 px-4 py-3">
+            {(['1w', '2w', '3w', '4w', 'all'] as TimelineFilter[]).map((f) => (
+              <button
+                key={f}
+                onClick={() => setTimelineFilter(f)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                  timelineFilter === f
+                    ? 'bg-white text-black'
+                    : 'bg-surface-elevated text-text-secondary border border-border-dim'
+                }`}
+              >
+                {f === 'all' ? 'All' : f.toUpperCase()}
+              </button>
+            ))}
+          </div>
+
+          {/* Summary stats */}
+          <div className="grid grid-cols-3 gap-2 px-4 pb-3">
+            <div className="bg-surface-elevated rounded-xl p-2 text-center">
+              <div className="text-[9px] text-text-muted uppercase">Revenue</div>
+              <div className="text-sm font-bold text-white">₹{fmt(filteredTimeline.reduce((s, d) => s + d.revenue, 0))}</div>
+            </div>
+            <div className="bg-surface-elevated rounded-xl p-2 text-center">
+              <div className="text-[9px] text-text-muted uppercase">Expense</div>
+              <div className="text-sm font-bold text-expense">₹{fmt(filteredTimeline.reduce((s, d) => s + d.expense, 0))}</div>
+            </div>
+            <div className="bg-surface-elevated rounded-xl p-2 text-center">
+              <div className="text-[9px] text-text-muted uppercase">Profit</div>
+              {(() => {
+                const p = filteredTimeline.reduce((s, d) => s + d.profit, 0)
+                return <div className={`text-sm font-bold ${p >= 0 ? 'text-income' : 'text-expense'}`}>₹{fmt(p)}</div>
+              })()}
+            </div>
+          </div>
+
+          {/* Chart */}
+          <div className="flex-1 px-2 pb-4">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={filteredTimeline.map(d => ({ ...d, date: d.label }))}>
+                <defs>
+                  <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#06c167" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#06c167" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="expGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#ff4444" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#ff4444" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#222222" />
+                <XAxis dataKey="date" tick={{ fill: '#666666', fontSize: 10 }} />
+                <YAxis tick={{ fill: '#666666', fontSize: 10 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                <Tooltip
+                  {...tooltipStyle}
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload?.length) return null
+                    const rev = payload.find(p => p.dataKey === 'revenue')?.value as number ?? 0
+                    const exp = payload.find(p => p.dataKey === 'expense')?.value as number ?? 0
+                    const prof = rev - exp
+                    return (
+                      <div style={{ background: '#111', border: '1px solid #222', borderRadius: 12, padding: '8px 12px', fontSize: 12 }}>
+                        <p style={{ color: '#fff', fontWeight: 600, marginBottom: 4 }}>{label}</p>
+                        <p style={{ color: '#06c167' }}>revenue: ₹{fmt(rev)}</p>
+                        <p style={{ color: '#ff4444' }}>expense: ₹{fmt(exp)}</p>
+                        <p style={{ color: prof >= 0 ? '#06c167' : '#ff4444', fontWeight: 600, marginTop: 2, borderTop: '1px solid #333', paddingTop: 4 }}>
+                          profit: {prof >= 0 ? '+' : ''}₹{fmt(prof)}
+                        </p>
+                      </div>
+                    )
+                  }}
+                />
+                <Area type="monotone" dataKey="revenue" stroke="#06c167" strokeWidth={2} fill="url(#revGrad)" name="Revenue" />
+                <Area type="monotone" dataKey="expense" stroke="#ff4444" strokeWidth={1.5} fill="url(#expGrad)" name="Expense" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
