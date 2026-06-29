@@ -28,7 +28,7 @@ export interface ExpenseRow {
   recurring: boolean
   car_id: number | null
   receipt_url: string | null
-  driver_profile_id: number | null
+  driver_profile_id?: number | null
 }
 
 export interface CarRow {
