@@ -80,6 +80,8 @@ export default function Analytics() {
   const [openSection, setOpenSection] = useState<Section | null>('overview')
   const [showTimeline, setShowTimeline] = useState(false)
   const [timelineFilter, setTimelineFilter] = useState<TimelineFilter>('all')
+  const [showOpTimeline, setShowOpTimeline] = useState(false)
+  const [opTimelineFilter, setOpTimelineFilter] = useState<TimelineFilter>('all')
 
   // Calculate date range based on selected range
   const { startDate, endDate, months } = useMemo(() => {
@@ -229,6 +231,39 @@ export default function Analytics() {
     const cutoffStr = `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, '0')}-${String(cutoff.getDate()).padStart(2, '0')}`
     return dailyTimelineAll.filter(d => d.date >= cutoffStr)
   }, [dailyTimelineAll, timelineFilter])
+
+  // ---- Operating Profit daily timeline ----
+  const OP_EXCLUDED = ['driver_salary', 'driver_advance', 'driver_incentive', 'emi', 'service']
+  const opDailyMap: Record<string, { revenue: number; opExpense: number }> = {}
+  for (const i of allIncomes) {
+    if (!opDailyMap[i.date]) opDailyMap[i.date] = { revenue: 0, opExpense: 0 }
+    opDailyMap[i.date].revenue += i.amount
+  }
+  for (const e of allExpenses) {
+    if (OP_EXCLUDED.includes(e.category)) continue
+    if (!opDailyMap[e.date]) opDailyMap[e.date] = { revenue: 0, opExpense: 0 }
+    opDailyMap[e.date].opExpense += e.amount
+  }
+  const opTimelineAll = Object.entries(opDailyMap)
+    .map(([date, data]) => ({
+      date,
+      label: date.slice(5),
+      revenue: data.revenue,
+      opExpense: data.opExpense,
+      opProfit: data.revenue - data.opExpense,
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date))
+
+  const opTimeline = opTimelineAll.map(d => ({ date: d.label, revenue: d.revenue, opExpense: d.opExpense, opProfit: d.opProfit }))
+
+  const filteredOpTimeline = useMemo(() => {
+    if (opTimelineFilter === 'all') return opTimelineAll
+    const weeks = parseInt(opTimelineFilter)
+    const cutoff = new Date()
+    cutoff.setDate(cutoff.getDate() - weeks * 7)
+    const cutoffStr = `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, '0')}-${String(cutoff.getDate()).padStart(2, '0')}`
+    return opTimelineAll.filter(d => d.date >= cutoffStr)
+  }, [opTimelineAll, opTimelineFilter])
 
   // ---- Alerts / Issues ----
   const alerts: { type: 'warning' | 'danger' | 'info'; message: string }[] = []
@@ -627,6 +662,57 @@ export default function Analytics() {
             </ResponsiveContainer>
           </div>
         </div>
+
+        {/* Operating Profit timeline */}
+        <div className="mt-4">
+          <div className="flex items-center justify-between mb-1">
+            <div className="text-xs text-text-muted">Operating Profit Timeline</div>
+            <button
+              onClick={() => { setShowOpTimeline(true); setOpTimelineFilter('all') }}
+              className="flex items-center gap-1 text-[10px] text-text-muted hover:text-white transition-colors"
+            >
+              <Maximize2 size={12} /> Expand
+            </button>
+          </div>
+          <div className="text-[9px] text-text-muted mb-1">Excludes salary, advance, incentive, EMI, service</div>
+          <div className="h-44">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={opTimeline}>
+                <defs>
+                  <linearGradient id="opProfitGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#06c167" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#06c167" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#222222" />
+                <XAxis dataKey="date" tick={{ fill: '#666666', fontSize: 9 }} interval="preserveStartEnd" />
+                <YAxis tick={{ fill: '#666666', fontSize: 10 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                <Tooltip
+                  {...tooltipStyle}
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload?.length) return null
+                    const rev = payload.find(p => p.dataKey === 'revenue')?.value as number ?? 0
+                    const exp = payload.find(p => p.dataKey === 'opExpense')?.value as number ?? 0
+                    const prof = payload.find(p => p.dataKey === 'opProfit')?.value as number ?? 0
+                    return (
+                      <div style={{ background: '#111', border: '1px solid #222', borderRadius: 12, padding: '8px 12px', fontSize: 12 }}>
+                        <p style={{ color: '#fff', fontWeight: 600, marginBottom: 4 }}>{label}</p>
+                        <p style={{ color: '#06c167' }}>revenue: ₹{fmt(rev)}</p>
+                        <p style={{ color: '#ff4444' }}>op. expense: ₹{fmt(exp)}</p>
+                        <p style={{ color: prof >= 0 ? '#06c167' : '#ff4444', fontWeight: 600, marginTop: 2, borderTop: '1px solid #333', paddingTop: 4 }}>
+                          op. profit: {prof >= 0 ? '+' : ''}₹{fmt(prof)}
+                        </p>
+                      </div>
+                    )
+                  }}
+                />
+                <Line type="monotone" dataKey="revenue" stroke="#06c167" strokeWidth={1.5} dot={false} name="Revenue" />
+                <Line type="monotone" dataKey="opExpense" stroke="#ff4444" strokeWidth={1.5} dot={false} name="Op. Expense" />
+                <Area type="monotone" dataKey="opProfit" stroke="#eab308" strokeWidth={2} fill="url(#opProfitGrad)" name="Op. Profit" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
       </CollapsibleSection>
 
       {/* ---- ALERTS ---- */}
@@ -752,6 +838,104 @@ export default function Analytics() {
                 />
                 <Area type="monotone" dataKey="revenue" stroke="#06c167" strokeWidth={2} fill="url(#revGrad)" name="Revenue" />
                 <Area type="monotone" dataKey="expense" stroke="#ff4444" strokeWidth={1.5} fill="url(#expGrad)" name="Expense" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
+      {/* Fullscreen Operating Profit Modal */}
+      {showOpTimeline && (
+        <div className="fixed inset-0 z-50 bg-black/95 flex flex-col">
+          {/* Header */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-border-dim">
+            <h3 className="text-sm font-semibold text-white">Operating Profit Timeline</h3>
+            <button onClick={() => setShowOpTimeline(false)} className="text-text-muted hover:text-white transition-colors">
+              <X size={20} />
+            </button>
+          </div>
+
+          {/* Week filters */}
+          <div className="flex gap-2 px-4 py-3">
+            {(['1w', '2w', '3w', '4w', 'all'] as TimelineFilter[]).map((f) => (
+              <button
+                key={f}
+                onClick={() => setOpTimelineFilter(f)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                  opTimelineFilter === f
+                    ? 'bg-white text-black'
+                    : 'bg-surface-elevated text-text-secondary border border-border-dim'
+                }`}
+              >
+                {f === 'all' ? 'All' : f.toUpperCase()}
+              </button>
+            ))}
+          </div>
+
+          {/* Summary stats */}
+          <div className="grid grid-cols-3 gap-2 px-4 pb-3">
+            <div className="bg-surface-elevated rounded-xl p-2 text-center">
+              <div className="text-[9px] text-text-muted uppercase">Revenue</div>
+              <div className="text-sm font-bold text-white">₹{fmt(filteredOpTimeline.reduce((s, d) => s + d.revenue, 0))}</div>
+            </div>
+            <div className="bg-surface-elevated rounded-xl p-2 text-center">
+              <div className="text-[9px] text-text-muted uppercase">Op. Expense</div>
+              <div className="text-sm font-bold text-expense">₹{fmt(filteredOpTimeline.reduce((s, d) => s + d.opExpense, 0))}</div>
+            </div>
+            <div className="bg-surface-elevated rounded-xl p-2 text-center">
+              <div className="text-[9px] text-text-muted uppercase">Op. Profit</div>
+              {(() => {
+                const p = filteredOpTimeline.reduce((s, d) => s + d.opProfit, 0)
+                return <div className={`text-sm font-bold ${p >= 0 ? 'text-income' : 'text-expense'}`}>₹{fmt(p)}</div>
+              })()}
+            </div>
+          </div>
+
+          <div className="text-[9px] text-text-muted px-4 pb-2">Excludes: salary, advance, incentive, EMI, service</div>
+
+          {/* Chart */}
+          <div className="flex-1 px-2 pb-4">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={filteredOpTimeline.map(d => ({ ...d, date: d.label }))}>
+                <defs>
+                  <linearGradient id="opRevGradFs" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#06c167" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#06c167" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="opExpGradFs" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#ff4444" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#ff4444" stopOpacity={0} />
+                  </linearGradient>
+                  <linearGradient id="opProfitGradFs" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#eab308" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#eab308" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#222222" />
+                <XAxis dataKey="date" tick={{ fill: '#666666', fontSize: 10 }} />
+                <YAxis tick={{ fill: '#666666', fontSize: 10 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                <Tooltip
+                  {...tooltipStyle}
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload?.length) return null
+                    const rev = payload.find(p => p.dataKey === 'revenue')?.value as number ?? 0
+                    const exp = payload.find(p => p.dataKey === 'opExpense')?.value as number ?? 0
+                    const prof = payload.find(p => p.dataKey === 'opProfit')?.value as number ?? 0
+                    return (
+                      <div style={{ background: '#111', border: '1px solid #222', borderRadius: 12, padding: '8px 12px', fontSize: 12 }}>
+                        <p style={{ color: '#fff', fontWeight: 600, marginBottom: 4 }}>{label}</p>
+                        <p style={{ color: '#06c167' }}>revenue: ₹{fmt(rev)}</p>
+                        <p style={{ color: '#ff4444' }}>op. expense: ₹{fmt(exp)}</p>
+                        <p style={{ color: prof >= 0 ? '#06c167' : '#ff4444', fontWeight: 600, marginTop: 2, borderTop: '1px solid #333', paddingTop: 4 }}>
+                          op. profit: {prof >= 0 ? '+' : ''}₹{fmt(prof)}
+                        </p>
+                      </div>
+                    )
+                  }}
+                />
+                <Area type="monotone" dataKey="revenue" stroke="#06c167" strokeWidth={2} fill="url(#opRevGradFs)" name="Revenue" />
+                <Area type="monotone" dataKey="opExpense" stroke="#ff4444" strokeWidth={1.5} fill="url(#opExpGradFs)" name="Op. Expense" />
+                <Area type="monotone" dataKey="opProfit" stroke="#eab308" strokeWidth={2} fill="url(#opProfitGradFs)" name="Op. Profit" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
