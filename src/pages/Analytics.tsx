@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { useIncomes, useExpenses } from '../hooks/useSupabase'
+import { useIncomes, useExpenses, useDriverProfiles } from '../hooks/useSupabase'
 import { exportToExcel, exportToPDF } from '../utils/export'
 import {
   BarChart,
@@ -274,7 +274,24 @@ export default function Analytics() {
   const analyticsCarWash = expByCat('car_wash')
   const analyticsFareFraud = expByCat('fare_fraud')
   const analyticsEmi = expByCat('emi')
-  const analyticsSalary = expByCat('driver_salary')
+  // Salary from driver profiles (prorated by start/end dates, summed across all months in range)
+  const analyticsDriverProfiles = useDriverProfiles()
+  const analyticsSalary = months.reduce((total, mo) => {
+    const [aY, aM] = mo.split('-').map(Number)
+    const aTotalDays = new Date(aY, aM, 0).getDate()
+    const aMonthStart = new Date(aY, aM - 1, 1)
+    const aMonthEnd = new Date(aY, aM - 1, aTotalDays)
+    return total + analyticsDriverProfiles.reduce((sum, d) => {
+      const ds = new Date(d.start_date)
+      const de = d.end_date ? new Date(d.end_date) : null
+      if (ds > aMonthEnd) return sum
+      if (de && de < aMonthStart) return sum
+      const es = ds > aMonthStart ? ds : aMonthStart
+      const ee = de && de < aMonthEnd ? de : aMonthEnd
+      const wd = Math.floor((ee.getTime() - es.getTime()) / (1000 * 60 * 60 * 24)) + 1
+      return sum + Math.round((d.monthly_salary / aTotalDays) * wd)
+    }, 0)
+  }, 0)
   const analyticsGrossProfit = totalRevenue - analyticsCng - analyticsPetrol - analyticsCommission - analyticsToll - analyticsCarWash - analyticsFareFraud - analyticsEmi - analyticsSalary
 
   // ---- Alerts / Issues ----
