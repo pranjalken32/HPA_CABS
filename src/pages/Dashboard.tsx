@@ -96,6 +96,7 @@ export default function Dashboard() {
   const totalExpense = expenses?.reduce((s, e) => s + e.amount, 0) ?? 0
   const netProfit = totalRevenue - totalExpense
   const totalTrips = incomes?.reduce((s, i) => s + i.trips, 0) ?? 0
+  const [y, m] = month.split('-').map(Number)
 
   // Gross Profit (MTD) breakdown
   const expByCategory = (cat: string) => (expenses ?? []).filter(e => e.category === cat).reduce((s, e) => s + e.amount, 0)
@@ -129,7 +130,6 @@ export default function Dashboard() {
     }, {})
   ).map(([name, value]) => ({ name, value }))
 
-  const [y, m] = month.split('-').map(Number)
   const totalWeeksInMonth = getTotalWeeks(y, m)
 
   const weekMap: Record<number, {
