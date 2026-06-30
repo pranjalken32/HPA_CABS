@@ -16,6 +16,7 @@ import {
 import type { PieLabelRenderProps } from 'recharts'
 import {
   TrendingDown,
+  TrendingUp,
   Wallet,
   Car,
   CalendarDays,
@@ -95,6 +96,12 @@ export default function Dashboard() {
   const totalExpense = expenses?.reduce((s, e) => s + e.amount, 0) ?? 0
   const netProfit = totalRevenue - totalExpense
   const totalTrips = incomes?.reduce((s, i) => s + i.trips, 0) ?? 0
+
+  // Net Profit per day: Revenue - Fuel - EMI - Driver Salary
+  const fuelTotal = (expenses ?? []).filter(e => e.category === 'fuel').reduce((s, e) => s + e.amount, 0)
+  const emiTotal = (expenses ?? []).filter(e => e.category === 'emi').reduce((s, e) => s + e.amount, 0)
+  const driverSalaryTotal = (expenses ?? []).filter(e => e.category === 'driver_salary').reduce((s, e) => s + e.amount, 0)
+  const trueNetProfit = totalRevenue - fuelTotal - emiTotal - driverSalaryTotal
 
   const platformData = Object.entries(
     (incomes ?? []).reduce<Record<string, number>>((acc, i) => {
@@ -307,6 +314,60 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* NET PROFIT / DAY */}
+      {(() => {
+        const daysInMonth = new Date(y, m, 0).getDate()
+        const revenuePerDay = daysInMonth > 0 ? totalRevenue / daysInMonth : 0
+        const fuelPerDay = daysInMonth > 0 ? fuelTotal / daysInMonth : 0
+        const emiPerDay = daysInMonth > 0 ? emiTotal / daysInMonth : 0
+        const salaryPerDay = daysInMonth > 0 ? driverSalaryTotal / daysInMonth : 0
+        const netPerDay = daysInMonth > 0 ? trueNetProfit / daysInMonth : 0
+        return (
+          <div className="bg-surface-card rounded-2xl p-4 border border-border-dim space-y-3">
+            <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+              <TrendingUp size={16} className="text-income" /> Daily Earnings
+            </h3>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-text-muted">Revenue / Day</span>
+                <span className="text-sm font-bold text-white">₹{fmt(Math.round(revenuePerDay))}</span>
+              </div>
+              {fuelTotal > 0 && (
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-text-muted">− Fuel / Day</span>
+                  <span className="text-sm font-bold text-expense">₹{fmt(Math.round(fuelPerDay))}</span>
+                </div>
+              )}
+              {emiTotal > 0 && (
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-text-muted">− EMI / Day</span>
+                  <span className="text-sm font-bold text-expense">₹{fmt(Math.round(emiPerDay))}</span>
+                </div>
+              )}
+              {driverSalaryTotal > 0 && (
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-text-muted">− Driver Salary / Day</span>
+                  <span className="text-sm font-bold text-expense">₹{fmt(Math.round(salaryPerDay))}</span>
+                </div>
+              )}
+              <div className="h-px bg-border-dim" />
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-text-secondary">Net Profit / Day</span>
+                <span className={`text-sm font-bold ${netPerDay >= 0 ? 'text-income' : 'text-expense'}`}>
+                  {netPerDay >= 0 ? '+' : ''}₹{fmt(Math.round(netPerDay))}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-text-muted">Monthly Total</span>
+                <span className={`text-sm font-bold ${trueNetProfit >= 0 ? 'text-income' : 'text-expense'}`}>
+                  {trueNetProfit >= 0 ? '+' : ''}₹{fmt(trueNetProfit)}
+                </span>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Monthly pie charts */}
       {platformData.length > 0 && (

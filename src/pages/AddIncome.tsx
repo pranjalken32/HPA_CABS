@@ -22,10 +22,13 @@ export default function AddIncome() {
   const [note, setNote] = useState('')
   const [carId, setCarId] = useState<number | null>(null)
   const [saved, setSaved] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (submitting || saved) return
     if (!amount || Number(amount) <= 0) return
+    setSubmitting(true)
     await addIncome({
       date,
       platform,
@@ -34,13 +37,14 @@ export default function AddIncome() {
       note,
       car_id: carId,
     })
+    setSubmitting(false)
     setSaved(true)
     setTimeout(() => {
       setSaved(false)
       setAmount('')
       setTrips('')
       setNote('')
-    }, 1200)
+    }, 1500)
   }
 
   return (
@@ -168,9 +172,10 @@ export default function AddIncome() {
 
         <button
           type="submit"
-          className="w-full bg-white text-black font-semibold py-3 rounded-xl transition-all hover:bg-gray-200"
+          disabled={submitting || saved}
+          className="w-full bg-white text-black font-semibold py-3 rounded-xl transition-all hover:bg-gray-200 disabled:opacity-60"
         >
-          {t.saveIncome}
+          {submitting ? 'Saving...' : saved ? t.incomeSaved : t.saveIncome}
         </button>
       </form>
     </div>

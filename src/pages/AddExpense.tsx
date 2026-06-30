@@ -56,6 +56,7 @@ export default function AddExpense() {
   const [receiptFile, setReceiptFile] = useState<File | null>(null)
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
   const [selectedDriverId, setSelectedDriverId] = useState<number | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -63,8 +64,10 @@ export default function AddExpense() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (submitting || saved) return
     if (!amount || Number(amount) <= 0) return
     if (isDriverCategory && !selectedDriverId) return
+    setSubmitting(true)
     let receipt_url: string | null = null
     if (receiptFile) {
       setUploading(true)
@@ -93,6 +96,7 @@ export default function AddExpense() {
       receipt_url,
       driver_profile_id: isDriverCategory ? selectedDriverId : null,
     })
+    setSubmitting(false)
     setSaved(true)
     setTimeout(() => {
       setSaved(false)
@@ -101,7 +105,7 @@ export default function AddExpense() {
       setReceiptFile(null)
       setReceiptPreview(null)
       setSelectedDriverId(null)
-    }, 1200)
+    }, 1500)
   }
 
   return (
@@ -329,10 +333,10 @@ export default function AddExpense() {
 
         <button
           type="submit"
-          disabled={uploading}
+          disabled={uploading || submitting || saved}
           className="w-full bg-white text-black font-semibold py-3 rounded-xl transition-all hover:bg-gray-200 disabled:opacity-60"
         >
-          {uploading ? t.uploadingReceipt : t.saveExpense}
+          {submitting ? 'Saving...' : uploading ? t.uploadingReceipt : saved ? t.expenseSaved : t.saveExpense}
         </button>
       </form>
     </div>
