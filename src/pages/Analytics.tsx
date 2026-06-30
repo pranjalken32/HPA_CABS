@@ -265,52 +265,17 @@ export default function Analytics() {
     return opTimelineAll.filter(d => d.date >= cutoffStr)
   }, [opTimelineAll, opTimelineFilter])
 
-  // ---- Net Profit daily timeline (Revenue - Fuel - EMI - Driver Salary per day) ----
-  const totalFuel = allExpenses.filter(e => e.category === 'fuel').reduce((s, e) => s + e.amount, 0)
-  const totalEmi = allExpenses.filter(e => e.category === 'emi').reduce((s, e) => s + e.amount, 0)
-  const totalDriverSalary = allExpenses.filter(e => e.category === 'driver_salary').reduce((s, e) => s + e.amount, 0)
-  const totalDailyDeductions = totalFuel + totalEmi + totalDriverSalary
-  const totalNetProfitAnalytics = totalRevenue - totalDailyDeductions
-
-  // Build daily net profit: revenue - fuel (actual) - EMI/day - salary/day
-  const numDaysInRange = opTimelineAll.length || 1
-  const emiPerDay = totalEmi / numDaysInRange
-  const salaryPerDay = totalDriverSalary / numDaysInRange
-
-  // Daily fuel map
-  const fuelByDate: Record<string, number> = {}
-  for (const e of allExpenses) {
-    if (e.category === 'fuel') {
-      fuelByDate[e.date] = (fuelByDate[e.date] ?? 0) + e.amount
-    }
-  }
-
-  const netProfitTimelineAll = opTimelineAll.map(d => {
-    const dayFuel = fuelByDate[d.date] ?? 0
-    const dayRevenue = d.revenue
-    const netProfit = dayRevenue - dayFuel - emiPerDay - salaryPerDay
-    return {
-      ...d,
-      fuel: dayFuel,
-      emiPerDay,
-      salaryPerDay,
-      netProfit,
-    }
-  })
-  const netProfitTimeline = netProfitTimelineAll.map(d => ({
-    date: d.label, revenue: d.revenue, fuel: d.fuel, netProfit: d.netProfit,
-  }))
-
-  const [showNetTimeline, setShowNetTimeline] = useState(false)
-  const [netTimelineFilter, setNetTimelineFilter] = useState<TimelineFilter>('all')
-  const filteredNetTimeline = useMemo(() => {
-    if (netTimelineFilter === 'all') return netProfitTimelineAll
-    const weeks = parseInt(netTimelineFilter)
-    const cutoff = new Date()
-    cutoff.setDate(cutoff.getDate() - weeks * 7)
-    const cutoffStr = `${cutoff.getFullYear()}-${String(cutoff.getMonth() + 1).padStart(2, '0')}-${String(cutoff.getDate()).padStart(2, '0')}`
-    return netProfitTimelineAll.filter(d => d.date >= cutoffStr)
-  }, [netProfitTimelineAll, netTimelineFilter])
+  // ---- Gross Profit breakdown ----
+  const expByCat = (cat: string) => allExpenses.filter(e => e.category === cat).reduce((s, e) => s + e.amount, 0)
+  const analyticsCng = allExpenses.filter(e => e.category === 'fuel' && (e.note?.toLowerCase().includes('cng') || !e.note?.toLowerCase().includes('petrol'))).reduce((s, e) => s + e.amount, 0)
+  const analyticsPetrol = allExpenses.filter(e => e.category === 'fuel' && e.note?.toLowerCase().includes('petrol')).reduce((s, e) => s + e.amount, 0)
+  const analyticsCommission = expByCat('commission')
+  const analyticsToll = expByCat('toll')
+  const analyticsCarWash = expByCat('car_wash')
+  const analyticsFareFraud = expByCat('fare_fraud')
+  const analyticsEmi = expByCat('emi')
+  const analyticsSalary = expByCat('driver_salary')
+  const analyticsGrossProfit = totalRevenue - analyticsCng - analyticsPetrol - analyticsCommission - analyticsToll - analyticsCarWash - analyticsFareFraud - analyticsEmi - analyticsSalary
 
   // ---- Alerts / Issues ----
   const alerts: { type: 'warning' | 'danger' | 'info'; message: string }[] = []
@@ -761,73 +726,69 @@ export default function Analytics() {
           </div>
         </div>
 
-        {/* Net Profit / Day timeline */}
+        {/* Gross Profit breakdown */}
         <div className="mt-4">
-          <div className="flex items-center justify-between mb-1">
-            <div className="text-xs text-text-muted">Daily Earnings</div>
-            <button
-              onClick={() => { setShowNetTimeline(true); setNetTimelineFilter('all') }}
-              className="flex items-center gap-1 text-[10px] text-text-muted hover:text-white transition-colors"
-            >
-              <Maximize2 size={12} /> Expand
-            </button>
-          </div>
-          <div className="text-[9px] text-text-muted mb-1">Revenue − Fuel − EMI/day − Driver Salary/day</div>
-          <div className="grid grid-cols-4 gap-2 mb-2">
-            <div className="bg-surface-elevated rounded-xl p-2 text-center">
-              <div className="text-[9px] text-text-muted uppercase">Revenue</div>
-              <div className="text-xs font-bold text-white">₹{fmt(totalRevenue)}</div>
+          <div className="text-xs text-text-muted mb-2">Gross Profit Breakdown</div>
+          <div className="bg-surface-elevated rounded-xl p-3 space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-text-muted">Revenue</span>
+              <span className="text-sm font-bold text-white">₹{fmt(totalRevenue)}</span>
             </div>
-            <div className="bg-surface-elevated rounded-xl p-2 text-center">
-              <div className="text-[9px] text-text-muted uppercase">Fuel</div>
-              <div className="text-xs font-bold text-expense">₹{fmt(totalFuel)}</div>
+            {analyticsCng > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-text-muted">− CNG</span>
+                <span className="text-sm font-bold text-expense">₹{fmt(analyticsCng)}</span>
+              </div>
+            )}
+            {analyticsPetrol > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-text-muted">− Petrol</span>
+                <span className="text-sm font-bold text-expense">₹{fmt(analyticsPetrol)}</span>
+              </div>
+            )}
+            {analyticsCommission > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-text-muted">− Commission</span>
+                <span className="text-sm font-bold text-expense">₹{fmt(analyticsCommission)}</span>
+              </div>
+            )}
+            {analyticsToll > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-text-muted">− FASTag / Toll</span>
+                <span className="text-sm font-bold text-expense">₹{fmt(analyticsToll)}</span>
+              </div>
+            )}
+            {analyticsCarWash > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-text-muted">− Car Wash</span>
+                <span className="text-sm font-bold text-expense">₹{fmt(analyticsCarWash)}</span>
+              </div>
+            )}
+            {analyticsFareFraud > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-text-muted">− Fare Fraud</span>
+                <span className="text-sm font-bold text-expense">₹{fmt(analyticsFareFraud)}</span>
+              </div>
+            )}
+            {analyticsEmi > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-text-muted">− EMI</span>
+                <span className="text-sm font-bold text-expense">₹{fmt(analyticsEmi)}</span>
+              </div>
+            )}
+            {analyticsSalary > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-text-muted">− Driver Salary</span>
+                <span className="text-sm font-bold text-expense">₹{fmt(analyticsSalary)}</span>
+              </div>
+            )}
+            <div className="h-px bg-border-dim" />
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-text-secondary">Gross Profit</span>
+              <span className={`text-sm font-bold ${analyticsGrossProfit >= 0 ? 'text-income' : 'text-expense'}`}>
+                {analyticsGrossProfit >= 0 ? '+' : ''}₹{fmt(Math.round(analyticsGrossProfit))}
+              </span>
             </div>
-            <div className="bg-surface-elevated rounded-xl p-2 text-center">
-              <div className="text-[9px] text-text-muted uppercase">EMI+Salary</div>
-              <div className="text-xs font-bold text-expense">₹{fmt(totalEmi + totalDriverSalary)}</div>
-            </div>
-            <div className="bg-surface-elevated rounded-xl p-2 text-center">
-              <div className="text-[9px] text-text-muted uppercase">Net Profit</div>
-              <div className={`text-xs font-bold ${totalNetProfitAnalytics >= 0 ? 'text-income' : 'text-expense'}`}>₹{fmt(totalNetProfitAnalytics)}</div>
-            </div>
-          </div>
-          <div className="h-44">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={netProfitTimeline}>
-                <defs>
-                  <linearGradient id="netProfitGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#06c167" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#06c167" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#222222" />
-                <XAxis dataKey="date" tick={{ fill: '#666666', fontSize: 9 }} interval="preserveStartEnd" />
-                <YAxis tick={{ fill: '#666666', fontSize: 10 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
-                <Tooltip
-                  {...tooltipStyle}
-                  content={({ active, payload, label }) => {
-                    if (!active || !payload?.length) return null
-                    const rev = payload.find(p => p.dataKey === 'revenue')?.value as number ?? 0
-                    const fl = payload.find(p => p.dataKey === 'fuel')?.value as number ?? 0
-                    const net = payload.find(p => p.dataKey === 'netProfit')?.value as number ?? 0
-                    return (
-                      <div style={{ background: '#111', border: '1px solid #222', borderRadius: 12, padding: '8px 12px', fontSize: 12 }}>
-                        <p style={{ color: '#fff', fontWeight: 600, marginBottom: 4 }}>{label}</p>
-                        <p style={{ color: '#ffffff' }}>revenue: ₹{fmt(rev)}</p>
-                        <p style={{ color: '#ff4444' }}>fuel: ₹{fmt(Math.round(fl))}</p>
-                        <p style={{ color: '#ff4444', fontSize: 10 }}>emi/day: ₹{fmt(Math.round(emiPerDay))}</p>
-                        <p style={{ color: '#ff4444', fontSize: 10 }}>salary/day: ₹{fmt(Math.round(salaryPerDay))}</p>
-                        <p style={{ color: net >= 0 ? '#06c167' : '#ff4444', fontWeight: 600, marginTop: 2, borderTop: '1px solid #333', paddingTop: 4 }}>
-                          net profit: {net >= 0 ? '+' : ''}₹{fmt(Math.round(net))}
-                        </p>
-                      </div>
-                    )
-                  }}
-                />
-                <Line type="monotone" dataKey="revenue" stroke="#06c167" strokeWidth={1.5} dot={false} name="Revenue" />
-                <Area type="monotone" dataKey="netProfit" stroke="#eab308" strokeWidth={2} fill="url(#netProfitGrad)" name="Net Profit" />
-              </AreaChart>
-            </ResponsiveContainer>
           </div>
         </div>
       </CollapsibleSection>
@@ -1059,103 +1020,6 @@ export default function Analytics() {
         </div>
       )}
 
-      {/* Fullscreen Daily Earnings / Net Profit Modal */}
-      {showNetTimeline && (
-        <div className="fixed inset-0 z-50 bg-black/95 flex flex-col">
-          <div className="flex items-center justify-between p-4">
-            <h2 className="text-base font-bold text-white">Daily Earnings</h2>
-            <button onClick={() => setShowNetTimeline(false)} className="text-text-muted hover:text-white">
-              <X size={20} />
-            </button>
-          </div>
-          <div className="flex gap-2 px-4 mb-3">
-            {(['1', '2', '3', '4', 'all'] as TimelineFilter[]).map(f => (
-              <button
-                key={f}
-                onClick={() => setNetTimelineFilter(f)}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                  netTimelineFilter === f ? 'bg-accent text-black' : 'bg-surface-card text-text-muted'
-                }`}
-              >
-                {f === 'all' ? 'All' : `${f}W`}
-              </button>
-            ))}
-          </div>
-          {(() => {
-            const fRev = filteredNetTimeline.reduce((s, d) => s + d.revenue, 0)
-            const fFuel = filteredNetTimeline.reduce((s, d) => s + (fuelByDate[d.date] ?? 0), 0)
-            const fDays = filteredNetTimeline.length || 1
-            const fEmiDay = totalEmi / (numDaysInRange || 1)
-            const fSalaryDay = totalDriverSalary / (numDaysInRange || 1)
-            const fFixed = (fEmiDay + fSalaryDay) * fDays
-            const fNet = fRev - fFuel - fFixed
-            return (
-              <div className="grid grid-cols-4 gap-2 px-4 mb-3">
-                <div className="bg-surface-card rounded-xl p-2 text-center">
-                  <div className="text-[9px] text-text-muted uppercase">Revenue</div>
-                  <div className="text-sm font-bold text-white">₹{fmt(fRev)}</div>
-                </div>
-                <div className="bg-surface-card rounded-xl p-2 text-center">
-                  <div className="text-[9px] text-text-muted uppercase">Fuel</div>
-                  <div className="text-sm font-bold text-expense">₹{fmt(fFuel)}</div>
-                </div>
-                <div className="bg-surface-card rounded-xl p-2 text-center">
-                  <div className="text-[9px] text-text-muted uppercase">EMI+Salary</div>
-                  <div className="text-sm font-bold text-expense">₹{fmt(Math.round(fFixed))}</div>
-                </div>
-                <div className="bg-surface-card rounded-xl p-2 text-center">
-                  <div className="text-[9px] text-text-muted uppercase">Net Profit</div>
-                  <div className={`text-sm font-bold ${fNet >= 0 ? 'text-income' : 'text-expense'}`}>₹{fmt(Math.round(fNet))}</div>
-                </div>
-              </div>
-            )
-          })()}
-          <div className="px-4 mb-2">
-            <div className="text-[10px] text-text-muted">Revenue − Fuel − EMI/day − Driver Salary/day</div>
-          </div>
-          <div className="flex-1 px-2 pb-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={filteredNetTimeline.map(d => ({ date: d.label, revenue: d.revenue, fuel: fuelByDate[d.date] ?? 0, netProfit: d.netProfit }))}>
-                <defs>
-                  <linearGradient id="netRevGradFs" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#06c167" stopOpacity={0.2} />
-                    <stop offset="95%" stopColor="#06c167" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="netProfitGradFs" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#eab308" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#eab308" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#222222" />
-                <XAxis dataKey="date" tick={{ fill: '#999', fontSize: 10 }} interval="preserveStartEnd" />
-                <YAxis tick={{ fill: '#999', fontSize: 10 }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
-                <Tooltip
-                  content={({ active, payload, label }) => {
-                    if (!active || !payload?.length) return null
-                    const rev = payload.find(p => p.dataKey === 'revenue')?.value as number ?? 0
-                    const fl = payload.find(p => p.dataKey === 'fuel')?.value as number ?? 0
-                    const net = payload.find(p => p.dataKey === 'netProfit')?.value as number ?? 0
-                    return (
-                      <div style={{ background: '#111', border: '1px solid #222', borderRadius: 12, padding: '8px 12px', fontSize: 12 }}>
-                        <p style={{ color: '#fff', fontWeight: 600, marginBottom: 4 }}>{label}</p>
-                        <p style={{ color: '#06c167' }}>revenue: ₹{fmt(rev)}</p>
-                        <p style={{ color: '#ff4444' }}>fuel: ₹{fmt(Math.round(fl))}</p>
-                        <p style={{ color: '#ff4444', fontSize: 10 }}>emi/day: ₹{fmt(Math.round(emiPerDay))}</p>
-                        <p style={{ color: '#ff4444', fontSize: 10 }}>salary/day: ₹{fmt(Math.round(salaryPerDay))}</p>
-                        <p style={{ color: net >= 0 ? '#06c167' : '#ff4444', fontWeight: 600, marginTop: 2, borderTop: '1px solid #333', paddingTop: 4 }}>
-                          net profit: {net >= 0 ? '+' : ''}₹{fmt(Math.round(net))}
-                        </p>
-                      </div>
-                    )
-                  }}
-                />
-                <Area type="monotone" dataKey="revenue" stroke="#06c167" strokeWidth={2} fill="url(#netRevGradFs)" name="Revenue" />
-                <Area type="monotone" dataKey="netProfit" stroke="#eab308" strokeWidth={2} fill="url(#netProfitGradFs)" name="Net Profit" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
