@@ -237,17 +237,20 @@ export default function AddExpense() {
         </div>
 
         <div>
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={recurring}
-              onChange={(e) => setRecurring(e.target.checked)}
-              className="w-5 h-5 rounded border-border-dim bg-surface-elevated accent-accent"
-            />
+          <button
+            type="button"
+            onClick={() => setRecurring(!recurring)}
+            className="flex items-center gap-3 cursor-pointer w-full"
+          >
+            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
+              recurring ? 'bg-accent border-accent' : 'border-border-dim bg-surface-elevated'
+            }`}>
+              {recurring && <CheckCircle2 size={14} className="text-black" />}
+            </div>
             <span className="text-sm text-text-secondary">
               {t.monthlyRecurring}
             </span>
-          </label>
+          </button>
           {recurring && (
             <p className="text-xs text-text-muted mt-1.5 ml-8">
               Auto-generated on the 1st of each month
