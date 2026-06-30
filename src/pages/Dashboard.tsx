@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useMonthFilter } from '../hooks/useMonthFilter'
-import { useIncomes, useExpenses, useGoal, upsertGoal } from '../hooks/useSupabase'
+import { useIncomes, useExpenses, useGoal, upsertGoal, useDriverProfiles } from '../hooks/useSupabase'
 import {
   BarChart,
   Bar,
@@ -107,13 +107,27 @@ export default function Dashboard() {
   const carWashTotal = expByCategory('car_wash')
   const fareFraudTotal = expByCategory('fare_fraud')
   const emiMonthly = expByCategory('emi')
-  const salaryMonthly = expByCategory('driver_salary')
-  // Prorate EMI & salary: monthly ÷ 30 × days elapsed so far
+  // Salary from driver profiles (prorated based on start/end dates)
+  const driverProfiles = useDriverProfiles()
+  const totalDaysInMonth = new Date(y, m, 0).getDate()
+  const monthStart = new Date(y, m - 1, 1)
+  const monthEnd = new Date(y, m - 1, totalDaysInMonth)
+  const totalProratedSalary = driverProfiles.reduce((sum, d) => {
+    const driverStart = new Date(d.start_date)
+    const driverEnd = d.end_date ? new Date(d.end_date) : null
+    if (driverStart > monthEnd) return sum
+    if (driverEnd && driverEnd < monthStart) return sum
+    const effStart = driverStart > monthStart ? driverStart : monthStart
+    const effEnd = driverEnd && driverEnd < monthEnd ? driverEnd : monthEnd
+    const workDays = Math.floor((effEnd.getTime() - effStart.getTime()) / (1000 * 60 * 60 * 24)) + 1
+    return sum + Math.round((d.monthly_salary / totalDaysInMonth) * workDays)
+  }, 0)
+  // Prorate EMI & salary: ÷ total days × days elapsed so far
   const dayOfMonth = new Date().getDate()
   const isCurrentMonth = month === `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
-  const daysElapsed = isCurrentMonth ? dayOfMonth : new Date(y, m, 0).getDate()
-  const emiTillDate = (emiMonthly / 30) * daysElapsed
-  const salaryTillDate = (salaryMonthly / 30) * daysElapsed
+  const daysElapsed = isCurrentMonth ? dayOfMonth : totalDaysInMonth
+  const emiTillDate = (emiMonthly / totalDaysInMonth) * daysElapsed
+  const salaryTillDate = (totalProratedSalary / totalDaysInMonth) * daysElapsed
   const grossProfit = totalRevenue - cngTotal - petrolTotal - commissionTotal - tollTotal - carWashTotal - fareFraudTotal - emiTillDate - salaryTillDate
 
   const platformData = Object.entries(
@@ -375,13 +389,13 @@ export default function Dashboard() {
           )}
           {emiMonthly > 0 && (
             <div className="flex items-center justify-between">
-              <span className="text-xs text-text-muted">− EMI ({daysElapsed}d of 30)</span>
+              <span className="text-xs text-text-muted">− EMI ({daysElapsed}d of {totalDaysInMonth})</span>
               <span className="text-sm font-bold text-expense">₹{fmt(Math.round(emiTillDate))}</span>
             </div>
           )}
-          {salaryMonthly > 0 && (
+          {totalProratedSalary > 0 && (
             <div className="flex items-center justify-between">
-              <span className="text-xs text-text-muted">− Salary ({daysElapsed}d of 30)</span>
+              <span className="text-xs text-text-muted">− Salary ({daysElapsed}d of {totalDaysInMonth})</span>
               <span className="text-sm font-bold text-expense">₹{fmt(Math.round(salaryTillDate))}</span>
             </div>
           )}
