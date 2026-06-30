@@ -16,6 +16,7 @@ import {
 import type { PieLabelRenderProps } from 'recharts'
 import {
   TrendingDown,
+  TrendingUp,
   Wallet,
   Car,
   CalendarDays,
@@ -95,6 +96,24 @@ export default function Dashboard() {
   const totalExpense = expenses?.reduce((s, e) => s + e.amount, 0) ?? 0
   const netProfit = totalRevenue - totalExpense
   const totalTrips = incomes?.reduce((s, i) => s + i.trips, 0) ?? 0
+
+  // Gross Profit (MTD) breakdown
+  const expByCategory = (cat: string) => (expenses ?? []).filter(e => e.category === cat).reduce((s, e) => s + e.amount, 0)
+  const cngTotal = (expenses ?? []).filter(e => e.category === 'fuel' && (e.note?.toLowerCase().includes('cng') || !e.note?.toLowerCase().includes('petrol'))).reduce((s, e) => s + e.amount, 0)
+  const petrolTotal = (expenses ?? []).filter(e => e.category === 'fuel' && e.note?.toLowerCase().includes('petrol')).reduce((s, e) => s + e.amount, 0)
+  const commissionTotal = expByCategory('commission')
+  const tollTotal = expByCategory('toll')
+  const carWashTotal = expByCategory('car_wash')
+  const fareFraudTotal = expByCategory('fare_fraud')
+  const emiMonthly = expByCategory('emi')
+  const salaryMonthly = expByCategory('driver_salary')
+  // Prorate EMI & salary: monthly ÷ 30 × days elapsed so far
+  const dayOfMonth = new Date().getDate()
+  const isCurrentMonth = month === `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
+  const daysElapsed = isCurrentMonth ? dayOfMonth : new Date(y, m, 0).getDate()
+  const emiTillDate = (emiMonthly / 30) * daysElapsed
+  const salaryTillDate = (salaryMonthly / 30) * daysElapsed
+  const grossProfit = totalRevenue - cngTotal - petrolTotal - commissionTotal - tollTotal - carWashTotal - fareFraudTotal - emiTillDate - salaryTillDate
 
   const platformData = Object.entries(
     (incomes ?? []).reduce<Record<string, number>>((acc, i) => {
@@ -303,6 +322,74 @@ export default function Dashboard() {
             <span className="text-xs font-semibold text-text-secondary">{t.netCashFlow}</span>
             <span className={`text-sm font-bold ${netProfit >= 0 ? 'text-income' : 'text-expense'}`}>
               {netProfit >= 0 ? '+' : ''}₹{fmt(netProfit)}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* GROSS PROFIT (MTD) */}
+      <div className="bg-surface-card rounded-2xl p-4 border border-border-dim space-y-3">
+        <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+          <TrendingUp size={16} className="text-income" /> Gross Profit {isCurrentMonth ? '(Till Date)' : ''}
+        </h3>
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-text-muted">Revenue</span>
+            <span className="text-sm font-bold text-white">₹{fmt(totalRevenue)}</span>
+          </div>
+          {cngTotal > 0 && (
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-text-muted">− CNG</span>
+              <span className="text-sm font-bold text-expense">₹{fmt(cngTotal)}</span>
+            </div>
+          )}
+          {petrolTotal > 0 && (
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-text-muted">− Petrol</span>
+              <span className="text-sm font-bold text-expense">₹{fmt(petrolTotal)}</span>
+            </div>
+          )}
+          {commissionTotal > 0 && (
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-text-muted">− Commission</span>
+              <span className="text-sm font-bold text-expense">₹{fmt(commissionTotal)}</span>
+            </div>
+          )}
+          {tollTotal > 0 && (
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-text-muted">− FASTag / Toll</span>
+              <span className="text-sm font-bold text-expense">₹{fmt(tollTotal)}</span>
+            </div>
+          )}
+          {carWashTotal > 0 && (
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-text-muted">− Car Wash</span>
+              <span className="text-sm font-bold text-expense">₹{fmt(carWashTotal)}</span>
+            </div>
+          )}
+          {fareFraudTotal > 0 && (
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-text-muted">− Fare Fraud</span>
+              <span className="text-sm font-bold text-expense">₹{fmt(fareFraudTotal)}</span>
+            </div>
+          )}
+          {emiMonthly > 0 && (
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-text-muted">− EMI ({daysElapsed}d of 30)</span>
+              <span className="text-sm font-bold text-expense">₹{fmt(Math.round(emiTillDate))}</span>
+            </div>
+          )}
+          {salaryMonthly > 0 && (
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-text-muted">− Salary ({daysElapsed}d of 30)</span>
+              <span className="text-sm font-bold text-expense">₹{fmt(Math.round(salaryTillDate))}</span>
+            </div>
+          )}
+          <div className="h-px bg-border-dim" />
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-text-secondary">Gross Profit</span>
+            <span className={`text-sm font-bold ${grossProfit >= 0 ? 'text-income' : 'text-expense'}`}>
+              {grossProfit >= 0 ? '+' : ''}₹{fmt(Math.round(grossProfit))}
             </span>
           </div>
         </div>

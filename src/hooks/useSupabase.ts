@@ -233,6 +233,7 @@ export function useServiceRecords(carId: number) {
       .select('*')
       .eq('car_id', carId)
       .order('date', { ascending: false })
+      .order('id', { ascending: false })
       .then(({ data }) => setData(data ?? []))
   }, [carId, refresh])
 
@@ -305,6 +306,7 @@ export function useFuelLogs(carId: number) {
       .select('*')
       .eq('car_id', carId)
       .order('date', { ascending: false })
+      .order('id', { ascending: false })
       .then(({ data }) => setData(data ?? []))
   }, [carId, refresh])
 

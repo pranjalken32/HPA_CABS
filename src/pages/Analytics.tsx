@@ -265,6 +265,18 @@ export default function Analytics() {
     return opTimelineAll.filter(d => d.date >= cutoffStr)
   }, [opTimelineAll, opTimelineFilter])
 
+  // ---- Gross Profit breakdown ----
+  const expByCat = (cat: string) => allExpenses.filter(e => e.category === cat).reduce((s, e) => s + e.amount, 0)
+  const analyticsCng = allExpenses.filter(e => e.category === 'fuel' && (e.note?.toLowerCase().includes('cng') || !e.note?.toLowerCase().includes('petrol'))).reduce((s, e) => s + e.amount, 0)
+  const analyticsPetrol = allExpenses.filter(e => e.category === 'fuel' && e.note?.toLowerCase().includes('petrol')).reduce((s, e) => s + e.amount, 0)
+  const analyticsCommission = expByCat('commission')
+  const analyticsToll = expByCat('toll')
+  const analyticsCarWash = expByCat('car_wash')
+  const analyticsFareFraud = expByCat('fare_fraud')
+  const analyticsEmi = expByCat('emi')
+  const analyticsSalary = expByCat('driver_salary')
+  const analyticsGrossProfit = totalRevenue - analyticsCng - analyticsPetrol - analyticsCommission - analyticsToll - analyticsCarWash - analyticsFareFraud - analyticsEmi - analyticsSalary
+
   // ---- Alerts / Issues ----
   const alerts: { type: 'warning' | 'danger' | 'info'; message: string }[] = []
 
@@ -713,6 +725,72 @@ export default function Analytics() {
             </ResponsiveContainer>
           </div>
         </div>
+
+        {/* Gross Profit breakdown */}
+        <div className="mt-4">
+          <div className="text-xs text-text-muted mb-2">Gross Profit Breakdown</div>
+          <div className="bg-surface-elevated rounded-xl p-3 space-y-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-text-muted">Revenue</span>
+              <span className="text-sm font-bold text-white">₹{fmt(totalRevenue)}</span>
+            </div>
+            {analyticsCng > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-text-muted">− CNG</span>
+                <span className="text-sm font-bold text-expense">₹{fmt(analyticsCng)}</span>
+              </div>
+            )}
+            {analyticsPetrol > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-text-muted">− Petrol</span>
+                <span className="text-sm font-bold text-expense">₹{fmt(analyticsPetrol)}</span>
+              </div>
+            )}
+            {analyticsCommission > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-text-muted">− Commission</span>
+                <span className="text-sm font-bold text-expense">₹{fmt(analyticsCommission)}</span>
+              </div>
+            )}
+            {analyticsToll > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-text-muted">− FASTag / Toll</span>
+                <span className="text-sm font-bold text-expense">₹{fmt(analyticsToll)}</span>
+              </div>
+            )}
+            {analyticsCarWash > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-text-muted">− Car Wash</span>
+                <span className="text-sm font-bold text-expense">₹{fmt(analyticsCarWash)}</span>
+              </div>
+            )}
+            {analyticsFareFraud > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-text-muted">− Fare Fraud</span>
+                <span className="text-sm font-bold text-expense">₹{fmt(analyticsFareFraud)}</span>
+              </div>
+            )}
+            {analyticsEmi > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-text-muted">− EMI</span>
+                <span className="text-sm font-bold text-expense">₹{fmt(analyticsEmi)}</span>
+              </div>
+            )}
+            {analyticsSalary > 0 && (
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-text-muted">− Driver Salary</span>
+                <span className="text-sm font-bold text-expense">₹{fmt(analyticsSalary)}</span>
+              </div>
+            )}
+            <div className="h-px bg-border-dim" />
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-text-secondary">Gross Profit</span>
+              <span className={`text-sm font-bold ${analyticsGrossProfit >= 0 ? 'text-income' : 'text-expense'}`}>
+                {analyticsGrossProfit >= 0 ? '+' : ''}₹{fmt(Math.round(analyticsGrossProfit))}
+              </span>
+            </div>
+          </div>
+        </div>
       </CollapsibleSection>
 
       {/* ---- ALERTS ---- */}
@@ -941,6 +1019,7 @@ export default function Analytics() {
           </div>
         </div>
       )}
+
     </div>
   )
 }

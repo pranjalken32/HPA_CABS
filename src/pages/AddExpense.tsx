@@ -56,6 +56,7 @@ export default function AddExpense() {
   const [receiptFile, setReceiptFile] = useState<File | null>(null)
   const [receiptPreview, setReceiptPreview] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
   const [selectedDriverId, setSelectedDriverId] = useState<number | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -63,8 +64,10 @@ export default function AddExpense() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (submitting || saved) return
     if (!amount || Number(amount) <= 0) return
     if (isDriverCategory && !selectedDriverId) return
+    setSubmitting(true)
     let receipt_url: string | null = null
     if (receiptFile) {
       setUploading(true)
@@ -93,6 +96,7 @@ export default function AddExpense() {
       receipt_url,
       driver_profile_id: isDriverCategory ? selectedDriverId : null,
     })
+    setSubmitting(false)
     setSaved(true)
     setTimeout(() => {
       setSaved(false)
@@ -101,7 +105,7 @@ export default function AddExpense() {
       setReceiptFile(null)
       setReceiptPreview(null)
       setSelectedDriverId(null)
-    }, 1200)
+    }, 1500)
   }
 
   return (
@@ -233,17 +237,20 @@ export default function AddExpense() {
         </div>
 
         <div>
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={recurring}
-              onChange={(e) => setRecurring(e.target.checked)}
-              className="w-5 h-5 rounded border-border-dim bg-surface-elevated accent-accent"
-            />
+          <button
+            type="button"
+            onClick={() => setRecurring(!recurring)}
+            className="flex items-center gap-3 cursor-pointer w-full"
+          >
+            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-all ${
+              recurring ? 'bg-accent border-accent' : 'border-border-dim bg-surface-elevated'
+            }`}>
+              {recurring && <CheckCircle2 size={14} className="text-black" />}
+            </div>
             <span className="text-sm text-text-secondary">
               {t.monthlyRecurring}
             </span>
-          </label>
+          </button>
           {recurring && (
             <p className="text-xs text-text-muted mt-1.5 ml-8">
               Auto-generated on the 1st of each month
@@ -329,10 +336,10 @@ export default function AddExpense() {
 
         <button
           type="submit"
-          disabled={uploading}
+          disabled={uploading || submitting || saved}
           className="w-full bg-white text-black font-semibold py-3 rounded-xl transition-all hover:bg-gray-200 disabled:opacity-60"
         >
-          {uploading ? t.uploadingReceipt : t.saveExpense}
+          {submitting ? 'Saving...' : uploading ? t.uploadingReceipt : saved ? t.expenseSaved : t.saveExpense}
         </button>
       </form>
     </div>

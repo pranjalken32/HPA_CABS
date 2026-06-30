@@ -86,6 +86,10 @@ export default function CarDetail() {
   const [docFile, setDocFile] = useState<File | null>(null)
   const [docUploading, setDocUploading] = useState(false)
 
+  // Delete confirmation
+  const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'fuel' | 'service' | 'doc'; id: number } | null>(null)
+  const [deleting, setDeleting] = useState(false)
+
   // Service form
   const [showServiceForm, setShowServiceForm] = useState(false)
   const [svcDate, setSvcDate] = useState(todayStr())
@@ -409,7 +413,7 @@ export default function CarDetail() {
                   )}
                   {isOwner && (
                     <button
-                      onClick={async () => { await deleteCarDocument(doc.id) }}
+                      onClick={() => setDeleteConfirm({ type: 'doc', id: doc.id })}
                       className="text-text-muted hover:text-expense transition-colors"
                     >
                       <Trash2 size={14} />
@@ -652,7 +656,7 @@ export default function CarDetail() {
                 <span className="text-xs font-bold text-expense">₹{fmt(log.total_cost)}</span>
                 {isOwner && (
                   <button
-                    onClick={async () => { await deleteFuelLog(log.id) }}
+                    onClick={() => setDeleteConfirm({ type: 'fuel', id: log.id })}
                     className="text-text-muted hover:text-expense transition-colors"
                   >
                     <Trash2 size={14} />
@@ -755,7 +759,7 @@ export default function CarDetail() {
                 )}
                 {isOwner && (
                   <button
-                    onClick={async () => { await deleteServiceRecord(svc.id) }}
+                    onClick={() => setDeleteConfirm({ type: 'service', id: svc.id })}
                     className="text-text-muted hover:text-expense transition-colors"
                   >
                     <Trash2 size={14} />
@@ -764,6 +768,49 @@ export default function CarDetail() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Delete confirmation modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-6">
+          <div className="bg-surface-card rounded-2xl p-5 border border-border-dim max-w-sm w-full space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-expense/10 flex items-center justify-center">
+                <AlertTriangle size={20} className="text-expense" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white">Delete {deleteConfirm.type === 'fuel' ? 'Fuel Log' : deleteConfirm.type === 'service' ? 'Service Record' : 'Document'}?</h3>
+                <p className="text-xs text-text-muted">This action cannot be undone.</p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                disabled={deleting}
+                className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-surface-elevated text-text-secondary border border-border-dim"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  setDeleting(true)
+                  try {
+                    if (deleteConfirm.type === 'fuel') await deleteFuelLog(deleteConfirm.id)
+                    else if (deleteConfirm.type === 'service') await deleteServiceRecord(deleteConfirm.id)
+                    else await deleteCarDocument(deleteConfirm.id)
+                  } finally {
+                    setDeleting(false)
+                    setDeleteConfirm(null)
+                  }
+                }}
+                disabled={deleting}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold bg-expense text-white disabled:opacity-60"
+              >
+                {deleting ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
