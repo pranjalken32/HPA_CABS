@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react'
 import { addExpense, uploadReceipt, useCars, useDriverProfiles } from '../hooks/useSupabase'
+import type { DriverProfileRow } from '../supabase'
 import { useLanguage } from '../LanguageContext'
 import { CheckCircle2, Camera, X, Car } from 'lucide-react'
 
@@ -41,6 +42,10 @@ function todayStr(): string {
   ).padStart(2, '0')}`
 }
 
+function isEmployedOn(driver: DriverProfileRow, date: string): boolean {
+  return driver.start_date <= date && (driver.end_date === null || date <= driver.end_date)
+}
+
 export default function AddExpense() {
   const cars = useCars()
   const driverProfiles = useDriverProfiles()
@@ -61,10 +66,7 @@ export default function AddExpense() {
   const fileRef = useRef<HTMLInputElement>(null)
 
   const isDriverCategory = category === 'driver_advance' || category === 'driver_salary' || category === 'driver_incentive'
-  const employedDrivers = driverProfiles.filter(
-    (driver) =>
-      driver.start_date <= date && (driver.end_date === null || date <= driver.end_date)
-  )
+  const employedDrivers = driverProfiles.filter((driver) => isEmployedOn(driver, date))
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -133,12 +135,7 @@ export default function AddExpense() {
               setDate(nextDate)
               if (
                 selectedDriverId !== null &&
-                !driverProfiles.some(
-                  (driver) =>
-                    driver.id === selectedDriverId &&
-                    driver.start_date <= nextDate &&
-                    (driver.end_date === null || nextDate <= driver.end_date)
-                )
+                !driverProfiles.some((driver) => driver.id === selectedDriverId && isEmployedOn(driver, nextDate))
               ) {
                 setSelectedDriverId(null)
               }
