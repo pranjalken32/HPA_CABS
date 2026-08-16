@@ -61,6 +61,10 @@ export default function AddExpense() {
   const fileRef = useRef<HTMLInputElement>(null)
 
   const isDriverCategory = category === 'driver_advance' || category === 'driver_salary' || category === 'driver_incentive'
+  const employedDrivers = driverProfiles.filter(
+    (driver) =>
+      driver.start_date <= date && (driver.end_date === null || date <= driver.end_date)
+  )
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -124,7 +128,21 @@ export default function AddExpense() {
           <input
             type="date"
             value={date}
-            onChange={(e) => setDate(e.target.value)}
+            onChange={(e) => {
+              const nextDate = e.target.value
+              setDate(nextDate)
+              if (
+                selectedDriverId !== null &&
+                !driverProfiles.some(
+                  (driver) =>
+                    driver.id === selectedDriverId &&
+                    driver.start_date <= nextDate &&
+                    (driver.end_date === null || nextDate <= driver.end_date)
+                )
+              ) {
+                setSelectedDriverId(null)
+              }
+            }}
             className="w-full border border-border-dim bg-surface-elevated rounded-xl px-3 py-2.5 text-sm text-text-primary focus:border-accent focus:outline-none transition-colors"
             required
           />
@@ -158,9 +176,9 @@ export default function AddExpense() {
             <label className="block text-sm font-medium text-text-secondary mb-2">
               Select Driver <span className="text-expense">*</span>
             </label>
-            {driverProfiles.length > 0 ? (
+            {employedDrivers.length > 0 ? (
               <div className="flex flex-wrap gap-2">
-                {driverProfiles.map((d) => (
+                {employedDrivers.map((d) => (
                   <button
                     key={d.id}
                     type="button"
@@ -176,7 +194,7 @@ export default function AddExpense() {
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-text-muted">No drivers added yet. Add a driver first.</p>
+              <p className="text-xs text-text-muted">No drivers were employed on this date.</p>
             )}
             {!selectedDriverId && (
               <p className="text-[10px] text-expense mt-1">Please select a driver to continue</p>
