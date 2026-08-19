@@ -168,7 +168,7 @@ export default function CarDetail() {
     await addServiceRecord({
       car_id: carId,
       date: svcDate,
-      description: `${car.name} - ${svcDesc.trim()}`,
+      description: svcDesc.trim(),
       cost,
       odometer_km: Number(svcOdo) || 0,
     })

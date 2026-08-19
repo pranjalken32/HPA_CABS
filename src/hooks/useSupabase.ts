@@ -419,15 +419,42 @@ export async function updateFuelLog(id: number, updates: Partial<FuelLogRow>) {
   const fuelNote = log.fuel_type === 'petrol'
     ? `Petrol ₹${log.total_cost}`
     : `${log.quantity_kg}kg CNG @ ₹${log.price_per_kg}/kg`
-  const { error: expenseError } = await supabase
+  const { data: linkedExpense, error: linkedExpenseError } = await supabase
     .from('expenses')
-    .update({
+    .select('id')
+    .eq('fuel_log_id', id)
+    .maybeSingle()
+  if (linkedExpenseError) throw linkedExpenseError
+
+  if (log.total_cost > 0) {
+    const expense = {
       date: log.date,
+      category: 'fuel',
       amount: log.total_cost,
       note: fuelNote,
-    })
-    .eq('fuel_log_id', id)
-  if (expenseError) throw expenseError
+      recurring: false,
+      car_id: log.car_id,
+      receipt_url: null,
+      fuel_log_id: id,
+      service_record_id: null,
+    }
+    if (linkedExpense) {
+      const { error: expenseError } = await supabase
+        .from('expenses')
+        .update(expense)
+        .eq('id', linkedExpense.id)
+      if (expenseError) throw expenseError
+    } else {
+      const { error: expenseError } = await supabase.from('expenses').insert(expense)
+      if (expenseError) throw expenseError
+    }
+  } else if (linkedExpense) {
+    const { error: expenseError } = await supabase
+      .from('expenses')
+      .delete()
+      .eq('id', linkedExpense.id)
+    if (expenseError) throw expenseError
+  }
 
   triggerRefresh()
 }
