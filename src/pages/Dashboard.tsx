@@ -177,8 +177,7 @@ export default function Dashboard() {
       )
       const latestUnsettledCompleted = rows
         .filter((row) => (
-          !row.projected &&
-          !row.settlement &&
+          row.settleable &&
           row.weekEnd <= (month === currentMonth ? asOfDate : endDate) &&
           (month === currentMonth || row.weekEnd >= startDate)
         ))

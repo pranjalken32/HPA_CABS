@@ -106,7 +106,15 @@ function WeeklySettlementPanel({
               </p>
             </div>
           </div>
-          {row.settlement ? (
+          {row.coverage === 'monthly' ? (
+            <p className="text-[10px] text-income text-center">
+              {t.coveredByMonthlySettlement} · {row.coveringSettlement?.period_start} → {row.coveringSettlement?.period_end}
+            </p>
+          ) : row.coverage === 'partial' ? (
+            <p className="text-[10px] text-expense text-center">
+              {t.partiallyCoveredByMonthlySettlement} · {row.coveringSettlement?.period_start} → {row.coveringSettlement?.period_end}
+            </p>
+          ) : row.settlement ? (
             <div className="flex items-center justify-between text-[10px] text-text-muted">
               <span>{t.paidOn} {row.settlement.settled_date} · ₹{fmt(row.settlement.amount)}</span>
               <button
@@ -121,7 +129,7 @@ function WeeklySettlementPanel({
             <p className="text-[10px] text-text-muted text-center">{t.settlesOn} {row.weekEnd}</p>
           ) : (
             <button
-              disabled={row.netPayable <= 0 || settlingId !== null}
+              disabled={!row.settleable || row.netPayable <= 0 || settlingId !== null}
               onClick={() => onSettle(row)}
               className="w-full py-2 rounded-lg text-sm font-semibold bg-white text-black disabled:bg-surface-card disabled:text-text-muted"
             >

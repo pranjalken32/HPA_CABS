@@ -155,6 +155,74 @@ describe('salary and incentive calculations', () => {
     expect(rows[1].netPayable).toBeGreaterThan(rows[0].netPayable)
   })
 
+  it('recognises Arjun weeks covered by monthly settlements', () => {
+    const rows = deriveWeeklySettlementRows(
+      {
+        id: 1,
+        name: 'Arjun Singh',
+        start_date: '2026-06-15',
+        end_date: '2026-07-23',
+        monthly_salary: 25000,
+        car_id: 1,
+        incentive_target: 90000,
+        incentive_base: 500,
+        incentive_step: 250,
+        incentive_slab: 5000,
+      },
+      [],
+      [
+        { date: '2026-06-30', amount: 100, category: 'driver_advance', driver_profile_id: 1, note: '' },
+        { date: '2026-07-02', amount: 200, category: 'driver_advance', driver_profile_id: 1, note: '' },
+      ],
+      [
+        {
+          id: 1,
+          driver_name: 'Arjun Singh',
+          driver_profile_id: 1,
+          amount: 0,
+          period_type: 'month',
+          period_start: '2026-06-01',
+          period_end: '2026-06-30',
+          settled_date: '2026-07-01',
+        },
+        {
+          id: 2,
+          driver_name: 'Arjun Singh',
+          driver_profile_id: 1,
+          amount: 5538.54,
+          period_type: 'month',
+          period_start: '2026-07-01',
+          period_end: '2026-07-31',
+          settled_date: '2026-07-23',
+        },
+      ],
+      '2026-08-19'
+    )
+
+    const partial = rows.find((row) => row.weekStart === '2026-06-29')
+    expect(partial).toMatchObject({
+      weekEnd: '2026-07-05',
+      coverage: 'partial',
+      settleable: false,
+      incentive: 0,
+      salary: 1666.67,
+      advance: 100,
+      netPayable: 1566.67,
+    })
+    expect(partial?.coveringSettlement?.period_start).toBe('2026-07-01')
+
+    const covered = rows.filter((row) => row.weekStart >= '2026-07-06')
+    expect(covered).toHaveLength(3)
+    expect(covered.every((row) => (
+      row.coverage === 'monthly' &&
+      row.coveringSettlement?.period_start === '2026-07-01' &&
+      !row.settleable &&
+      row.netPayable === 0 &&
+      row.carryForward === 0
+    ))).toBe(true)
+    expect(rows.filter((row) => row.settleable).reduce((sum, row) => sum + row.netPayable, 0)).toBe(0)
+  })
+
   it('dedupes recurring rows by category and car, preserving latest template values', () => {
     const toAdd = getRecurringRowsToAdd(
       [

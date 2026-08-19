@@ -1,5 +1,6 @@
 import {
   getInclusiveOverlapDays,
+  addLocalDays,
   getWeekEnd,
   getWeeksCoveringRange,
   getWeeksForMonth,
@@ -113,6 +114,9 @@ export interface WeeklySettlementRow {
   netPayable: number
   projected: boolean
   settlement: WeeklySettlementLike | undefined
+  coveringSettlement: WeeklySettlementLike | undefined
+  coverage: 'none' | 'weekly' | 'monthly' | 'partial'
+  settleable: boolean
 }
 
 export function deriveWeeklySettlementRows(
@@ -129,31 +133,72 @@ export function deriveWeeklySettlementRows(
   return getWeeksCoveringRange(driver.start_date, rangeEnd)
     .filter((week) => week.start <= getWeekEnd(asOfDate))
     .map((week) => {
-      const salary = prorateSalaryForWeek(
-        driver.monthly_salary,
-        driver.start_date,
-        driver.end_date,
-        week
-      ).amount
-      const incentive = calculateWeeklyIncentiveForRange(
-        incomes,
-        driver.car_id,
-        driver.incentive_target,
-        driver.incentive_base,
-        driver.incentive_step,
-        driver.incentive_slab,
-        week
-      ).incentive
+      const exactSettlement = settlements.find(
+        (candidate) => (candidate.period_type ?? 'month') === 'week' && candidate.period_start === week.start
+      )
+      const overlappingMonthlySettlements = settlements.filter(
+        (candidate) => (
+          (candidate.period_type ?? 'month') === 'month' &&
+          candidate.period_start <= week.end &&
+          candidate.period_end >= week.start
+        )
+      )
+      const coveringSettlement = exactSettlement ? undefined : overlappingMonthlySettlements.find(
+        (candidate) => candidate.period_start <= week.end && candidate.period_end >= week.end
+      ) ?? overlappingMonthlySettlements[0]
+      const fullyCovered = !exactSettlement &&
+        coveringSettlement !== undefined &&
+        coveringSettlement.period_start <= week.start &&
+        coveringSettlement.period_end >= week.end
+      const partiallyCovered = !exactSettlement &&
+        coveringSettlement !== undefined &&
+        !fullyCovered
+      const uncoveredRanges = partiallyCovered
+        ? [
+            ...(week.start < coveringSettlement.period_start
+              ? [{ start: week.start, end: addLocalDays(coveringSettlement.period_start, -1) }]
+              : []),
+            ...(week.end > coveringSettlement.period_end
+              ? [{ start: addLocalDays(coveringSettlement.period_end, 1), end: week.end }]
+              : []),
+          ]
+        : []
+      const salary = (partiallyCovered ? uncoveredRanges : [week]).reduce(
+        (sum, range) => sum + prorateSalaryForWeek(
+          driver.monthly_salary,
+          driver.start_date,
+          driver.end_date,
+          range
+        ).amount,
+        0
+      )
+      const incentive = partiallyCovered
+        ? 0
+        : calculateWeeklyIncentiveForRange(
+          incomes,
+          driver.car_id,
+          driver.incentive_target,
+          driver.incentive_base,
+          driver.incentive_step,
+          driver.incentive_slab,
+          week
+        ).incentive
       const advance = expenses
         .filter((expense) => expense.category === 'driver_advance' && (
           expense.driver_profile_id === driver.id ||
           expense.note?.toLowerCase().includes(driver.name.toLowerCase())
-        ) && expense.date >= week.start && expense.date <= week.end)
+        ) && (partiallyCovered
+          ? uncoveredRanges.some((range) => expense.date >= range.start && expense.date <= range.end)
+          : expense.date >= week.start && expense.date <= week.end))
         .reduce((sum, expense) => sum + expense.amount, 0)
-      const settlement = settlements.find(
-        (candidate) => (candidate.period_type ?? 'month') === 'week' && candidate.period_start === week.start
-      )
-      const basePayable = salary + incentive - advance
+      const basePayable = fullyCovered ? 0 : salary + incentive - advance
+      const coverage = exactSettlement
+        ? 'weekly'
+        : fullyCovered
+          ? 'monthly'
+          : partiallyCovered
+            ? 'partial'
+            : 'none'
       const row: WeeklySettlementRow = {
         weekStart: week.start,
         weekEnd: week.end,
@@ -161,12 +206,17 @@ export function deriveWeeklySettlementRows(
         incentive,
         advance,
         basePayable,
-        carryForward,
-        netPayable: basePayable + carryForward,
+        carryForward: fullyCovered ? 0 : carryForward,
+        netPayable: fullyCovered ? 0 : basePayable + carryForward,
         projected: week.end > asOfDate,
-        settlement,
+        settlement: exactSettlement,
+        coveringSettlement,
+        coverage,
+        settleable: !exactSettlement && !coveringSettlement && week.end <= asOfDate,
       }
-      carryForward = getSettlementCarryForward(row.netPayable, settlement?.amount)
+      carryForward = fullyCovered
+        ? 0
+        : getSettlementCarryForward(row.netPayable, exactSettlement?.amount)
       return row
     })
 }
