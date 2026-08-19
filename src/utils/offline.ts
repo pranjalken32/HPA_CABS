@@ -1,5 +1,6 @@
 import { supabase } from '../supabase'
 import { triggerRefresh } from '../hooks/useSupabase'
+import { notifyApp } from '../hooks/useSupabase'
 
 interface PendingMutation {
   id: string
@@ -11,6 +12,18 @@ interface PendingMutation {
 
 const QUEUE_KEY = 'hpa_cabs_offline_queue'
 const CACHE_PREFIX = 'hpa_cabs_cache_'
+const offlineListeners = new Set<(state: { offline: boolean; pendingCount: number }) => void>()
+
+function emitOfflineState() {
+  const state = { offline: !navigator.onLine, pendingCount: getQueue().length }
+  offlineListeners.forEach((listener) => listener(state))
+}
+
+export function subscribeOfflineState(listener: (state: { offline: boolean; pendingCount: number }) => void) {
+  offlineListeners.add(listener)
+  listener({ offline: !navigator.onLine, pendingCount: getQueue().length })
+  return () => offlineListeners.delete(listener)
+}
 
 export function isOnline(): boolean {
   return navigator.onLine
@@ -42,6 +55,7 @@ export function queueMutation(
     createdAt: Date.now(),
   })
   saveQueue(queue)
+  emitOfflineState()
 }
 
 export async function syncPendingMutations(): Promise<number> {
@@ -71,7 +85,13 @@ export async function syncPendingMutations(): Promise<number> {
   }
 
   saveQueue(remaining)
+  emitOfflineState()
   if (synced > 0) triggerRefresh()
+  if (remaining.length > 0) {
+    notifyApp('error', 'Some offline changes could not sync yet. They remain queued for another attempt.')
+  } else if (synced > 0) {
+    notifyApp('success', 'Offline changes synced successfully.')
+  }
   return synced
 }
 
@@ -104,9 +124,11 @@ export function getPendingCount(): number {
 
 export function setupOfflineSync() {
   window.addEventListener('online', async () => {
+    emitOfflineState()
     const synced = await syncPendingMutations()
     if (synced > 0) {
       console.log(`Synced ${synced} offline changes`)
     }
   })
+  window.addEventListener('offline', () => emitOfflineState())
 }

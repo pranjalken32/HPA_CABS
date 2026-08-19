@@ -1,20 +1,7 @@
-import { createContext, useContext, useState } from 'react'
+import { useState } from 'react'
 import type { ReactNode } from 'react'
-import { type Language, getTranslations, getSavedLanguage, saveLanguage } from './i18n'
-
-type Translations = ReturnType<typeof getTranslations>
-
-interface LanguageContextType {
-  lang: Language
-  t: Translations
-  setLang: (lang: Language) => void
-}
-
-const LanguageContext = createContext<LanguageContextType>({
-  lang: 'en',
-  t: getTranslations('en'),
-  setLang: () => {},
-})
+import { getTranslations, getSavedLanguage, saveLanguage, type Language } from './i18n'
+import { LanguageContext } from './language-context'
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const [lang, setLangState] = useState<Language>(getSavedLanguage())
@@ -30,8 +17,4 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       {children}
     </LanguageContext.Provider>
   )
-}
-
-export function useLanguage() {
-  return useContext(LanguageContext)
 }

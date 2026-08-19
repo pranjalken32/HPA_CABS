@@ -1,8 +1,66 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase'
 import type { IncomeRow, ExpenseRow, CarRow, CarDocumentRow, ServiceRecordRow, ProfileRow, FuelLogRow, GoalRow, DriverProfileRow, DriverSettlementRow } from '../supabase'
+import { getCachedData, cacheData } from '../utils/offline'
+import { getRecurringRowsToAdd, getRecurringTemplates } from '../utils/calculations'
+import { lastDayOfMonthString } from '../utils/date'
+import { isOnline, queueMutation } from '../utils/offline'
 
 export type { DriverProfileRow, DriverSettlementRow }
+
+export type AppNotification = {
+  id: number
+  kind: 'error' | 'network' | 'info' | 'success'
+  message: string
+  persistent?: boolean
+}
+
+let notificationId = 0
+const notificationListeners = new Set<(notification: AppNotification) => void>()
+
+export function subscribeNotifications(listener: (notification: AppNotification) => void) {
+  notificationListeners.add(listener)
+  return () => notificationListeners.delete(listener)
+}
+
+export function notifyApp(
+  kind: AppNotification['kind'],
+  message: string,
+  persistent = kind === 'network'
+) {
+  const notification = { id: ++notificationId, kind, message, persistent }
+  notificationListeners.forEach((listener) => listener(notification))
+}
+
+export function reportSupabaseError(error: unknown, context = 'operation') {
+  console.error(`${context} failed:`, error)
+  const message = error instanceof TypeError || /fetch|network|offline|load failed/i.test(String((error as { message?: string })?.message ?? error))
+    ? 'The backend is unreachable. Check your connection and try again.'
+    : 'This operation could not be completed. Please try again.'
+  notifyApp(message.startsWith('The backend') ? 'network' : 'error', message)
+}
+
+export function clearBackendNotice() {
+  notifyApp('success', 'Connection restored.')
+}
+
+async function fetchPaged<T>(
+  page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>
+): Promise<T[]> {
+  const rows: T[] = []
+  const pageSize = 1000
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await page(from, from + pageSize - 1)
+    if (error) throw error
+    const chunk = data ?? []
+    rows.push(...chunk)
+    if (chunk.length < pageSize) return rows
+  }
+}
+
+function reportReadError(error: unknown, context: string) {
+  reportSupabaseError(error, context)
+}
 
 // ---- Generic refresh counter ----
 let _refreshCounter = 0
@@ -30,13 +88,25 @@ export function useIncomes(startDate: string, endDate: string) {
   const refresh = useRefresh()
 
   useEffect(() => {
-    supabase
+    fetchPaged((from, to) => supabase
       .from('incomes')
       .select('*')
       .gte('date', startDate)
       .lte('date', endDate)
       .order('date', { ascending: false })
-      .then(({ data }) => setData(data ?? []))
+      .range(from, to))
+      .then((rows) => {
+        setData(rows)
+        cacheData(`incomes:${startDate}:${endDate}`, rows)
+      })
+      .catch((error) => {
+        reportReadError(error, 'Income query')
+        const cached = getCachedData<IncomeRow[]>(`incomes:${startDate}:${endDate}`)
+        if (cached) {
+          setData(cached)
+          notifyApp('info', 'Showing cached data from your last successful sync.')
+        }
+      })
   }, [startDate, endDate, refresh])
 
   return data
@@ -47,17 +117,34 @@ export function useAllIncomes() {
   const refresh = useRefresh()
 
   useEffect(() => {
-    supabase
+    fetchPaged((from, to) => supabase
       .from('incomes')
       .select('*')
       .order('date', { ascending: false })
-      .then(({ data }) => setData(data ?? []))
+      .range(from, to))
+      .then((rows) => {
+        setData(rows)
+        cacheData('all-incomes', rows)
+      })
+      .catch((error) => {
+        reportReadError(error, 'Income history query')
+        const cached = getCachedData<IncomeRow[]>('all-incomes')
+        if (cached) {
+          setData(cached)
+          notifyApp('info', 'Showing cached data from your last successful sync.')
+        }
+      })
   }, [refresh])
 
   return data
 }
 
 export async function addIncome(row: Omit<IncomeRow, 'id' | 'user_id'>) {
+  if (!isOnline()) {
+    queueMutation('incomes', 'insert', row)
+    notifyApp('info', 'Saved offline, will sync when you are back online.')
+    return
+  }
   const { error } = await supabase.from('incomes').insert(row)
   if (error) throw error
   triggerRefresh()
@@ -82,13 +169,25 @@ export function useExpenses(startDate: string, endDate: string) {
   const refresh = useRefresh()
 
   useEffect(() => {
-    supabase
+    fetchPaged((from, to) => supabase
       .from('expenses')
       .select('*')
       .gte('date', startDate)
       .lte('date', endDate)
       .order('date', { ascending: false })
-      .then(({ data }) => setData(data ?? []))
+      .range(from, to))
+      .then((rows) => {
+        setData(rows)
+        cacheData(`expenses:${startDate}:${endDate}`, rows)
+      })
+      .catch((error) => {
+        reportReadError(error, 'Expense query')
+        const cached = getCachedData<ExpenseRow[]>(`expenses:${startDate}:${endDate}`)
+        if (cached) {
+          setData(cached)
+          notifyApp('info', 'Showing cached data from your last successful sync.')
+        }
+      })
   }, [startDate, endDate, refresh])
 
   return data
@@ -99,11 +198,23 @@ export function useAllExpenses() {
   const refresh = useRefresh()
 
   useEffect(() => {
-    supabase
+    fetchPaged((from, to) => supabase
       .from('expenses')
       .select('*')
       .order('date', { ascending: false })
-      .then(({ data }) => setData(data ?? []))
+      .range(from, to))
+      .then((rows) => {
+        setData(rows)
+        cacheData('all-expenses', rows)
+      })
+      .catch((error) => {
+        reportReadError(error, 'Expense history query')
+        const cached = getCachedData<ExpenseRow[]>('all-expenses')
+        if (cached) {
+          setData(cached)
+          notifyApp('info', 'Showing cached data from your last successful sync.')
+        }
+      })
   }, [refresh])
 
   return data
@@ -113,6 +224,15 @@ type ExpenseInsert = Omit<ExpenseRow, 'id' | 'user_id' | 'fuel_log_id' | 'servic
   Partial<Pick<ExpenseRow, 'fuel_log_id' | 'service_record_id'>>
 
 export async function addExpense(row: ExpenseInsert) {
+  if (!isOnline() && !row.fuel_log_id && !row.service_record_id) {
+    queueMutation('expenses', 'insert', {
+      ...row,
+      fuel_log_id: null,
+      service_record_id: null,
+    })
+    notifyApp('info', 'Saved offline, will sync when you are back online.')
+    return
+  }
   const { error } = await supabase.from('expenses').insert({
     ...row,
     fuel_log_id: row.fuel_log_id ?? null,
@@ -120,6 +240,41 @@ export async function addExpense(row: ExpenseInsert) {
   })
   if (error) throw error
   triggerRefresh()
+}
+
+export async function findDuplicateIncome(
+  row: Pick<IncomeRow, 'date' | 'platform' | 'amount'>,
+  excludeId?: number
+) {
+  let query = supabase
+    .from('incomes')
+    .select('id')
+    .eq('date', row.date)
+    .eq('platform', row.platform)
+    .eq('amount', row.amount)
+    .limit(1)
+  if (excludeId !== undefined) query = query.neq('id', excludeId)
+  const { data, error } = await query
+    .maybeSingle()
+  if (error) throw error
+  return Boolean(data)
+}
+
+export async function findDuplicateExpense(
+  row: Pick<ExpenseRow, 'date' | 'category' | 'amount'>,
+  excludeId?: number
+) {
+  let query = supabase
+    .from('expenses')
+    .select('id')
+    .eq('date', row.date)
+    .eq('category', row.category)
+    .eq('amount', row.amount)
+    .limit(1)
+  if (excludeId !== undefined) query = query.neq('id', excludeId)
+  const { data, error } = await query.maybeSingle()
+  if (error) throw error
+  return Boolean(data)
 }
 
 export async function updateExpense(id: number, updates: Partial<ExpenseRow>) {
@@ -205,7 +360,10 @@ export function useCars() {
       .from('cars')
       .select('*')
       .order('created_at', { ascending: false })
-      .then(({ data }) => setData(data ?? []))
+      .then(({ data, error }) => {
+        if (error) reportReadError(error, 'Cars query')
+        else if (data) setData(data)
+      })
   }, [refresh])
 
   return data
@@ -221,7 +379,10 @@ export function useCar(id: number) {
       .select('*')
       .eq('id', id)
       .single()
-      .then(({ data }) => setData(data))
+      .then(({ data, error }) => {
+        if (error) reportReadError(error, 'Car query')
+        else if (data) setData(data)
+      })
   }, [id, refresh])
 
   return data
@@ -235,11 +396,10 @@ export async function addCar(row: Omit<CarRow, 'id' | 'user_id' | 'created_at'>)
 
 export async function deleteCar(id: number) {
   // Clean up all child records first
-  await supabase.from('fuel_logs').delete().eq('car_id', id)
-  await supabase.from('service_records').delete().eq('car_id', id)
-  await supabase.from('car_documents').delete().eq('car_id', id)
-  await supabase.from('expenses').delete().eq('car_id', id)
-  await supabase.from('incomes').delete().eq('car_id', id)
+  for (const table of ['fuel_logs', 'service_records', 'car_documents', 'expenses', 'incomes'] as const) {
+    const { error: childError } = await supabase.from(table).delete().eq('car_id', id)
+    if (childError) throw childError
+  }
   const { error } = await supabase.from('cars').delete().eq('id', id)
   if (error) throw error
   triggerRefresh()
@@ -256,7 +416,10 @@ export function useCarDocuments(carId: number) {
       .from('car_documents')
       .select('*')
       .eq('car_id', carId)
-      .then(({ data }) => setData(data ?? []))
+      .then(({ data, error }) => {
+        if (error) reportReadError(error, 'Car documents query')
+        else if (data) setData(data)
+      })
   }, [carId, refresh])
 
   return data
@@ -301,7 +464,10 @@ export function useServiceRecords(carId: number) {
       .eq('car_id', carId)
       .order('date', { ascending: false })
       .order('id', { ascending: false })
-      .then(({ data }) => setData(data ?? []))
+      .then(({ data, error }) => {
+        if (error) reportReadError(error, 'Service records query')
+        else if (data) setData(data)
+      })
   }, [carId, refresh])
 
   return data
@@ -348,7 +514,11 @@ export function useProfiles() {
     supabase
       .from('profiles')
       .select('id, display_name')
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) {
+          reportReadError(error, 'Profiles query')
+          return
+        }
         const map = new Map<string, string>()
         for (const p of (data as ProfileRow[]) ?? []) {
           map.set(p.id, p.display_name)
@@ -373,7 +543,10 @@ export function useFuelLogs(carId: number) {
       .eq('car_id', carId)
       .order('date', { ascending: false })
       .order('id', { ascending: false })
-      .then(({ data }) => setData(data ?? []))
+      .then(({ data, error }) => {
+        if (error) reportReadError(error, 'Fuel logs query')
+        else if (data) setData(data)
+      })
   }, [carId, refresh])
 
   return data
@@ -478,7 +651,10 @@ export function useGoal(month: string) {
       .select('*')
       .eq('month', month)
       .maybeSingle()
-      .then(({ data }) => setData(data))
+      .then(({ data, error }) => {
+        if (error) reportReadError(error, 'Goal query')
+        else setData(data)
+      })
   }, [month, refresh])
 
   return data
@@ -510,63 +686,78 @@ export async function getSignedUrl(path: string): Promise<string> {
     if (match) path = match[1]
     else return path
   }
-  const { data } = await supabase.storage.from('receipts').createSignedUrl(path, 3600)
+  const { data, error } = await supabase.storage.from('receipts').createSignedUrl(path, 3600)
+  if (error) throw error
   return data?.signedUrl ?? ''
 }
 
 // ---- Recurring expenses ----
 
 export async function processRecurringExpenses() {
+  if (recurringProcess) return recurringProcess
+  recurringProcess = processRecurringExpensesOnce()
+  try {
+    return await recurringProcess
+  } finally {
+    recurringProcess = null
+  }
+}
+
+let recurringProcess: Promise<number> | null = null
+
+async function processRecurringExpensesOnce() {
   const now = new Date()
   const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   const firstOfMonth = `${month}-01`
-  const lastOfMonth = `${month}-31`
+  const lastOfMonth = lastDayOfMonthString(month)
 
-  const { data: allRecurring } = await supabase
+  const allRecurring = await fetchPaged((from, to) => supabase
     .from('expenses')
     .select('*')
     .eq('recurring', true)
+    .order('date', { ascending: true })
+    .order('id', { ascending: true })
+    .range(from, to))
 
-  if (!allRecurring || allRecurring.length === 0) return 0
+  if (allRecurring.length === 0) return 0
 
-  const templates = new Map<string, { category: string; amount: number; note: string; car_id: number | null }>()
-  for (const e of allRecurring) {
-    const key = `${e.category}|${e.amount}|${e.note}`
-    if (!templates.has(key)) {
-      templates.set(key, { category: e.category, amount: e.amount, note: e.note, car_id: e.car_id })
-    }
-  }
+  const templates = getRecurringTemplates(allRecurring.map((e) => ({
+    date: e.date,
+    category: e.category,
+    amount: e.amount,
+    note: e.note,
+    car_id: e.car_id,
+  })))
 
-  const { data: thisMonthExpenses } = await supabase
+  const thisMonthExpenses = await fetchPaged((from, to) => supabase
     .from('expenses')
     .select('*')
     .gte('date', firstOfMonth)
     .lte('date', lastOfMonth)
     .eq('recurring', true)
+    .range(from, to))
 
-  const existingKeys = new Set(
-    (thisMonthExpenses ?? []).map((e: ExpenseRow) => `${e.category}|${e.amount}|${e.note}`)
-  )
-
-  const toAdd: ExpenseInsert[] = []
-  for (const [key, tmpl] of templates) {
-    if (!existingKeys.has(key)) {
-      toAdd.push({
-        date: firstOfMonth,
-        category: tmpl.category,
-        amount: tmpl.amount,
-        note: tmpl.note,
-        recurring: true,
-        car_id: tmpl.car_id,
-        receipt_url: null,
-        fuel_log_id: null,
-        service_record_id: null,
-      })
-    }
-  }
+  const toAdd = getRecurringRowsToAdd(templates, thisMonthExpenses.map((e) => ({
+    category: e.category,
+    amount: e.amount,
+    note: e.note,
+    car_id: e.car_id,
+  })), firstOfMonth)
+    .map((row): ExpenseInsert => ({
+      date: row.date ?? firstOfMonth,
+      category: row.category,
+      amount: row.amount,
+      note: row.note,
+      recurring: true,
+      car_id: row.car_id,
+      receipt_url: null,
+      fuel_log_id: null,
+      service_record_id: null,
+    }))
 
   if (toAdd.length > 0) {
-    await supabase.from('expenses').insert(toAdd)
+    const { error: insertError } = await supabase.from('expenses').insert(toAdd)
+    if (insertError) throw insertError
     triggerRefresh()
   }
 
@@ -584,7 +775,10 @@ export function useDriverUsers() {
       .from('profiles')
       .select('*')
       .eq('role', 'driver')
-      .then(({ data }) => setData(data ?? []))
+      .then(({ data, error }) => {
+        if (error) reportReadError(error, 'Driver users query')
+        else if (data) setData(data)
+      })
   }, [refresh])
 
   return data
@@ -601,8 +795,8 @@ export function useDriverProfiles() {
       .from('driver_profiles')
       .select('*')
       .then(({ data, error }) => {
-        if (error) console.error('driver_profiles query error:', error)
-        setData(data ?? [])
+        if (error) reportReadError(error, 'Driver profiles query')
+        else if (data) setData(data)
       })
   }, [refresh])
 
@@ -622,7 +816,8 @@ export async function updateDriverProfile(id: number, updates: Partial<DriverPro
 }
 
 export async function deleteDriverProfile(id: number) {
-  await supabase.from('driver_settlements').delete().eq('driver_profile_id', id)
+  const { error: settlementError } = await supabase.from('driver_settlements').delete().eq('driver_profile_id', id)
+  if (settlementError) throw settlementError
   const { error } = await supabase.from('driver_profiles').delete().eq('id', id)
   if (error) throw error
   triggerRefresh()
@@ -660,7 +855,10 @@ export function useDriverSettlements(filter?: { driverProfileId?: number; driver
     } else if (filter?.driverName) {
       query = query.eq('driver_name', filter.driverName)
     }
-    query.then(({ data }) => setData(data ?? []))
+    query.then(({ data, error }) => {
+      if (error) reportReadError(error, 'Settlement query')
+      else if (data) setData(data)
+    })
   }, [filter?.driverProfileId, filter?.driverName, refresh])
 
   return data

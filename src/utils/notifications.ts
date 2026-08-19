@@ -1,4 +1,6 @@
 import { supabase } from '../supabase'
+import { lastDayOfMonthString, parseLocalDate } from './date'
+import { reportSupabaseError } from '../hooks/useSupabase'
 
 export async function requestNotificationPermission(): Promise<boolean> {
   if (!('Notification' in window)) return false
@@ -18,7 +20,11 @@ function showNotification(title: string, body: string) {
 }
 
 export async function checkDocExpiryAlerts() {
-  const { data: docs } = await supabase.from('car_documents').select('*, cars(name)')
+  const { data: docs, error } = await supabase.from('car_documents').select('*, cars(name)')
+  if (error) {
+    reportSupabaseError(error, 'Document alert query')
+    return
+  }
 
   if (!docs) return
 
@@ -31,7 +37,7 @@ export async function checkDocExpiryAlerts() {
   const alerts: string[] = []
 
   for (const doc of docs) {
-    const expiry = new Date(doc.expiry_date)
+    const expiry = parseLocalDate(doc.expiry_date)
     const carName = (doc.cars as { name: string } | null)?.name ?? 'Car'
 
     if (expiry < today) {
@@ -59,24 +65,33 @@ export async function checkEMIDueAlert() {
 
   const month = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
   const firstOfMonth = `${month}-01`
-  const lastOfMonth = `${month}-31`
+  const lastOfMonth = lastDayOfMonthString(month)
 
-  const { data: emiThisMonth } = await supabase
+  const { data: emiThisMonth, error: monthError } = await supabase
     .from('expenses')
     .select('*')
     .eq('category', 'emi')
     .gte('date', firstOfMonth)
     .lte('date', lastOfMonth)
 
-  if (!emiThisMonth || emiThisMonth.length === 0) {
-    const { data: anyEmi } = await supabase
+  if (monthError) {
+    reportSupabaseError(monthError, 'Current month EMI query')
+    return
+  }
+
+  if (emiThisMonth.length === 0) {
+    const { data: anyEmi, error: recurringError } = await supabase
       .from('expenses')
       .select('*')
       .eq('category', 'emi')
       .eq('recurring', true)
       .limit(1)
 
-    if (anyEmi && anyEmi.length > 0) {
+    if (recurringError) {
+      reportSupabaseError(recurringError, 'Recurring EMI query')
+      return
+    }
+    if (anyEmi.length > 0) {
       showNotification(
         'HPA Cabs - EMI Reminder',
         `EMI of ₹${anyEmi[0].amount.toLocaleString('en-IN')} is due this month`
