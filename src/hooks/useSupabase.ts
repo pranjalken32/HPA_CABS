@@ -434,7 +434,6 @@ export async function updateFuelLog(id: number, updates: Partial<FuelLogRow>) {
       note: fuelNote,
       recurring: false,
       car_id: log.car_id,
-      receipt_url: null,
       fuel_log_id: id,
       service_record_id: null,
     }
@@ -445,7 +444,9 @@ export async function updateFuelLog(id: number, updates: Partial<FuelLogRow>) {
         .eq('id', linkedExpense.id)
       if (expenseError) throw expenseError
     } else {
-      const { error: expenseError } = await supabase.from('expenses').insert(expense)
+      const { error: expenseError } = await supabase
+        .from('expenses')
+        .insert({ ...expense, receipt_url: null })
       if (expenseError) throw expenseError
     }
   } else if (linkedExpense) {
