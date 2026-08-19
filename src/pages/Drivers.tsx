@@ -108,11 +108,11 @@ function WeeklySettlementPanel({
           </div>
           {row.coverage === 'monthly' ? (
             <p className="text-[10px] text-income text-center">
-              {t.coveredByMonthlySettlement} · {row.coveringSettlement?.period_start} → {row.coveringSettlement?.period_end}
+              {t.coveredByMonthlySettlement} · {row.coveringPeriodStart} → {row.coveringPeriodEnd}
             </p>
           ) : row.coverage === 'partial' ? (
             <p className="text-[10px] text-expense text-center">
-              {t.partiallyCoveredByMonthlySettlement} · {row.coveringSettlement?.period_start} → {row.coveringSettlement?.period_end}
+              {t.partiallyCoveredByMonthlySettlement} · {row.coveringPeriodStart} → {row.coveringPeriodEnd}
             </p>
           ) : row.settlement ? (
             <div className="flex items-center justify-between text-[10px] text-text-muted">
