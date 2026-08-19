@@ -4,6 +4,7 @@ import { useExpenses, useIncomes, useCars, useFuelLogs, addFuelLog, useDriverPro
 import { useAuth } from '../AuthContext'
 import { useLanguage } from '../LanguageContext'
 import { LANGUAGES } from '../i18n'
+import { getInclusiveOverlapDays, parseLocalDate } from '../utils/date'
 import { Fuel, Car, Wallet, ArrowUpCircle, ChevronRight, CheckCircle2, Target, History, Globe } from 'lucide-react'
 
 function todayStr(): string {
@@ -62,15 +63,13 @@ export default function DriverHome() {
     const salary = myProfile.monthly_salary ?? 0
     const [fy, fm] = month.split('-').map(Number)
     const totalDays = new Date(fy, fm, 0).getDate()
-    const monthStart = new Date(fy, fm - 1, 1)
-    const monthEnd = new Date(fy, fm - 1, totalDays)
-    const driverStart = new Date(myProfile.start_date)
-    const driverEnd = myProfile.end_date ? new Date(myProfile.end_date) : null
-    if (driverStart > monthEnd) return 0
-    if (driverEnd && driverEnd < monthStart) return 0
-    const effectiveStart = driverStart > monthStart ? driverStart : monthStart
-    const effectiveEnd = driverEnd && driverEnd < monthEnd ? driverEnd : monthEnd
-    const workingDays = Math.floor((effectiveEnd.getTime() - effectiveStart.getTime()) / (1000 * 60 * 60 * 24)) + 1
+    const monthPrefix = `${month}-`
+    const workingDays = getInclusiveOverlapDays(
+      myProfile.start_date,
+      myProfile.end_date,
+      `${monthPrefix}01`,
+      `${monthPrefix}${String(totalDays).padStart(2, '0')}`
+    )
     return Math.round((salary / totalDays) * workingDays)
   })()
 
@@ -93,7 +92,7 @@ export default function DriverHome() {
     const carIncomes = (incomes ?? []).filter((i) => i.car_id === assignedCarId)
     const weekRevenues: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0 }
     for (const inc of carIncomes) {
-      const d = new Date(inc.date)
+      const d = parseLocalDate(inc.date)
       if (d.getFullYear() !== filterYear || d.getMonth() + 1 !== filterMonth) continue
       const day = d.getDate()
       const wk = Math.min(Math.ceil(day / 7), 4)

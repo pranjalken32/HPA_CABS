@@ -1,6 +1,7 @@
 import { useMonthFilter } from '../hooks/useMonthFilter'
 import { useExpenses } from '../hooks/useSupabase'
 import { Users, ArrowUpCircle, ArrowDownCircle, Wallet } from 'lucide-react'
+import { parseLocalDate } from '../utils/date'
 
 export default function DriverSettlement() {
   const { month, setMonth, startDate, endDate } = useMonthFilter()
@@ -18,12 +19,12 @@ export default function DriverSettlement() {
   // Weekly breakdown
   const weekMap: Record<number, { salary: number; advance: number }> = {}
   for (const e of salaryEntries) {
-    const w = Math.ceil(new Date(e.date).getDate() / 7)
+    const w = Math.ceil(parseLocalDate(e.date).getDate() / 7)
     if (!weekMap[w]) weekMap[w] = { salary: 0, advance: 0 }
     weekMap[w].salary += e.amount
   }
   for (const e of advanceEntries) {
-    const w = Math.ceil(new Date(e.date).getDate() / 7)
+    const w = Math.ceil(parseLocalDate(e.date).getDate() / 7)
     if (!weekMap[w]) weekMap[w] = { salary: 0, advance: 0 }
     weekMap[w].advance += e.amount
   }

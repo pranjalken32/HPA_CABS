@@ -18,6 +18,7 @@ import {
 import type { DriverProfileRow } from '../hooks/useSupabase'
 import { Users, Plus, Edit2, Trash2, FileText, Upload, X, Calendar, Phone, IndianRupee, CheckCircle2, Target, TrendingUp } from 'lucide-react'
 import { useLanguage } from '../LanguageContext'
+import { getInclusiveOverlapDays } from '../utils/date'
 
 function todayStr(): string {
   const d = new Date()
@@ -36,22 +37,13 @@ function calcProRatedSalary(
   filterMonth: number
 ): { proRated: number; workingDays: number; totalDays: number } {
   const totalDays = daysInMonth(filterYear, filterMonth)
-  const monthStart = new Date(filterYear, filterMonth - 1, 1)
-  const monthEnd = new Date(filterYear, filterMonth - 1, totalDays)
-
-  const driverStart = new Date(startDate)
-  const driverEnd = endDate ? new Date(endDate) : null
-
-  // Driver hasn't started yet this month
-  if (driverStart > monthEnd) return { proRated: 0, workingDays: 0, totalDays }
-  // Driver left before this month
-  if (driverEnd && driverEnd < monthStart) return { proRated: 0, workingDays: 0, totalDays }
-
-  const effectiveStart = driverStart > monthStart ? driverStart : monthStart
-  const effectiveEnd = driverEnd && driverEnd < monthEnd ? driverEnd : monthEnd
-
-  const workingDays = Math.floor((effectiveEnd.getTime() - effectiveStart.getTime()) / (1000 * 60 * 60 * 24)) + 1
-
+  const monthPrefix = `${filterYear}-${String(filterMonth).padStart(2, '0')}`
+  const workingDays = getInclusiveOverlapDays(
+    startDate,
+    endDate,
+    `${monthPrefix}-01`,
+    `${monthPrefix}-${String(totalDays).padStart(2, '0')}`
+  )
   const proRated = Math.round((monthlySalary / totalDays) * workingDays)
   return { proRated, workingDays, totalDays }
 }

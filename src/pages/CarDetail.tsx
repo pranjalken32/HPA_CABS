@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   useCar, useCarDocuments, useServiceRecords, useIncomes, useExpenses, useFuelLogs,
-  addCarDocument, addServiceRecord, addFuelLog, addExpense,
+  addCarDocument, addServiceRecord, addFuelLog, updateFuelLog,
   deleteCarDocument, deleteServiceRecord, deleteCar, deleteFuelLog,
   uploadCarDocFile, getSignedUrl,
 } from '../hooks/useSupabase'
@@ -15,6 +15,7 @@ import {
   TrendingUp,
   Plus,
   Trash2,
+  Edit2,
   AlertTriangle,
   CheckCircle2,
   Clock,
@@ -76,6 +77,7 @@ export default function CarDetail() {
   const [fuelAmount, setFuelAmount] = useState('')
   const [fuelOdo, setFuelOdo] = useState('')
   const [fuelType, setFuelType] = useState<'cng' | 'petrol'>('cng')
+  const [editingFuelId, setEditingFuelId] = useState<number | null>(null)
   const cngRate = Number(localStorage.getItem('hpa_cng_rate') || '95')
 
   // Doc form
@@ -96,6 +98,14 @@ export default function CarDetail() {
   const [svcDesc, setSvcDesc] = useState('')
   const [svcCost, setSvcCost] = useState('')
   const [svcOdo, setSvcOdo] = useState('')
+
+  const resetFuelForm = () => {
+    setFuelDate(todayStr())
+    setFuelAmount('')
+    setFuelOdo('')
+    setFuelType('cng')
+    setEditingFuelId(null)
+  }
 
   if (!car) {
     return (
@@ -162,17 +172,6 @@ export default function CarDetail() {
       cost,
       odometer_km: Number(svcOdo) || 0,
     })
-    if (cost > 0) {
-      await addExpense({
-        date: svcDate,
-        category: 'service',
-        amount: cost,
-        note: `${car.name} - ${svcDesc.trim()}`,
-        recurring: false,
-        car_id: carId,
-        receipt_url: null,
-      })
-    }
     setSvcDesc('')
     setSvcCost('')
     setSvcOdo('')
@@ -185,13 +184,13 @@ export default function CarDetail() {
     navigate('/cars')
   }
 
-  const handleAddFuel = async (e: React.FormEvent) => {
+  const handleSaveFuel = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!fuelAmount || Number(fuelAmount) <= 0) return
     const totalCost = Number(fuelAmount)
     const price = fuelType === 'cng' ? cngRate : 0
     const qty = price > 0 ? Math.round((totalCost / price) * 100) / 100 : 0
-    await addFuelLog({
+    const fuelData = {
       car_id: carId,
       date: fuelDate,
       quantity_kg: qty,
@@ -199,10 +198,23 @@ export default function CarDetail() {
       total_cost: totalCost,
       odometer_km: fuelType === 'cng' ? (Number(fuelOdo) || 0) : 0,
       fuel_type: fuelType,
-    })
-    setFuelAmount('')
-    setFuelOdo('')
+    }
+    if (editingFuelId !== null) {
+      await updateFuelLog(editingFuelId, fuelData)
+    } else {
+      await addFuelLog(fuelData)
+    }
+    resetFuelForm()
     setShowFuelForm(false)
+  }
+
+  const handleEditFuel = (log: typeof fuelLogs[number]) => {
+    setFuelDate(log.date)
+    setFuelAmount(String(log.total_cost))
+    setFuelOdo(log.odometer_km > 0 ? String(log.odometer_km) : '')
+    setFuelType(log.fuel_type)
+    setEditingFuelId(log.id)
+    setShowFuelForm(true)
   }
 
   // Fuel efficiency calculation (CNG only)
@@ -513,10 +525,18 @@ export default function CarDetail() {
             <h3 className="text-sm font-semibold text-text-secondary">CNG / Fuel Log</h3>
             {isOwner && (
               <button
-                onClick={() => setShowFuelForm(!showFuelForm)}
+                onClick={() => {
+                  if (showFuelForm) {
+                    resetFuelForm()
+                    setShowFuelForm(false)
+                  } else {
+                    setEditingFuelId(null)
+                    setShowFuelForm(true)
+                  }
+                }}
                 className="flex items-center gap-1 text-white text-xs font-semibold"
               >
-                <Plus size={14} /> Add
+                <Plus size={14} /> {editingFuelId !== null ? 'Cancel Edit' : 'Add'}
               </button>
             )}
           </div>
@@ -564,7 +584,7 @@ export default function CarDetail() {
           )}
 
           {showFuelForm && (
-            <form onSubmit={handleAddFuel} className="bg-surface-elevated rounded-xl p-3 border border-border-dim space-y-2">
+            <form onSubmit={handleSaveFuel} className="bg-surface-elevated rounded-xl p-3 border border-border-dim space-y-2">
               {/* Fuel Type Toggle */}
               <div className="flex gap-2">
                 <button
@@ -627,7 +647,7 @@ export default function CarDetail() {
                 type="submit"
                 className="w-full bg-white text-black font-semibold py-2 rounded-lg text-xs"
               >
-                Save Fill-up
+                {editingFuelId !== null ? 'Save Changes' : 'Save Fill-up'}
               </button>
             </form>
           )}
@@ -655,12 +675,22 @@ export default function CarDetail() {
               <div className="flex items-center gap-2 shrink-0">
                 <span className="text-xs font-bold text-expense">₹{fmt(log.total_cost)}</span>
                 {isOwner && (
-                  <button
-                    onClick={() => setDeleteConfirm({ type: 'fuel', id: log.id })}
-                    className="text-text-muted hover:text-expense transition-colors"
-                  >
-                    <Trash2 size={14} />
-                  </button>
+                  <>
+                    <button
+                      onClick={() => handleEditFuel(log)}
+                      className="text-text-muted hover:text-text-primary transition-colors"
+                      title="Edit fuel log"
+                    >
+                      <Edit2 size={14} />
+                    </button>
+                    <button
+                      onClick={() => setDeleteConfirm({ type: 'fuel', id: log.id })}
+                      className="text-text-muted hover:text-expense transition-colors"
+                      title="Delete fuel log"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </>
                 )}
               </div>
             </div>
