@@ -1,6 +1,17 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useMonthFilter } from '../hooks/useMonthFilter'
-import { notifyApp, useIncomes, useExpenses, useGoal, upsertGoal, useDriverProfiles } from '../hooks/useSupabase'
+import {
+  notifyApp,
+  useIncomes,
+  useExpenses,
+  useAllExpenses,
+  useAllIncomes,
+  useGoal,
+  upsertGoal,
+  useDriverProfiles,
+  useDriverSettlements,
+} from '../hooks/useSupabase'
 import {
   BarChart,
   Bar,
@@ -27,9 +38,9 @@ import {
   Target,
 } from 'lucide-react'
 import { generateMonthlySummary, shareViaWhatsApp } from '../utils/share'
-import { formatLocalDate, lastDayOfMonth, parseLocalDate } from '../utils/date'
+import { lastDayOfMonth, parseLocalDate, todayStr } from '../utils/date'
 import { parsePositiveAmount } from '../utils/money'
-import { prorateSalary } from '../utils/calculations'
+import { deriveWeeklySettlementRows, prorateSalary } from '../utils/calculations'
 import { useLanguage } from '../useLanguage'
 
 const PLATFORM_COLORS: Record<string, string> = {
@@ -86,6 +97,7 @@ interface WeekStats {
 export default function Dashboard() {
   const { month, setMonth, startDate, endDate } = useMonthFilter()
   const { t } = useLanguage()
+  const navigate = useNavigate()
   const [expandedWeek, setExpandedWeek] = useState<number | null>(null)
   const [showGoalInput, setShowGoalInput] = useState(false)
   const [goalInput, setGoalInput] = useState('')
@@ -93,7 +105,10 @@ export default function Dashboard() {
 
   const incomes = useIncomes(startDate, endDate)
   const expenses = useExpenses(startDate, endDate)
+  const allIncomes = useAllIncomes()
+  const allExpenses = useAllExpenses()
   const goal = useGoal(month)
+  const settlements = useDriverSettlements({})
 
   const totalRevenue = incomes?.reduce((s, i) => s + i.amount, 0) ?? 0
   const totalExpense = expenses?.reduce((s, e) => s + e.amount, 0) ?? 0
@@ -119,8 +134,8 @@ export default function Dashboard() {
   // Prorate EMI by days elapsed; salary already reflects each driver's employment window.
   const today = new Date()
   const dayOfMonth = today.getDate()
-  const todayStr = formatLocalDate(today)
-  const isCurrentMonth = month === todayStr.slice(0, 7)
+  const todayDateStr = todayStr()
+  const isCurrentMonth = month === todayDateStr.slice(0, 7)
   const daysElapsed = isCurrentMonth ? dayOfMonth : totalDaysInMonth
   const emiTillDate = (emiMonthly / totalDaysInMonth) * daysElapsed
   const salaryTillDate = driverProfiles.reduce(
@@ -130,12 +145,12 @@ export default function Dashboard() {
       d.end_date,
       y,
       m,
-      isCurrentMonth ? todayStr : undefined
+      isCurrentMonth ? todayDateStr : undefined
     ).amount,
     0
   )
   const grossProfit = totalRevenue - cngTotal - petrolTotal - commissionTotal - tollTotal - carWashTotal - fareFraudTotal - emiTillDate - salaryTillDate
-  const currentMonth = todayStr.slice(0, 7)
+  const currentMonth = todayDateStr.slice(0, 7)
   const daysToCount = month < currentMonth
     ? totalDaysInMonth
     : month === currentMonth
@@ -146,6 +161,37 @@ export default function Dashboard() {
   const missingIncomeDays = monthDays.filter((day) => !incomeDates.has(day)).length
   const zeroTripRows = (incomes ?? []).filter((income) => income.date <= (monthDays.at(-1) ?? '') && income.trips === 0).length
   const [goalSubmitting, setGoalSubmitting] = useState(false)
+  const asOfDate = todayDateStr
+  const driverDueCards = driverProfiles
+    .filter((driver) => driver.start_date <= endDate && (!driver.end_date || driver.end_date >= startDate))
+    .map((driver) => {
+      const driverSettlements = settlements.filter(
+        (settlement) => settlement.driver_profile_id === driver.id || settlement.driver_name === driver.name
+      )
+      const rows = deriveWeeklySettlementRows(
+        driver,
+        allIncomes ?? [],
+        allExpenses ?? [],
+        driverSettlements,
+        asOfDate
+      )
+      const latestUnsettledCompleted = rows
+        .filter((row) => (
+          !row.projected &&
+          !row.settlement &&
+          row.weekEnd <= (month === currentMonth ? asOfDate : endDate) &&
+          (month === currentMonth || row.weekEnd >= startDate)
+        ))
+        .at(-1)
+      const projected = month === currentMonth
+        ? rows.find((row) => row.projected && row.weekStart <= endDate && row.weekEnd >= startDate)
+        : undefined
+      return {
+        driver,
+        settleable: latestUnsettledCompleted?.netPayable ?? 0,
+        projected: projected?.basePayable ?? 0,
+      }
+    })
 
   const platformData = Object.entries(
     (incomes ?? []).reduce<Record<string, number>>((acc, i) => {
@@ -351,6 +397,46 @@ export default function Dashboard() {
           <p className="text-xs text-text-muted mt-1">
             {missingIncomeDays} {t.noIncomeDays}, and {zeroTripRows} {t.zeroTripRows}.
           </p>
+        </div>
+      )}
+
+      {driverDueCards.length > 0 && (
+        <div className="bg-surface-card rounded-2xl p-4 border border-border-dim space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-white">{t.driverDue}</h3>
+              <p className="text-[10px] text-text-muted mt-1">
+                {t.driverDueCoverage} {month === currentMonth ? asOfDate : endDate}
+              </p>
+            </div>
+            <Wallet size={16} className="text-accent" />
+          </div>
+          <div className="space-y-2">
+            {driverDueCards.map(({ driver, settleable, projected }) => (
+              <button
+                key={driver.id}
+                onClick={() => navigate('/drivers')}
+                className="w-full bg-surface-elevated rounded-xl p-3 text-left border border-border-dim hover:border-white/30 transition-colors"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm font-semibold text-white">{driver.name}</span>
+                  {settleable > 0 ? (
+                    <span className="text-sm font-bold text-expense">₹{fmt(settleable)}</span>
+                  ) : (
+                    <span className="text-xs font-semibold text-income">{t.settled}</span>
+                  )}
+                </div>
+                {settleable > 0 && (
+                  <p className="text-[10px] text-text-muted mt-1">{t.settleable}</p>
+                )}
+                {projected > 0 && (
+                  <p className="text-[10px] text-text-muted mt-1">
+                    {t.projectedPay}: ₹{fmt(projected)}
+                  </p>
+                )}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 

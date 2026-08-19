@@ -1,5 +1,7 @@
 import {
   getInclusiveOverlapDays,
+  getWeekEnd,
+  getWeeksCoveringRange,
   getWeeksForMonth,
   lastDayOfMonth,
   type WeekRange,
@@ -74,6 +76,99 @@ export function prorateSalaryForWeek(
 
 export function getSettlementCarryForward(netPayable: number, settledAmount?: number): number {
   return settledAmount === undefined ? netPayable : netPayable - settledAmount
+}
+
+export interface WeeklyDriverProfile {
+  id: number
+  name: string
+  start_date: string
+  end_date: string | null
+  monthly_salary: number
+  car_id: number | null
+  incentive_target: number
+  incentive_base: number
+  incentive_step: number
+  incentive_slab: number
+}
+
+export interface WeeklySettlementLike {
+  id: number
+  driver_name: string
+  driver_profile_id: number | null
+  amount: number
+  period_type: 'month' | 'week' | null
+  period_start: string
+  period_end: string
+  settled_date: string
+}
+
+export interface WeeklySettlementRow {
+  weekStart: string
+  weekEnd: string
+  salary: number
+  incentive: number
+  advance: number
+  basePayable: number
+  carryForward: number
+  netPayable: number
+  projected: boolean
+  settlement: WeeklySettlementLike | undefined
+}
+
+export function deriveWeeklySettlementRows(
+  driver: WeeklyDriverProfile,
+  incomes: { date: string; amount: number; car_id: number | null }[],
+  expenses: { date: string; amount: number; category: string; driver_profile_id?: number | null; note?: string | null }[],
+  settlements: WeeklySettlementLike[],
+  asOfDate: string
+): WeeklySettlementRow[] {
+  const rangeEnd = driver.end_date && driver.end_date < asOfDate ? driver.end_date : asOfDate
+  if (driver.start_date > rangeEnd) return []
+
+  let carryForward = 0
+  return getWeeksCoveringRange(driver.start_date, rangeEnd)
+    .filter((week) => week.start <= getWeekEnd(asOfDate))
+    .map((week) => {
+      const salary = prorateSalaryForWeek(
+        driver.monthly_salary,
+        driver.start_date,
+        driver.end_date,
+        week
+      ).amount
+      const incentive = calculateWeeklyIncentiveForRange(
+        incomes,
+        driver.car_id,
+        driver.incentive_target,
+        driver.incentive_base,
+        driver.incentive_step,
+        driver.incentive_slab,
+        week
+      ).incentive
+      const advance = expenses
+        .filter((expense) => expense.category === 'driver_advance' && (
+          expense.driver_profile_id === driver.id ||
+          expense.note?.toLowerCase().includes(driver.name.toLowerCase())
+        ) && expense.date >= week.start && expense.date <= week.end)
+        .reduce((sum, expense) => sum + expense.amount, 0)
+      const settlement = settlements.find(
+        (candidate) => (candidate.period_type ?? 'month') === 'week' && candidate.period_start === week.start
+      )
+      const basePayable = salary + incentive - advance
+      const row: WeeklySettlementRow = {
+        weekStart: week.start,
+        weekEnd: week.end,
+        salary,
+        incentive,
+        advance,
+        basePayable,
+        carryForward,
+        netPayable: basePayable + carryForward,
+        projected: week.end > asOfDate,
+        settlement,
+      }
+      carryForward = getSettlementCarryForward(row.netPayable, settlement?.amount)
+      return row
+    })
 }
 
 export interface WeekIncentive {
