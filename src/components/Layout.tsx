@@ -1,9 +1,10 @@
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { LayoutDashboard, PlusCircle, MinusCircle, Car, Users, MoreHorizontal } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-import { useAuth } from '../AuthContext'
-import { useLanguage } from '../LanguageContext'
+import { useAuth } from '../useAuth'
+import { useLanguage } from '../useLanguage'
 import Logo from './Logo'
+import AppNotifications from './AppNotifications'
 
 type NavItem = { to: string; icon: LucideIcon; labelKey: 'dashboard' | 'income' | 'expenses' | 'cars' | 'drivers' | 'more'; match?: string }
 
@@ -23,6 +24,7 @@ export default function Layout() {
 
   return (
     <div className="min-h-screen bg-surface pb-20">
+      <AppNotifications />
       <header className="bg-surface-card border-b border-border-dim px-4 py-3 sticky top-0 z-30">
         <div className="max-w-lg mx-auto flex items-center gap-2">
           <Logo size={32} />

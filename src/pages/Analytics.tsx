@@ -1,7 +1,9 @@
 import { useState, useMemo } from 'react'
 import { useIncomes, useExpenses, useDriverProfiles } from '../hooks/useSupabase'
 import { exportToExcel, exportToPDF } from '../utils/export'
-import { getInclusiveOverlapDays, parseLocalDate } from '../utils/date'
+import { parseLocalDate } from '../utils/date'
+import { fmt } from '../utils/money'
+import { prorateSalary } from '../utils/calculations'
 import {
   BarChart,
   Bar,
@@ -56,10 +58,6 @@ const tooltipStyle = {
     color: '#ffffff',
     fontSize: '12px',
   },
-}
-
-function fmt(n: number): string {
-  return n.toLocaleString('en-IN')
 }
 
 function getMonthLabel(monthStr: string): string {
@@ -203,24 +201,26 @@ export default function Analytics() {
   }))
 
   // ---- Daily revenue timeline (last 30 days) ----
-  const dailyMap: Record<string, { revenue: number; expense: number; trips: number }> = {}
-  for (const i of allIncomes) {
-    if (!dailyMap[i.date]) dailyMap[i.date] = { revenue: 0, expense: 0, trips: 0 }
-    dailyMap[i.date].revenue += i.amount
-    dailyMap[i.date].trips += i.trips
-  }
-  for (const e of allExpenses) {
-    if (!dailyMap[e.date]) dailyMap[e.date] = { revenue: 0, expense: 0, trips: 0 }
-    dailyMap[e.date].expense += e.amount
-  }
-  const dailyTimelineAll = Object.entries(dailyMap)
-    .map(([date, data]) => ({
-      date,
-      label: date.slice(5),
-      ...data,
-      profit: data.revenue - data.expense,
-    }))
-    .sort((a, b) => a.date.localeCompare(b.date))
+  const dailyTimelineAll = useMemo(() => {
+    const dailyMap: Record<string, { revenue: number; expense: number; trips: number }> = {}
+    for (const i of allIncomes) {
+      if (!dailyMap[i.date]) dailyMap[i.date] = { revenue: 0, expense: 0, trips: 0 }
+      dailyMap[i.date].revenue += i.amount
+      dailyMap[i.date].trips += i.trips
+    }
+    for (const e of allExpenses) {
+      if (!dailyMap[e.date]) dailyMap[e.date] = { revenue: 0, expense: 0, trips: 0 }
+      dailyMap[e.date].expense += e.amount
+    }
+    return Object.entries(dailyMap)
+      .map(([date, data]) => ({
+        date,
+        label: date.slice(5),
+        ...data,
+        profit: data.revenue - data.expense,
+      }))
+      .toSorted((a, b) => a.date.localeCompare(b.date))
+  }, [allIncomes, allExpenses])
 
   const dailyTimeline = dailyTimelineAll.map(d => ({ date: d.label, revenue: d.revenue, expense: d.expense, profit: d.profit, trips: d.trips }))
 
@@ -279,17 +279,10 @@ export default function Analytics() {
   const analyticsDriverProfiles = useDriverProfiles()
   const analyticsSalary = months.reduce((total, mo) => {
     const [aY, aM] = mo.split('-').map(Number)
-    const aTotalDays = new Date(aY, aM, 0).getDate()
-    const monthPrefix = `${mo}-`
-    return total + analyticsDriverProfiles.reduce((sum, d) => {
-      const wd = getInclusiveOverlapDays(
-        d.start_date,
-        d.end_date,
-        `${monthPrefix}01`,
-        `${monthPrefix}${String(aTotalDays).padStart(2, '0')}`
-      )
-      return sum + Math.round((d.monthly_salary / aTotalDays) * wd)
-    }, 0)
+    return total + analyticsDriverProfiles.reduce(
+      (sum, d) => sum + prorateSalary(d.monthly_salary, d.start_date, d.end_date, aY, aM).amount,
+      0
+    )
   }, 0)
   const analyticsGrossProfit = totalRevenue - analyticsCng - analyticsPetrol - analyticsCommission - analyticsToll - analyticsCarWash - analyticsFareFraud - analyticsEmi - analyticsSalary
 
@@ -297,28 +290,28 @@ export default function Analytics() {
   const alerts: { type: 'warning' | 'danger' | 'info'; message: string }[] = []
 
   // Low revenue days
-  const lowRevDays = Object.entries(dailyMap)
-    .filter(([, d]) => d.revenue > 0 && d.revenue < 2500)
+  const lowRevDays = dailyTimelineAll
+    .filter((d) => d.revenue > 0 && d.revenue < 2500)
   if (lowRevDays.length > 0) {
     alerts.push({
       type: 'warning',
-      message: `${lowRevDays.length} day(s) with revenue below ₹2,500 — worst: ₹${fmt(Math.min(...lowRevDays.map(([, d]) => d.revenue)))}`,
+      message: `${lowRevDays.length} day(s) with revenue below ₹2,500 — worst: ₹${fmt(Math.min(...lowRevDays.map((d) => d.revenue)))}`,
     })
   }
 
   // Negative profit days
-  const negProfitDays = Object.entries(dailyMap)
-    .filter(([, d]) => (d.revenue - d.expense) < 0)
+  const negProfitDays = dailyTimelineAll
+    .filter((d) => d.profit < 0)
   if (negProfitDays.length > 0) {
     alerts.push({
       type: 'danger',
-      message: `${negProfitDays.length} day(s) with negative profit — total loss: ₹${fmt(negProfitDays.reduce((s, [, d]) => s + (d.expense - d.revenue), 0))}`,
+      message: `${negProfitDays.length} day(s) with negative profit — total loss: ₹${fmt(negProfitDays.reduce((s, d) => s - d.profit, 0))}`,
     })
   }
 
   // Day-off pattern
   const totalPossibleDays = Math.ceil(
-    (new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000
+    (parseLocalDate(endDate).getTime() - parseLocalDate(startDate).getTime()) / 86400000
   ) + 1
   const daysOff = totalPossibleDays - uniqueDays
   if (daysOff > 0) {

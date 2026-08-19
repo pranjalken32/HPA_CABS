@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { Routes, Route } from 'react-router-dom'
-import { useAuth } from './AuthContext'
+import { useAuth } from './useAuth'
 import Layout from './components/Layout'
 import DriverLayout from './components/DriverLayout'
 import Dashboard from './pages/Dashboard'
@@ -15,7 +15,7 @@ import DriverHome from './pages/DriverHome'
 import More from './pages/More'
 import Login from './pages/Login'
 import Logo from './components/Logo'
-import { processRecurringExpenses } from './hooks/useSupabase'
+import { processRecurringExpenses, reportSupabaseError } from './hooks/useSupabase'
 import { runAllAlerts } from './utils/notifications'
 
 export default function App() {
@@ -23,8 +23,8 @@ export default function App() {
 
   useEffect(() => {
     if (user && role === 'owner') {
-      processRecurringExpenses()
-      runAllAlerts()
+      processRecurringExpenses().catch((error) => reportSupabaseError(error, 'Recurring expense processing'))
+      runAllAlerts().catch((error) => reportSupabaseError(error, 'Notification checks'))
     }
   }, [user, role])
 

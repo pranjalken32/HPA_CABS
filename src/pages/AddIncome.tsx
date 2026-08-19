@@ -1,16 +1,11 @@
 import { useState } from 'react'
-import { addIncome, useCars } from '../hooks/useSupabase'
-import { useLanguage } from '../LanguageContext'
+import { addIncome, findDuplicateIncome, notifyApp, useCars } from '../hooks/useSupabase'
+import { useLanguage } from '../useLanguage'
 import { CheckCircle2, Car } from 'lucide-react'
+import { isValidCalendarDate, todayStr } from '../utils/date'
+import { parseNonNegativeNumber, parsePositiveAmount } from '../utils/money'
 
 const PLATFORMS = ['rapido', 'ola', 'uber', 'namma_yatri', 'cash', 'refund', 'other']
-
-function todayStr(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
-    d.getDate()
-  ).padStart(2, '0')}`
-}
 
 export default function AddIncome() {
   const cars = useCars()
@@ -27,24 +22,30 @@ export default function AddIncome() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (submitting || saved) return
-    if (!amount || Number(amount) <= 0) return
+    const parsedAmount = parsePositiveAmount(amount)
+    const parsedTrips = trips === '' ? 0 : parseNonNegativeNumber(trips)
+    if (!isValidCalendarDate(date) || parsedAmount === null || parsedTrips === null) {
+      notifyApp('error', 'Enter a valid date, amount, and trip count.')
+      return
+    }
     setSubmitting(true)
-    await addIncome({
-      date,
-      platform,
-      amount: Number(amount),
-      trips: Number(trips) || 0,
-      note,
-      car_id: carId,
-    })
-    setSubmitting(false)
-    setSaved(true)
-    setTimeout(() => {
-      setSaved(false)
-      setAmount('')
-      setTrips('')
-      setNote('')
-    }, 1500)
+    try {
+      const row = { date, platform, amount: parsedAmount, trips: parsedTrips, note, car_id: carId }
+      if (navigator.onLine && await findDuplicateIncome(row) && !confirm('A matching income already exists. Save another entry?')) return
+      await addIncome(row)
+      setSaved(true)
+      setTimeout(() => {
+        setSaved(false)
+        setAmount('')
+        setTrips('')
+        setNote('')
+      }, 1500)
+    } catch (error) {
+      notifyApp('error', 'Income could not be saved.')
+      console.error('Income save failed:', error)
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (

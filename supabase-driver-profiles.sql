@@ -20,11 +20,5 @@ create table if not exists driver_profiles (
 );
 
 alter table driver_profiles enable row level security;
-drop policy if exists "Authenticated users can read driver_profiles" on driver_profiles;
-create policy "Authenticated users can read driver_profiles" on driver_profiles for select using (auth.role() = 'authenticated');
-drop policy if exists "Authenticated users can insert driver_profiles" on driver_profiles;
-create policy "Authenticated users can insert driver_profiles" on driver_profiles for insert with check (auth.role() = 'authenticated');
-drop policy if exists "Authenticated users can update driver_profiles" on driver_profiles;
-create policy "Authenticated users can update driver_profiles" on driver_profiles for update using (auth.role() = 'authenticated');
-drop policy if exists "Authenticated users can delete driver_profiles" on driver_profiles;
-create policy "Authenticated users can delete driver_profiles" on driver_profiles for delete using (auth.role() = 'authenticated');
+-- Apply supabase-rls-roles.sql after creating this table.
+-- Apply supabase-data-constraints.sql after the role policies.

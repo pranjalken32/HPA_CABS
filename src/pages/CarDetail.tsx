@@ -4,10 +4,10 @@ import {
   useCar, useCarDocuments, useServiceRecords, useIncomes, useExpenses, useFuelLogs,
   addCarDocument, addServiceRecord, addFuelLog, updateFuelLog,
   deleteCarDocument, deleteServiceRecord, deleteCar, deleteFuelLog,
-  uploadCarDocFile, getSignedUrl,
+  findDuplicateExpense, notifyApp, uploadCarDocFile, getSignedUrl,
 } from '../hooks/useSupabase'
-import { useAuth } from '../AuthContext'
-import { useLanguage } from '../LanguageContext'
+import { useAuth } from '../useAuth'
+import { useLanguage } from '../useLanguage'
 import {
   ArrowLeft,
   FileText,
@@ -23,6 +23,8 @@ import {
   Upload,
   Eye,
 } from 'lucide-react'
+import { isValidCalendarDate, parseLocalDate, todayStr } from '../utils/date'
+import { parseNonNegativeNumber, parsePositiveAmount, fmt } from '../utils/money'
 
 const DOC_TYPES = [
   'Insurance',
@@ -34,20 +36,11 @@ const DOC_TYPES = [
   'Other',
 ]
 
-function todayStr(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
 function daysUntil(dateStr: string): number {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
-  const target = new Date(dateStr)
+  const target = parseLocalDate(dateStr)
   return Math.ceil((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-}
-
-function fmt(n: number): string {
-  return n.toLocaleString('en-IN')
 }
 
 type Tab = 'docs' | 'recovery' | 'service' | 'fuel'
@@ -87,6 +80,9 @@ export default function CarDetail() {
   const [docNote, setDocNote] = useState('')
   const [docFile, setDocFile] = useState<File | null>(null)
   const [docUploading, setDocUploading] = useState(false)
+  const [docSubmitting, setDocSubmitting] = useState(false)
+  const [serviceSubmitting, setServiceSubmitting] = useState(false)
+  const [fuelSubmitting, setFuelSubmitting] = useState(false)
 
   // Delete confirmation
   const [deleteConfirm, setDeleteConfirm] = useState<{ type: 'fuel' | 'service' | 'doc'; id: number } | null>(null)
@@ -126,7 +122,7 @@ export default function CarDetail() {
   // Estimate time to recover based on monthly average
   const monthsActive = (() => {
     if (carIncomes.length === 0) return 0
-    const dates = carIncomes.map((i) => new Date(i.date).getTime())
+    const dates = carIncomes.map((i) => parseLocalDate(i.date).getTime())
     const earliest = Math.min(...dates)
     const latest = Math.max(...dates)
     const diffMs = latest - earliest
@@ -137,76 +133,148 @@ export default function CarDetail() {
 
   const handleAddDoc = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!docExpiry) return
-    let file_url: string | null = null
-    if (docFile) {
-      setDocUploading(true)
-      try {
-        file_url = await uploadCarDocFile(docFile)
-      } catch {
-        // Continue without file if upload fails
-      }
-      setDocUploading(false)
+    if (!isValidCalendarDate(docExpiry)) {
+      notifyApp('error', 'Enter a valid document expiry date.')
+      return
     }
-    await addCarDocument({
-      car_id: carId,
-      doc_type: docType,
-      expiry_date: docExpiry,
-      note: docNote.trim(),
-      file_url,
-    })
-    setDocExpiry('')
-    setDocNote('')
-    setDocFile(null)
-    setShowDocForm(false)
+    setDocSubmitting(true)
+    try {
+      let file_url: string | null = null
+      if (docFile) {
+        setDocUploading(true)
+        try {
+          file_url = await uploadCarDocFile(docFile)
+        } catch (error) {
+          console.error('Document upload failed:', error)
+          notifyApp('error', 'Document upload failed. The document was not saved.')
+          return
+        } finally {
+          setDocUploading(false)
+        }
+      }
+      await addCarDocument({
+        car_id: carId,
+        doc_type: docType,
+        expiry_date: docExpiry,
+        note: docNote.trim(),
+        file_url,
+      })
+      setDocExpiry('')
+      setDocNote('')
+      setDocFile(null)
+      setShowDocForm(false)
+    } catch (error) {
+      console.error('Document save failed:', error)
+      notifyApp('error', 'Document could not be saved.')
+    } finally {
+      setDocSubmitting(false)
+    }
   }
 
   const handleAddService = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!svcDesc.trim()) return
-    const cost = Number(svcCost) || 0
-    await addServiceRecord({
-      car_id: carId,
-      date: svcDate,
-      description: svcDesc.trim(),
-      cost,
-      odometer_km: Number(svcOdo) || 0,
-    })
-    setSvcDesc('')
-    setSvcCost('')
-    setSvcOdo('')
-    setShowServiceForm(false)
+    const cost = parsePositiveAmount(svcCost)
+    const odometer = svcOdo === '' ? 0 : parseNonNegativeNumber(svcOdo)
+    if (!svcDesc.trim() || !isValidCalendarDate(svcDate) || cost === null || odometer === null) {
+      notifyApp('error', 'Enter a valid service date, description, positive cost, and odometer.')
+      return
+    }
+    setServiceSubmitting(true)
+    try {
+      await addServiceRecord({ car_id: carId, date: svcDate, description: svcDesc.trim(), cost, odometer_km: odometer })
+      setSvcDesc('')
+      setSvcCost('')
+      setSvcOdo('')
+      setShowServiceForm(false)
+    } catch (error) {
+      console.error('Service save failed:', error)
+      notifyApp('error', 'Service record could not be saved.')
+    } finally {
+      setServiceSubmitting(false)
+    }
   }
 
   const handleDeleteCar = async () => {
-    if (!confirm(`Delete "${car.name}" and all its data?`)) return
-    await deleteCar(carId)
-    navigate('/cars')
+    if (!confirm(`Delete "${car.name}" and its car-only records?`)) return
+    try {
+      const result = await deleteCar(carId)
+      if (!result.deleted) {
+        notifyApp(
+          'error',
+          `${t.carDeleteBlocked} Found ${result.incomeCount} income row(s) and ${result.expenseCount} expense row(s).`
+        )
+        return
+      }
+      navigate('/cars')
+    } catch (error) {
+      console.error('Car deletion failed:', error)
+      notifyApp('error', 'Car could not be deleted.')
+    }
   }
 
   const handleSaveFuel = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!fuelAmount || Number(fuelAmount) <= 0) return
-    const totalCost = Number(fuelAmount)
+    if (!navigator.onLine) {
+      notifyApp('error', t.connectionRequired)
+      return
+    }
+    const totalCost = parsePositiveAmount(fuelAmount)
+    if (totalCost === null || !isValidCalendarDate(fuelDate)) {
+      notifyApp('error', 'Enter a valid fuel date and amount.')
+      return
+    }
     const price = fuelType === 'cng' ? cngRate : 0
     const qty = price > 0 ? Math.round((totalCost / price) * 100) / 100 : 0
-    const fuelData = {
+    const odometer = fuelType === 'cng' ? parseNonNegativeNumber(fuelOdo) : 0
+    if (fuelType === 'cng' && (odometer === null || odometer <= 0)) {
+      notifyApp('error', 'Enter a valid odometer reading for CNG.')
+      return
+    }
+    const previous = fuelLogs
+      .filter((log) => log.fuel_type !== 'petrol' && log.odometer_km > 0 && log.id !== editingFuelId)
+      .sort((a, b) => `${b.date}-${b.id}`.localeCompare(`${a.date}-${a.id}`))[0]
+    if (previous && odometer !== null && odometer <= previous.odometer_km) {
+      notifyApp('error', 'Odometer must be higher than the previous CNG fill.')
+      return
+    }
+    const efficiency = previous && odometer !== null && qty > 0 ? (odometer - previous.odometer_km) / qty : null
+    if (efficiency !== null && (efficiency < 5 || efficiency > 30) && !confirm(`This fill implies ${efficiency.toFixed(1)} km/kg, outside the usual range. Save anyway?`)) return
+    setFuelSubmitting(true)
+    try {
+      const fuelData = {
       car_id: carId,
       date: fuelDate,
       quantity_kg: qty,
       price_per_kg: price,
       total_cost: totalCost,
-      odometer_km: fuelType === 'cng' ? (Number(fuelOdo) || 0) : 0,
+      odometer_km: fuelType === 'cng' ? (odometer ?? 0) : 0,
       fuel_type: fuelType,
     }
-    if (editingFuelId !== null) {
-      await updateFuelLog(editingFuelId, fuelData)
-    } else {
-      await addFuelLog(fuelData)
+      if (editingFuelId !== null) {
+        await updateFuelLog(editingFuelId, fuelData)
+      } else {
+        if (navigator.onLine && await findDuplicateExpense({ date: fuelDate, category: 'fuel', amount: totalCost }) && !confirm('A matching fuel expense already exists. Save another fill?')) return
+        await addFuelLog(fuelData)
+      }
+      resetFuelForm()
+      setShowFuelForm(false)
+    } catch (error) {
+      console.error('Fuel save failed:', error)
+      notifyApp('error', 'Fuel entry could not be saved.')
+    } finally {
+      setFuelSubmitting(false)
     }
-    resetFuelForm()
-    setShowFuelForm(false)
   }
+
+  const previousCngFill = [...fuelLogs]
+    .filter((log) => log.fuel_type !== 'petrol' && log.odometer_km > 0 && log.id !== editingFuelId)
+    .sort((a, b) => `${b.date}-${b.id}`.localeCompare(`${a.date}-${a.id}`))[0]
+  const previewAmount = parsePositiveAmount(fuelAmount)
+  const previewOdometer = parseNonNegativeNumber(fuelOdo)
+  const previewQuantity = previewAmount !== null && cngRate > 0 ? previewAmount / cngRate : 0
+  const previewEfficiency = previousCngFill && previewOdometer !== null && previewQuantity > 0
+    ? (previewOdometer - previousCngFill.odometer_km) / previewQuantity
+    : null
 
   const handleEditFuel = (log: typeof fuelLogs[number]) => {
     setFuelDate(log.date)
@@ -361,10 +429,10 @@ export default function CarDetail() {
               </div>
               <button
                 type="submit"
-                disabled={docUploading}
+                disabled={docUploading || docSubmitting}
                 className="w-full bg-white text-black font-semibold py-2 rounded-lg text-xs disabled:opacity-50"
               >
-                {docUploading ? 'Uploading...' : 'Save Document'}
+                {docUploading || docSubmitting ? 'Saving...' : 'Save Document'}
               </button>
             </form>
           )}
@@ -414,8 +482,13 @@ export default function CarDetail() {
                   {doc.file_url && (
                     <button
                       onClick={async () => {
-                        const url = await getSignedUrl(doc.file_url!)
-                        if (url) window.open(url, '_blank')
+                        try {
+                          const url = await getSignedUrl(doc.file_url!)
+                          if (url) window.open(url, '_blank')
+                        } catch (error) {
+                          console.error('Document link failed:', error)
+                          notifyApp('error', 'Document could not be opened.')
+                        }
                       }}
                       className="text-text-muted hover:text-income transition-colors"
                       title="View document"
@@ -643,11 +716,17 @@ export default function CarDetail() {
                   />
                 </div>
               )}
+              {fuelType === 'cng' && previewEfficiency !== null && Number.isFinite(previewEfficiency) && previewEfficiency > 0 && (
+                <p className="text-xs text-text-secondary">
+                  {t.estimatedEfficiency}: {previewEfficiency.toFixed(1)} km/kg
+                </p>
+              )}
               <button
                 type="submit"
-                className="w-full bg-white text-black font-semibold py-2 rounded-lg text-xs"
+                disabled={fuelSubmitting}
+                className="w-full bg-white text-black font-semibold py-2 rounded-lg text-xs disabled:opacity-50"
               >
-                {editingFuelId !== null ? 'Save Changes' : 'Save Fill-up'}
+                {fuelSubmitting ? 'Saving...' : editingFuelId !== null ? 'Save Changes' : 'Save Fill-up'}
               </button>
             </form>
           )}
@@ -760,9 +839,10 @@ export default function CarDetail() {
               </div>
               <button
                 type="submit"
-                className="w-full bg-white text-black font-semibold py-2 rounded-lg text-xs"
+                disabled={serviceSubmitting}
+                className="w-full bg-white text-black font-semibold py-2 rounded-lg text-xs disabled:opacity-50"
               >
-                Save Record
+                {serviceSubmitting ? 'Saving...' : 'Save Record'}
               </button>
             </form>
           )}
@@ -826,9 +906,12 @@ export default function CarDetail() {
                 onClick={async () => {
                   setDeleting(true)
                   try {
-                    if (deleteConfirm.type === 'fuel') await deleteFuelLog(deleteConfirm.id)
-                    else if (deleteConfirm.type === 'service') await deleteServiceRecord(deleteConfirm.id)
-                    else await deleteCarDocument(deleteConfirm.id)
+                  if (deleteConfirm.type === 'fuel') await deleteFuelLog(deleteConfirm.id)
+                  else if (deleteConfirm.type === 'service') await deleteServiceRecord(deleteConfirm.id)
+                  else await deleteCarDocument(deleteConfirm.id)
+                  } catch (error) {
+                    console.error('Record deletion failed:', error)
+                    notifyApp('error', 'The record could not be deleted.')
                   } finally {
                     setDeleting(false)
                     setDeleteConfirm(null)

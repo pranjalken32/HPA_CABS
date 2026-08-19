@@ -3,6 +3,9 @@
 -- Run this ONCE in Supabase SQL Editor:
 -- https://supabase.com/dashboard/project/ueiixjkfxbzyuknrkmtk/sql/new
 -- ============================================
+-- This file creates tables and storage only. Do not add blanket
+-- auth.role() = 'authenticated' policies here. After this setup, apply
+-- supabase-rls-roles.sql and supabase-data-constraints.sql.
 
 -- ========== STEP 1: Core Tables ==========
 
@@ -20,14 +23,6 @@ create table if not exists incomes (
 );
 
 alter table incomes enable row level security;
-drop policy if exists "Authenticated users can read incomes" on incomes;
-create policy "Authenticated users can read incomes" on incomes for select using (auth.role() = 'authenticated');
-drop policy if exists "Authenticated users can insert incomes" on incomes;
-create policy "Authenticated users can insert incomes" on incomes for insert with check (auth.role() = 'authenticated');
-drop policy if exists "Authenticated users can update incomes" on incomes;
-create policy "Authenticated users can update incomes" on incomes for update using (auth.role() = 'authenticated');
-drop policy if exists "Authenticated users can delete incomes" on incomes;
-create policy "Authenticated users can delete incomes" on incomes for delete using (auth.role() = 'authenticated');
 
 -- 2. Expenses
 create table if not exists expenses (
@@ -44,14 +39,6 @@ create table if not exists expenses (
 );
 
 alter table expenses enable row level security;
-drop policy if exists "Authenticated users can read expenses" on expenses;
-create policy "Authenticated users can read expenses" on expenses for select using (auth.role() = 'authenticated');
-drop policy if exists "Authenticated users can insert expenses" on expenses;
-create policy "Authenticated users can insert expenses" on expenses for insert with check (auth.role() = 'authenticated');
-drop policy if exists "Authenticated users can update expenses" on expenses;
-create policy "Authenticated users can update expenses" on expenses for update using (auth.role() = 'authenticated');
-drop policy if exists "Authenticated users can delete expenses" on expenses;
-create policy "Authenticated users can delete expenses" on expenses for delete using (auth.role() = 'authenticated');
 
 -- 3. Cars
 create table if not exists cars (
@@ -64,14 +51,6 @@ create table if not exists cars (
 );
 
 alter table cars enable row level security;
-drop policy if exists "Authenticated users can read cars" on cars;
-create policy "Authenticated users can read cars" on cars for select using (auth.role() = 'authenticated');
-drop policy if exists "Authenticated users can insert cars" on cars;
-create policy "Authenticated users can insert cars" on cars for insert with check (auth.role() = 'authenticated');
-drop policy if exists "Authenticated users can update cars" on cars;
-create policy "Authenticated users can update cars" on cars for update using (auth.role() = 'authenticated');
-drop policy if exists "Authenticated users can delete cars" on cars;
-create policy "Authenticated users can delete cars" on cars for delete using (auth.role() = 'authenticated');
 
 -- 4. Car Documents
 create table if not exists car_documents (
@@ -85,14 +64,6 @@ create table if not exists car_documents (
 );
 
 alter table car_documents enable row level security;
-drop policy if exists "Authenticated users can read car_documents" on car_documents;
-create policy "Authenticated users can read car_documents" on car_documents for select using (auth.role() = 'authenticated');
-drop policy if exists "Authenticated users can insert car_documents" on car_documents;
-create policy "Authenticated users can insert car_documents" on car_documents for insert with check (auth.role() = 'authenticated');
-drop policy if exists "Authenticated users can update car_documents" on car_documents;
-create policy "Authenticated users can update car_documents" on car_documents for update using (auth.role() = 'authenticated');
-drop policy if exists "Authenticated users can delete car_documents" on car_documents;
-create policy "Authenticated users can delete car_documents" on car_documents for delete using (auth.role() = 'authenticated');
 
 -- 5. Service Records
 create table if not exists service_records (
@@ -107,14 +78,6 @@ create table if not exists service_records (
 );
 
 alter table service_records enable row level security;
-drop policy if exists "Authenticated users can read service_records" on service_records;
-create policy "Authenticated users can read service_records" on service_records for select using (auth.role() = 'authenticated');
-drop policy if exists "Authenticated users can insert service_records" on service_records;
-create policy "Authenticated users can insert service_records" on service_records for insert with check (auth.role() = 'authenticated');
-drop policy if exists "Authenticated users can update service_records" on service_records;
-create policy "Authenticated users can update service_records" on service_records for update using (auth.role() = 'authenticated');
-drop policy if exists "Authenticated users can delete service_records" on service_records;
-create policy "Authenticated users can delete service_records" on service_records for delete using (auth.role() = 'authenticated');
 
 -- ========== STEP 2: Profiles (user names + roles) ==========
 
@@ -126,8 +89,6 @@ create table if not exists profiles (
 );
 
 alter table profiles enable row level security;
-drop policy if exists "Authenticated users can read profiles" on profiles;
-create policy "Authenticated users can read profiles" on profiles for select using (auth.role() = 'authenticated');
 
 -- Auto-create profile on signup
 create or replace function handle_new_user()
@@ -177,14 +138,6 @@ create table if not exists fuel_logs (
 );
 
 alter table fuel_logs enable row level security;
-drop policy if exists "Authenticated users can read fuel_logs" on fuel_logs;
-create policy "Authenticated users can read fuel_logs" on fuel_logs for select using (auth.role() = 'authenticated');
-drop policy if exists "Authenticated users can insert fuel_logs" on fuel_logs;
-create policy "Authenticated users can insert fuel_logs" on fuel_logs for insert with check (auth.role() = 'authenticated');
-drop policy if exists "Authenticated users can update fuel_logs" on fuel_logs;
-create policy "Authenticated users can update fuel_logs" on fuel_logs for update using (auth.role() = 'authenticated');
-drop policy if exists "Authenticated users can delete fuel_logs" on fuel_logs;
-create policy "Authenticated users can delete fuel_logs" on fuel_logs for delete using (auth.role() = 'authenticated');
 create index if not exists idx_fuel_logs_car on fuel_logs(car_id, date);
 
 -- Link auto-created expenses to their source records
@@ -208,29 +161,11 @@ create table if not exists goals (
 );
 
 alter table goals enable row level security;
-drop policy if exists "Authenticated users can read goals" on goals;
-create policy "Authenticated users can read goals" on goals for select using (auth.role() = 'authenticated');
-drop policy if exists "Authenticated users can insert goals" on goals;
-create policy "Authenticated users can insert goals" on goals for insert with check (auth.role() = 'authenticated');
-drop policy if exists "Authenticated users can update goals" on goals;
-create policy "Authenticated users can update goals" on goals for update using (auth.role() = 'authenticated');
-drop policy if exists "Authenticated users can delete goals" on goals;
-create policy "Authenticated users can delete goals" on goals for delete using (auth.role() = 'authenticated');
 
 -- Receipt storage bucket
 insert into storage.buckets (id, name, public)
 values ('receipts', 'receipts', false)
 on conflict (id) do nothing;
-
-drop policy if exists "Authenticated users can upload receipts" on storage.objects;
-create policy "Authenticated users can upload receipts" on storage.objects for insert
-  with check (bucket_id = 'receipts' and auth.role() = 'authenticated');
-drop policy if exists "Authenticated users can view receipts" on storage.objects;
-create policy "Authenticated users can view receipts" on storage.objects for select
-  using (bucket_id = 'receipts' and auth.role() = 'authenticated');
-drop policy if exists "Authenticated users can delete receipts" on storage.objects;
-create policy "Authenticated users can delete receipts" on storage.objects for delete
-  using (bucket_id = 'receipts' and auth.role() = 'authenticated');
 
 -- Add receipt_url to expenses (if not already there)
 alter table expenses add column if not exists receipt_url text;
@@ -239,3 +174,4 @@ alter table expenses add column if not exists receipt_url text;
 -- Now go to Authentication → Users → Add user to create accounts.
 -- Set role to 'driver' for driver accounts:
 --   UPDATE profiles SET role = 'driver' WHERE display_name = 'driver_name';
+-- Then apply supabase-rls-roles.sql and supabase-data-constraints.sql.

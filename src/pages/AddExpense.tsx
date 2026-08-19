@@ -1,8 +1,10 @@
 import { useState, useRef } from 'react'
-import { addExpense, uploadReceipt, useCars, useDriverProfiles } from '../hooks/useSupabase'
+import { addExpense, findDuplicateExpense, notifyApp, uploadReceipt, useCars, useDriverProfiles } from '../hooks/useSupabase'
 import type { DriverProfileRow } from '../supabase'
-import { useLanguage } from '../LanguageContext'
+import { useLanguage } from '../useLanguage'
 import { CheckCircle2, Camera, X, Car } from 'lucide-react'
+import { isValidCalendarDate, todayStr } from '../utils/date'
+import { parsePositiveAmount } from '../utils/money'
 
 const CATEGORIES = [
   'commission',
@@ -35,13 +37,6 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 const COMMISSION_PLATFORMS = ['Ola', 'Uber', 'Rapido', 'Namma Yatri', 'Other']
 
-function todayStr(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
-    d.getDate()
-  ).padStart(2, '0')}`
-}
-
 function isEmployedOn(driver: DriverProfileRow, date: string): boolean {
   return driver.start_date <= date && (driver.end_date === null || date <= driver.end_date)
 }
@@ -71,47 +66,73 @@ export default function AddExpense() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (submitting || saved) return
-    if (!amount || Number(amount) <= 0) return
-    if (isDriverCategory && !selectedDriverId) return
-    setSubmitting(true)
-    let receipt_url: string | null = null
-    if (receiptFile) {
-      setUploading(true)
-      try {
-        receipt_url = await uploadReceipt(receiptFile)
-      } catch {
-        // Storage may not be set up yet — save without receipt
-      }
-      setUploading(false)
+    const receiptSkippedOffline = Boolean(receiptFile && !navigator.onLine)
+    if (receiptSkippedOffline && !confirm(t.offlineReceiptChoice)) {
+      return
     }
-    await addExpense({
-      date,
-      category,
-      amount: Number(amount),
-      note: category === 'commission'
-        ? `${commissionPlatform}${note ? ' - ' + note : ''}`
-        : isDriverCategory
-          ? (() => {
-              const driver = driverProfiles.find((d) => d.id === selectedDriverId)
-              const driverTag = driver ? `[${driver.name}]` : ''
-              return driverTag + (note ? (driverTag ? ' ' : '') + note : '')
-            })()
-          : note,
-      recurring,
-      car_id: carId,
-      receipt_url,
-      driver_profile_id: isDriverCategory ? selectedDriverId : null,
-    })
-    setSubmitting(false)
-    setSaved(true)
-    setTimeout(() => {
-      setSaved(false)
-      setAmount('')
-      setNote('')
-      setReceiptFile(null)
-      setReceiptPreview(null)
-      setSelectedDriverId(null)
-    }, 1500)
+    const parsedAmount = parsePositiveAmount(amount)
+    if (!isValidCalendarDate(date) || parsedAmount === null) {
+      notifyApp('error', 'Enter a valid date and amount.')
+      return
+    }
+    if (isDriverCategory && !selectedDriverId) {
+      notifyApp('error', 'Select a driver before saving.')
+      return
+    }
+    setSubmitting(true)
+    try {
+      let receipt_url: string | null = null
+      if (receiptFile && navigator.onLine) {
+        setUploading(true)
+        try {
+          receipt_url = await uploadReceipt(receiptFile)
+        } catch (error) {
+          console.error('Receipt upload failed:', error)
+          notifyApp('error', 'Receipt could not be uploaded. The expense was not saved.')
+          return
+        } finally {
+          setUploading(false)
+        }
+      }
+      const row = {
+        date,
+        category,
+        amount: parsedAmount,
+        note: category === 'commission'
+          ? `${commissionPlatform}${note ? ' - ' + note : ''}`
+          : isDriverCategory
+            ? (() => {
+                const driver = driverProfiles.find((d) => d.id === selectedDriverId)
+                const driverTag = driver ? `[${driver.name}]` : ''
+                return driverTag + (note ? (driverTag ? ' ' : '') + note : '')
+              })()
+            : note,
+        recurring,
+        car_id: carId,
+        receipt_url,
+        driver_profile_id: isDriverCategory ? selectedDriverId : null,
+      }
+      if (navigator.onLine && await findDuplicateExpense(row) && !confirm('A matching expense already exists. Save another entry?')) return
+      await addExpense(row)
+      if (receiptSkippedOffline) {
+        notifyApp('info', t.offlineReceiptSaved)
+      }
+      setSaved(true)
+      setTimeout(() => {
+        setSaved(false)
+        setAmount('')
+        setNote('')
+        setReceiptFile(null)
+        setReceiptPreview(null)
+        setSelectedDriverId(null)
+      }, 1500)
+    } catch (error) {
+      console.error('Expense save failed:', error)
+      notifyApp('error', 'Expense could not be saved.')
+    } finally {
+      setUploading(false)
+      setSubmitting(false)
+    }
   }
 
   return (

@@ -11,9 +11,6 @@ create table if not exists profiles (
 
 alter table profiles enable row level security;
 
-create policy "Authenticated users can read profiles"
-  on profiles for select using (auth.role() = 'authenticated');
-
 -- Auto-create a profile when a new user signs up
 create or replace function handle_new_user()
 returns trigger as $$

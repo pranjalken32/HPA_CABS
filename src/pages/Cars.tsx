@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useCars, addCar, updateCar } from '../hooks/useSupabase'
+import { notifyApp, useCars, addCar, updateCar } from '../hooks/useSupabase'
 import type { CarRow } from '../supabase'
 import { Plus, Car, ChevronRight, Edit2, X } from 'lucide-react'
+import { parseNonNegativeNumber } from '../utils/money'
 
 export default function Cars() {
   const navigate = useNavigate()
@@ -12,6 +13,7 @@ export default function Cars() {
   const [name, setName] = useState('')
   const [number, setNumber] = useState('')
   const [totalCost, setTotalCost] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
   const resetForm = () => {
     setName('')
@@ -32,21 +34,33 @@ export default function Cars() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!name.trim() || !number.trim()) return
-    if (editCar) {
-      await updateCar(editCar.id, {
-        name: name.trim(),
-        number: number.trim().toUpperCase(),
-        total_cost: Number(totalCost) || 0,
-      })
-    } else {
-      await addCar({
-        name: name.trim(),
-        number: number.trim().toUpperCase(),
-        total_cost: Number(totalCost) || 0,
-      })
+    const parsedCost = totalCost === '' ? 0 : parseNonNegativeNumber(totalCost)
+    if (!name.trim() || !number.trim() || parsedCost === null) {
+      notifyApp('error', 'Enter a valid car name, registration, and cost.')
+      return
     }
-    resetForm()
+    setSubmitting(true)
+    try {
+      if (editCar) {
+        await updateCar(editCar.id, {
+          name: name.trim(),
+          number: number.trim().toUpperCase(),
+          total_cost: parsedCost,
+        })
+      } else {
+        await addCar({
+          name: name.trim(),
+          number: number.trim().toUpperCase(),
+          total_cost: parsedCost,
+        })
+      }
+      resetForm()
+    } catch (error) {
+      console.error('Car save failed:', error)
+      notifyApp('error', 'Car could not be saved.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -104,9 +118,10 @@ export default function Cars() {
           </div>
           <button
             type="submit"
-            className="w-full bg-white text-black font-semibold py-2.5 rounded-xl text-sm hover:bg-gray-200"
+            disabled={submitting}
+            className="w-full bg-white text-black font-semibold py-2.5 rounded-xl text-sm hover:bg-gray-200 disabled:opacity-60"
           >
-            {editCar ? 'Update Car' : 'Save Car'}
+            {submitting ? 'Saving...' : editCar ? 'Update Car' : 'Save Car'}
           </button>
         </form>
       )}
