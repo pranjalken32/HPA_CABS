@@ -173,10 +173,10 @@ export default function CarDetail() {
 
   const handleAddService = async (e: React.FormEvent) => {
     e.preventDefault()
-    const cost = svcCost === '' ? 0 : parsePositiveAmount(svcCost)
+    const cost = parsePositiveAmount(svcCost)
     const odometer = svcOdo === '' ? 0 : parseNonNegativeNumber(svcOdo)
     if (!svcDesc.trim() || !isValidCalendarDate(svcDate) || cost === null || odometer === null) {
-      notifyApp('error', 'Enter a valid service date, description, cost, and odometer.')
+      notifyApp('error', 'Enter a valid service date, description, positive cost, and odometer.')
       return
     }
     setServiceSubmitting(true)
@@ -195,9 +195,16 @@ export default function CarDetail() {
   }
 
   const handleDeleteCar = async () => {
-    if (!confirm(`Delete "${car.name}" and all its data?`)) return
+    if (!confirm(`Delete "${car.name}" and its car-only records?`)) return
     try {
-      await deleteCar(carId)
+      const result = await deleteCar(carId)
+      if (!result.deleted) {
+        notifyApp(
+          'error',
+          `${t.carDeleteBlocked} Found ${result.incomeCount} income row(s) and ${result.expenseCount} expense row(s).`
+        )
+        return
+      }
       navigate('/cars')
     } catch (error) {
       console.error('Car deletion failed:', error)

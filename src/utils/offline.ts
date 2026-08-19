@@ -1,6 +1,5 @@
 import { supabase } from '../supabase'
-import { triggerRefresh } from '../hooks/useSupabase'
-import { notifyApp } from '../hooks/useSupabase'
+import { markBackendAvailable, notifyApp, triggerRefresh } from '../hooks/useSupabase'
 
 interface PendingMutation {
   id: string
@@ -125,6 +124,7 @@ export function getPendingCount(): number {
 export function setupOfflineSync() {
   window.addEventListener('online', async () => {
     emitOfflineState()
+    markBackendAvailable()
     const synced = await syncPendingMutations()
     if (synced > 0) {
       console.log(`Synced ${synced} offline changes`)

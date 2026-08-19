@@ -242,7 +242,7 @@ export default function History() {
                 {entry.kind === 'income' ? '+' : '-'}₹{fmt(entry.amount)}
               </span>
               <button
-                disabled={isLocked(entry) || Boolean(entry.fuel_log_id || entry.service_record_id)}
+                disabled={isLocked(entry)}
                 onClick={() => setEditing(entry)}
                 className="text-text-muted hover:text-accent-light transition-colors"
               >
@@ -292,7 +292,7 @@ function EditModal({ entry, onClose, locked }: { entry: Entry; onClose: () => vo
     const parsedAmount = parsePositiveAmount(amount)
     const parsedTrips = trips === '' ? 0 : parseNonNegativeNumber(trips)
     if (!isValidCalendarDate(date) || parsedAmount === null || parsedTrips === null || locked) {
-      notifyApp('error', 'Enter valid values. Settled or linked expenses cannot be changed here.')
+      notifyApp('error', locked ? t.settledLocked : 'Enter valid values.')
       return
     }
     setSubmitting(true)

@@ -66,6 +66,10 @@ export default function AddExpense() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (submitting || saved) return
+    const receiptSkippedOffline = Boolean(receiptFile && !navigator.onLine)
+    if (receiptSkippedOffline && !confirm(t.offlineReceiptChoice)) {
+      return
+    }
     const parsedAmount = parsePositiveAmount(amount)
     if (!isValidCalendarDate(date) || parsedAmount === null) {
       notifyApp('error', 'Enter a valid date and amount.')
@@ -110,6 +114,9 @@ export default function AddExpense() {
       }
       if (navigator.onLine && await findDuplicateExpense(row) && !confirm('A matching expense already exists. Save another entry?')) return
       await addExpense(row)
+      if (receiptSkippedOffline) {
+        notifyApp('info', t.offlineReceiptSaved)
+      }
       setSaved(true)
       setTimeout(() => {
         setSaved(false)

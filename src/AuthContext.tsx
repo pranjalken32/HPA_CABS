@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { supabase } from './supabase'
 import type { User, Session } from '@supabase/supabase-js'
-import { notifyApp } from './hooks/useSupabase'
+import { isBackendUnreachable, notifyApp, reportSupabaseError } from './hooks/useSupabase'
 import { AuthContext, type UserRole } from './auth-context'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -58,6 +58,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signIn = async (email: string, password: string): Promise<string | null> => {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) {
+      if (isBackendUnreachable(error)) {
+        reportSupabaseError(error, 'Sign in')
+        return 'The backend is unreachable. Check your connection and try again.'
+      }
       console.error('Sign in failed:', error)
       notifyApp('error', 'Sign in failed. Check your email and password and try again.')
       return 'Sign in failed. Check your email and password and try again.'

@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { WifiOff, X } from 'lucide-react'
 import {
-  clearBackendNotice,
   subscribeNotifications,
   type AppNotification,
 } from '../hooks/useSupabase'
@@ -14,7 +13,7 @@ export default function AppNotifications() {
 
   useEffect(() => {
     const unsubscribe = subscribeNotifications((notification) => {
-      setNotifications((current) => [...current.filter((item) => item.id !== notification.id), notification].slice(-3))
+      setNotifications((current) => [...current.filter((item) => item.message !== notification.message), notification].slice(-3))
       if (notification.kind === 'success') {
         setTimeout(() => setNotifications((current) => current.filter((item) => item.id !== notification.id)), 4000)
       }
@@ -54,14 +53,13 @@ export default function AppNotifications() {
                   : 'border-border-dim bg-surface-card text-text-secondary'
             }`}
           >
-            <span className="flex-1">{notification.message}</span>
+            <span className="min-w-0 flex-1 break-words">{notification.message}</span>
             <button
               type="button"
               onClick={() => {
                 setNotifications((current) => current.filter((item) => item.id !== notification.id))
-                if (notification.kind === 'network') clearBackendNotice()
               }}
-              className="text-current opacity-70 hover:opacity-100"
+              className="min-h-6 min-w-6 shrink-0 p-1 text-current opacity-70 hover:opacity-100"
               aria-label="Dismiss"
             >
               <X size={14} />

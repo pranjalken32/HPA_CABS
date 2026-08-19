@@ -34,8 +34,9 @@ export default function DriverHome() {
   const myName = myProfile?.name?.trim() || displayName || ''
   const assignedCarId = myProfile?.car_id ?? null
 
-  const selectedCar = cars.find((c) => c.id === selectedCarId)
-  const fuelLogs = useFuelLogs(selectedCarId ?? 0)
+  const effectiveCarId = selectedCarId ?? assignedCarId
+  const selectedCar = cars.find((c) => c.id === effectiveCarId)
+  const fuelLogs = useFuelLogs(effectiveCarId ?? 0)
 
   // Only show advances that match this driver (by ID or name fallback)
   const advanceEntries = (expenses ?? []).filter(
@@ -96,7 +97,7 @@ export default function DriverHome() {
       return
     }
     const totalCost = parsePositiveAmount(fuelAmount)
-    if (!selectedCarId || totalCost === null || !isValidCalendarDate(fuelDate)) {
+    if (!effectiveCarId || totalCost === null || !isValidCalendarDate(fuelDate)) {
       notifyApp('error', 'Enter a valid fuel date and amount.')
       return
     }
@@ -121,7 +122,7 @@ export default function DriverHome() {
     setFuelSubmitting(true)
     try {
       const row = {
-        car_id: selectedCarId,
+        car_id: effectiveCarId,
         date: fuelDate,
         quantity_kg: qty,
         price_per_kg: price,
@@ -331,12 +332,12 @@ export default function DriverHome() {
                     setShowFuelForm(true)
                   }}
                   className={`w-full rounded-xl p-3 border flex items-center gap-3 text-left transition-colors ${
-                    selectedCarId === car.id
+                    effectiveCarId === car.id
                       ? 'border-white bg-white/5'
                       : 'border-border-dim hover:border-white/20'
                   }`}
                 >
-                  <Car size={18} className={selectedCarId === car.id ? 'text-white' : 'text-text-muted'} />
+                  <Car size={18} className={effectiveCarId === car.id ? 'text-white' : 'text-text-muted'} />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-white truncate">{car.name}</p>
                     <p className="text-[10px] text-text-muted font-mono">{car.number}</p>
@@ -349,7 +350,7 @@ export default function DriverHome() {
         })()}
 
         {/* Fuel form */}
-        {showFuelForm && selectedCar && (
+        {(showFuelForm || Boolean(assignedCarId)) && selectedCar && (
           <>
             {saved && (
               <div className="bg-income/10 text-income border border-income/20 rounded-xl p-2 mb-3 flex items-center gap-2 text-sm">

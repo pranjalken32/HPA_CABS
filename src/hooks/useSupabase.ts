@@ -17,6 +17,7 @@ export type AppNotification = {
 
 let notificationId = 0
 const notificationListeners = new Set<(notification: AppNotification) => void>()
+let backendFailureActive = false
 
 export function subscribeNotifications(listener: (notification: AppNotification) => void) {
   notificationListeners.add(listener)
@@ -34,13 +35,23 @@ export function notifyApp(
 
 export function reportSupabaseError(error: unknown, context = 'operation') {
   console.error(`${context} failed:`, error)
-  const message = error instanceof TypeError || /fetch|network|offline|load failed/i.test(String((error as { message?: string })?.message ?? error))
+  const message = isBackendUnreachable(error)
     ? 'The backend is unreachable. Check your connection and try again.'
     : 'This operation could not be completed. Please try again.'
+  if (message.startsWith('The backend')) backendFailureActive = true
   notifyApp(message.startsWith('The backend') ? 'network' : 'error', message)
 }
 
-export function clearBackendNotice() {
+export function isBackendUnreachable(error: unknown): boolean {
+  const candidate = error as { message?: string; status?: number }
+  return error instanceof TypeError ||
+    (typeof candidate?.status === 'number' && candidate.status >= 500) ||
+    /fetch|network|offline|load failed|gateway|502|503|504/i.test(String(candidate?.message ?? error))
+}
+
+export function markBackendAvailable() {
+  if (!backendFailureActive) return
+  backendFailureActive = false
   notifyApp('success', 'Connection restored.')
 }
 
@@ -52,14 +63,11 @@ async function fetchPaged<T>(
   for (let from = 0; ; from += pageSize) {
     const { data, error } = await page(from, from + pageSize - 1)
     if (error) throw error
+    markBackendAvailable()
     const chunk = data ?? []
     rows.push(...chunk)
     if (chunk.length < pageSize) return rows
   }
-}
-
-function reportReadError(error: unknown, context: string) {
-  reportSupabaseError(error, context)
 }
 
 // ---- Generic refresh counter ----
@@ -100,7 +108,7 @@ export function useIncomes(startDate: string, endDate: string) {
         cacheData(`incomes:${startDate}:${endDate}`, rows)
       })
       .catch((error) => {
-        reportReadError(error, 'Income query')
+        reportSupabaseError(error, 'Income query')
         const cached = getCachedData<IncomeRow[]>(`incomes:${startDate}:${endDate}`)
         if (cached) {
           setData(cached)
@@ -127,7 +135,7 @@ export function useAllIncomes() {
         cacheData('all-incomes', rows)
       })
       .catch((error) => {
-        reportReadError(error, 'Income history query')
+        reportSupabaseError(error, 'Income history query')
         const cached = getCachedData<IncomeRow[]>('all-incomes')
         if (cached) {
           setData(cached)
@@ -181,7 +189,7 @@ export function useExpenses(startDate: string, endDate: string) {
         cacheData(`expenses:${startDate}:${endDate}`, rows)
       })
       .catch((error) => {
-        reportReadError(error, 'Expense query')
+        reportSupabaseError(error, 'Expense query')
         const cached = getCachedData<ExpenseRow[]>(`expenses:${startDate}:${endDate}`)
         if (cached) {
           setData(cached)
@@ -208,7 +216,7 @@ export function useAllExpenses() {
         cacheData('all-expenses', rows)
       })
       .catch((error) => {
-        reportReadError(error, 'Expense history query')
+        reportSupabaseError(error, 'Expense history query')
         const cached = getCachedData<ExpenseRow[]>('all-expenses')
         if (cached) {
           setData(cached)
@@ -361,7 +369,7 @@ export function useCars() {
       .select('*')
       .order('created_at', { ascending: false })
       .then(({ data, error }) => {
-        if (error) reportReadError(error, 'Cars query')
+        if (error) reportSupabaseError(error, 'Cars query')
         else if (data) setData(data)
       })
   }, [refresh])
@@ -380,7 +388,7 @@ export function useCar(id: number) {
       .eq('id', id)
       .single()
       .then(({ data, error }) => {
-        if (error) reportReadError(error, 'Car query')
+        if (error) reportSupabaseError(error, 'Car query')
         else if (data) setData(data)
       })
   }, [id, refresh])
@@ -395,14 +403,36 @@ export async function addCar(row: Omit<CarRow, 'id' | 'user_id' | 'created_at'>)
 }
 
 export async function deleteCar(id: number) {
-  // Clean up all child records first
-  for (const table of ['fuel_logs', 'service_records', 'car_documents', 'expenses', 'incomes'] as const) {
+  const { count: incomeCount, error: incomeError } = await supabase
+    .from('incomes')
+    .select('id', { count: 'exact', head: true })
+    .eq('car_id', id)
+  if (incomeError) throw incomeError
+
+  const { count: expenseCount, error: expenseError } = await supabase
+    .from('expenses')
+    .select('id', { count: 'exact', head: true })
+    .eq('car_id', id)
+  if (expenseError) throw expenseError
+
+  if ((incomeCount ?? 0) > 0 || (expenseCount ?? 0) > 0) {
+    return {
+      deleted: false,
+      incomeCount: incomeCount ?? 0,
+      expenseCount: expenseCount ?? 0,
+    }
+  }
+
+  // Only clean up records owned by the car itself. Linked expenses cascade from
+  // their fuel/service parent records; financial history is never deleted here.
+  for (const table of ['fuel_logs', 'service_records', 'car_documents'] as const) {
     const { error: childError } = await supabase.from(table).delete().eq('car_id', id)
     if (childError) throw childError
   }
   const { error } = await supabase.from('cars').delete().eq('id', id)
   if (error) throw error
   triggerRefresh()
+  return { deleted: true, incomeCount: 0, expenseCount: 0 }
 }
 
 // ---- Car Documents ----
@@ -417,7 +447,7 @@ export function useCarDocuments(carId: number) {
       .select('*')
       .eq('car_id', carId)
       .then(({ data, error }) => {
-        if (error) reportReadError(error, 'Car documents query')
+        if (error) reportSupabaseError(error, 'Car documents query')
         else if (data) setData(data)
       })
   }, [carId, refresh])
@@ -465,7 +495,7 @@ export function useServiceRecords(carId: number) {
       .order('date', { ascending: false })
       .order('id', { ascending: false })
       .then(({ data, error }) => {
-        if (error) reportReadError(error, 'Service records query')
+        if (error) reportSupabaseError(error, 'Service records query')
         else if (data) setData(data)
       })
   }, [carId, refresh])
@@ -516,7 +546,7 @@ export function useProfiles() {
       .select('id, display_name')
       .then(({ data, error }) => {
         if (error) {
-          reportReadError(error, 'Profiles query')
+          reportSupabaseError(error, 'Profiles query')
           return
         }
         const map = new Map<string, string>()
@@ -544,7 +574,7 @@ export function useFuelLogs(carId: number) {
       .order('date', { ascending: false })
       .order('id', { ascending: false })
       .then(({ data, error }) => {
-        if (error) reportReadError(error, 'Fuel logs query')
+        if (error) reportSupabaseError(error, 'Fuel logs query')
         else if (data) setData(data)
       })
   }, [carId, refresh])
@@ -652,7 +682,7 @@ export function useGoal(month: string) {
       .eq('month', month)
       .maybeSingle()
       .then(({ data, error }) => {
-        if (error) reportReadError(error, 'Goal query')
+        if (error) reportSupabaseError(error, 'Goal query')
         else setData(data)
       })
   }, [month, refresh])
@@ -776,7 +806,7 @@ export function useDriverUsers() {
       .select('*')
       .eq('role', 'driver')
       .then(({ data, error }) => {
-        if (error) reportReadError(error, 'Driver users query')
+        if (error) reportSupabaseError(error, 'Driver users query')
         else if (data) setData(data)
       })
   }, [refresh])
@@ -795,7 +825,7 @@ export function useDriverProfiles() {
       .from('driver_profiles')
       .select('*')
       .then(({ data, error }) => {
-        if (error) reportReadError(error, 'Driver profiles query')
+        if (error) reportSupabaseError(error, 'Driver profiles query')
         else if (data) setData(data)
       })
   }, [refresh])
@@ -856,7 +886,7 @@ export function useDriverSettlements(filter?: { driverProfileId?: number; driver
       query = query.eq('driver_name', filter.driverName)
     }
     query.then(({ data, error }) => {
-      if (error) reportReadError(error, 'Settlement query')
+      if (error) reportSupabaseError(error, 'Settlement query')
       else if (data) setData(data)
     })
   }, [filter?.driverProfileId, filter?.driverName, refresh])
