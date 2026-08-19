@@ -3,6 +3,7 @@ import {
   formatLocalDate,
   getWeekEnd,
   getInclusiveOverlapDays,
+  getWeekIndexForMonth,
   getWeekStart,
   getWeeksCoveringRange,
   getWeeksForMonth,
@@ -51,5 +52,10 @@ describe('calendar date helpers', () => {
     expect(weeks[0]).toEqual({ start: '2026-07-27', end: '2026-08-02' })
     expect(weeks.at(-1)).toEqual({ start: '2026-08-24', end: '2026-08-30' })
     expect(weeks.every((week) => week.end.startsWith('2026-08'))).toBe(true)
+  })
+
+  it('returns no current-week index when the displayed month excludes it', () => {
+    expect(getWeekIndexForMonth('2026-08', '2026-09-03')).toBe(-1)
+    expect(getWeekIndexForMonth('2026-09', '2026-09-03')).toBe(0)
   })
 })

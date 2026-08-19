@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   calculateWeeklyIncentiveForRange,
   calculateWeeklyIncentives,
+  getSettlementCarryForward,
   getRecurringRowsToAdd,
   prorateSalary,
   prorateSalaryForWeek,
@@ -94,6 +95,11 @@ describe('salary and incentive calculations', () => {
       5000,
       getWeeksForMonth('2026-08').at(-1)!
     ).revenue).toBe(20000)
+  })
+
+  it('carries the residual when a settlement differs from the computed payable', () => {
+    expect(getSettlementCarryForward(1250, 1000)).toBe(250)
+    expect(getSettlementCarryForward(1250)).toBe(1250)
   })
 
   it('dedupes recurring rows by category and car, preserving latest template values', () => {

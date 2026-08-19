@@ -918,10 +918,9 @@ export async function removeSettlement(id: number) {
   triggerRefresh()
 }
 
-export function getSettlementErrorMessage(error: unknown): string {
+export type SettlementErrorKind = 'overlap' | 'generic'
+
+export function getSettlementErrorKind(error: unknown): SettlementErrorKind {
   const message = String((error as { message?: string })?.message ?? '')
-  if (/overlaps the settlement/i.test(message)) {
-    return 'This settlement overlaps an existing settlement and was not saved.'
-  }
-  return 'Settlement could not be saved. Please try again.'
+  return /overlaps the settlement/i.test(message) ? 'overlap' : 'generic'
 }

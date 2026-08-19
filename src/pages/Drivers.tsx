@@ -14,7 +14,7 @@ import {
   useDriverSettlements,
   addSettlement,
   removeSettlement,
-  getSettlementErrorMessage,
+  getSettlementErrorKind,
   useDriverUsers,
 } from '../hooks/useSupabase'
 import type { DriverProfileRow, DriverSettlementRow } from '../hooks/useSupabase'
@@ -25,6 +25,7 @@ import { fmt, parseNonNegativeNumber, parsePositiveAmount } from '../utils/money
 import {
   calculateWeeklyIncentiveForRange,
   calculateWeeklyIncentives,
+  getSettlementCarryForward,
   prorateSalary,
   prorateSalaryForWeek,
 } from '../utils/calculations'
@@ -78,7 +79,7 @@ function WeeklySettlementPanel({
       <div className="bg-surface-elevated rounded-xl p-3 border border-border-dim">
         <p className="text-[10px] text-text-muted uppercase">{t.weeklySettlement}</p>
         <p className="text-[10px] text-text-secondary mt-1">
-          {t.weeklySettlement}
+          {t.weeklySettlementRule}
         </p>
       </div>
       {rows.map((row) => (
@@ -627,7 +628,7 @@ export default function Drivers() {
               projected: week.end > currentDate,
               settlement,
             }
-            weeklyCarryForward = settlement ? 0 : row.netPayable
+            weeklyCarryForward = getSettlementCarryForward(row.netPayable, settlement?.amount)
             return row
           })
           .reverse()
@@ -649,7 +650,7 @@ export default function Drivers() {
             })
           } catch (error) {
             console.error('Weekly settlement save failed:', error)
-            notifyApp('error', getSettlementErrorMessage(error))
+            notifyApp('error', getSettlementErrorKind(error) === 'overlap' ? t.settlementOverlap : t.settlementFailed)
           } finally {
             setSettlingId(null)
           }
@@ -661,7 +662,7 @@ export default function Drivers() {
             await removeSettlement(settlement.id)
           } catch (error) {
             console.error('Weekly settlement undo failed:', error)
-            notifyApp('error', 'Settlement could not be undone.')
+            notifyApp('error', t.settlementUndoFailed)
           } finally {
             setSettlingId(null)
           }
@@ -670,7 +671,8 @@ export default function Drivers() {
           setSettlingId(driver.id)
           try {
             const earlier = prevMonths.filter((pm) => pm < month && !driverSettlements.some((s) => (
-              (s.period_type ?? 'month') === 'month' && s.month === pm
+              ((s.period_type ?? 'month') === 'month' && s.month === pm) ||
+              ((s.period_type ?? 'month') === 'week' && s.period_end.slice(0, 7) === pm)
             )))
             for (const pm of earlier) {
               const [py, pmm] = pm.split('-').map(Number)
@@ -697,7 +699,7 @@ export default function Drivers() {
             })
           } catch (error) {
             console.error('Settlement save failed:', error)
-            notifyApp('error', getSettlementErrorMessage(error))
+            notifyApp('error', getSettlementErrorKind(error) === 'overlap' ? t.settlementOverlap : t.settlementFailed)
           } finally {
             setSettlingId(null)
           }
@@ -709,7 +711,7 @@ export default function Drivers() {
             await removeSettlement(settlement.id)
           } catch (error) {
             console.error('Settlement undo failed:', error)
-            notifyApp('error', 'Settlement could not be undone.')
+            notifyApp('error', t.settlementUndoFailed)
           } finally {
             setSettlingId(null)
           }
@@ -751,7 +753,7 @@ export default function Drivers() {
                     <p className={`text-sm font-bold ${(viewMode === 'month' ? netPayable : headerWeeklyRow?.netPayable ?? 0) >= 0 ? 'text-expense' : 'text-income'}`}>
                       {(viewMode === 'month' ? netPayable : headerWeeklyRow?.netPayable ?? 0) >= 0 ? 'Pay' : 'Over'} ₹{fmt(viewMode === 'month' ? netPayable : headerWeeklyRow?.netPayable ?? 0)}
                     </p>
-                    <p className="text-[10px] text-text-muted">{viewMode === 'month' ? t.monthlyView : t.thisWeek}</p>
+                    <p className="text-[10px] text-text-muted">{viewMode === 'month' ? t.settlementThisMonth : t.settlementThisWeek}</p>
                   </>
                 )}
               </div>
@@ -864,10 +866,10 @@ export default function Drivers() {
                           }`}
                         >
                           {weeklySettledInsideMonth > 0
-                            ? 'Weekly portions already settled'
+                            ? t.weeklyPortionsSettled
                             : netPayable > 0
                               ? `Mark Settled — ₹${fmt(netPayable)}`
-                              : 'Nothing to settle'}
+                              : t.nothingToSettle}
                         </button>
                       )}
                     </div>

@@ -91,3 +91,8 @@ export function getWeeksForMonth(month: string): WeekRange[] {
   const last = `${month}-${String(lastDayOfMonth(year, monthNumber)).padStart(2, '0')}`
   return getWeeksCoveringRange(first, last).filter((week) => week.end.slice(0, 7) === month)
 }
+
+export function getWeekIndexForMonth(month: string, dateStr: string): number {
+  const weekStart = getWeekStart(dateStr)
+  return getWeeksForMonth(month).findIndex((week) => week.start === weekStart)
+}

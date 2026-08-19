@@ -4,7 +4,7 @@ import { useExpenses, useIncomes, useCars, useFuelLogs, addFuelLog, findDuplicat
 import { useAuth } from '../useAuth'
 import { useLanguage } from '../useLanguage'
 import { LANGUAGES } from '../i18n'
-import { getWeekEnd, getWeekStart, isValidCalendarDate, todayStr } from '../utils/date'
+import { getWeekEnd, getWeekIndexForMonth, getWeekStart, isValidCalendarDate, todayStr } from '../utils/date'
 import { parseNonNegativeNumber, parsePositiveAmount, fmt } from '../utils/money'
 import { calculateWeeklyIncentiveForRange, calculateWeeklyIncentives, prorateSalary, prorateSalaryForWeek } from '../utils/calculations'
 import { Fuel, Car, Wallet, ArrowUpCircle, ChevronRight, CheckCircle2, Target, History, Globe } from 'lucide-react'
@@ -90,7 +90,7 @@ export default function DriverHome() {
     incentiveSlab,
     { start: currentWeekStart, end: currentWeekEnd }
   )
-  const currentWeekNum = currentWeek.weekNum
+  const currentWeekIndex = getWeekIndexForMonth(month, currentWeekStart)
   const totalMonthIncentive = weeklyData.reduce((s, w) => s + w.incentive, 0)
   const currentRevenue = currentWeek?.revenue ?? 0
   const remainingForTarget = Math.max(weeklyTarget - currentRevenue, 0)
@@ -333,14 +333,16 @@ export default function DriverHome() {
             {weeklyData.map((w) => (
               <div key={w.weekNum} className="text-center">
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
-                  w.weekNum === currentWeekNum
+                  currentWeekIndex >= 0 && w.weekNum === currentWeekIndex + 1
                     ? w.hit ? 'bg-income text-black' : 'bg-white text-black'
                     : w.hit ? 'bg-income/20 text-income' : 'bg-surface-elevated text-text-muted'
                 }`}>
                   W{w.weekNum}
                 </div>
                 <p className="text-[9px] mt-1 text-text-muted">
-                  {w.hit ? `+₹${w.incentive}` : w.weekNum <= currentWeekNum ? 'Miss' : '—'}
+                  {w.hit
+                    ? `+₹${w.incentive}`
+                    : w.weekEnd <= currentDate ? 'Miss' : '—'}
                 </p>
               </div>
             ))}

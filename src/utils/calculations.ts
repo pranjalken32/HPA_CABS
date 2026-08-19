@@ -72,6 +72,10 @@ export function prorateSalaryForWeek(
   return { amount: Math.round(amount * 100) / 100, daysByMonth }
 }
 
+export function getSettlementCarryForward(netPayable: number, settledAmount?: number): number {
+  return settledAmount === undefined ? netPayable : netPayable - settledAmount
+}
+
 export interface WeekIncentive {
   weekNum: number
   weekStart: string

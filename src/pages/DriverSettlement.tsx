@@ -17,16 +17,18 @@ export default function DriverSettlement() {
   const fmt = (n: number) => Math.abs(n).toLocaleString('en-IN')
 
   const weeks = getWeeksForMonth(month).map((week, index) => {
+    const displayedStart = week.start < startDate ? startDate : week.start
+    const displayedEnd = week.end > endDate ? endDate : week.end
     const salary = salaryEntries
-      .filter((entry) => entry.date >= week.start && entry.date <= week.end)
+      .filter((entry) => entry.date >= displayedStart && entry.date <= displayedEnd)
       .reduce((sum, entry) => sum + entry.amount, 0)
     const advance = advanceEntries
-      .filter((entry) => entry.date >= week.start && entry.date <= week.end)
+      .filter((entry) => entry.date >= displayedStart && entry.date <= displayedEnd)
       .reduce((sum, entry) => sum + entry.amount, 0)
     return {
       week: index + 1,
-      start: week.start,
-      end: week.end,
+      start: displayedStart,
+      end: displayedEnd,
       salary,
       advance,
       balance: salary - advance,
