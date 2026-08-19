@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   calculateWeeklyIncentiveForRange,
   calculateWeeklyIncentives,
+  deriveWeeklySettlementRows,
   getSettlementCarryForward,
   getRecurringRowsToAdd,
   prorateSalary,
@@ -100,6 +101,58 @@ describe('salary and incentive calculations', () => {
   it('carries the residual when a settlement differs from the computed payable', () => {
     expect(getSettlementCarryForward(1250, 1000)).toBe(250)
     expect(getSettlementCarryForward(1250)).toBe(1250)
+  })
+
+  it('derives Syed weekly settlement due and keeps the current week projected', () => {
+    const rows = deriveWeeklySettlementRows(
+      {
+        id: 2,
+        name: 'Syed',
+        start_date: '2026-08-14',
+        end_date: null,
+        monthly_salary: 24000,
+        car_id: 1,
+        incentive_target: 90000,
+        incentive_base: 500,
+        incentive_step: 250,
+        incentive_slab: 5000,
+      },
+      [
+        { date: '2026-08-14', amount: 814, car_id: 1 },
+        { date: '2026-08-15', amount: 3029, car_id: 1 },
+        { date: '2026-08-16', amount: 3006, car_id: 1 },
+        { date: '2026-08-17', amount: 2976, car_id: 1 },
+        { date: '2026-08-18', amount: 2737, car_id: 1 },
+      ],
+      [
+        { date: '2026-08-15', amount: 180, category: 'driver_advance', driver_profile_id: 2, note: '' },
+        { date: '2026-08-16', amount: 200, category: 'driver_advance', driver_profile_id: 2, note: '' },
+        { date: '2026-08-17', amount: 150, category: 'driver_advance', driver_profile_id: 2, note: '' },
+        { date: '2026-08-18', amount: 366, category: 'driver_advance', driver_profile_id: 2, note: '' },
+        { date: '2026-08-18', amount: 999, category: 'fare_fraud', driver_profile_id: null, note: 'fare fraud' },
+      ],
+      [],
+      '2026-08-19'
+    )
+
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).toMatchObject({
+      weekStart: '2026-08-10',
+      weekEnd: '2026-08-16',
+      salary: 2322.58,
+      incentive: 0,
+      advance: 380,
+      basePayable: 1942.58,
+      netPayable: 1942.58,
+      projected: false,
+    })
+    expect(rows[1]).toMatchObject({
+      weekStart: '2026-08-17',
+      weekEnd: '2026-08-23',
+      projected: true,
+      settlement: undefined,
+    })
+    expect(rows[1].netPayable).toBeGreaterThan(rows[0].netPayable)
   })
 
   it('dedupes recurring rows by category and car, preserving latest template values', () => {

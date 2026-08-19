@@ -5,6 +5,8 @@ import {
   useDriverProfiles,
   useExpenses,
   useIncomes,
+  useAllExpenses,
+  useAllIncomes,
   useCars,
   addDriverProfile,
   updateDriverProfile,
@@ -20,15 +22,14 @@ import {
 import type { DriverProfileRow, DriverSettlementRow } from '../hooks/useSupabase'
 import { Users, Plus, Edit2, Trash2, FileText, Upload, X, Calendar, Phone, IndianRupee, CheckCircle2, Target, TrendingUp } from 'lucide-react'
 import { useLanguage } from '../useLanguage'
-import { getWeekEnd, getWeeksCoveringRange, isValidCalendarDate, lastDayOfMonth, todayStr } from '../utils/date'
+import { isValidCalendarDate, lastDayOfMonth, todayStr } from '../utils/date'
 import { fmt, parseNonNegativeNumber, parsePositiveAmount } from '../utils/money'
 import {
-  calculateWeeklyIncentiveForRange,
   calculateWeeklyIncentives,
-  getSettlementCarryForward,
+  deriveWeeklySettlementRows,
   prorateSalary,
-  prorateSalaryForWeek,
 } from '../utils/calculations'
+import type { WeeklySettlementLike, WeeklySettlementRow } from '../utils/calculations'
 
 function prevMonthEnd(startDate: string): string {
   const [year, month] = startDate.split('-').map(Number)
@@ -49,18 +50,6 @@ function getMonthsBetween(from: string, toMonth: string): string[] {
   return months
 }
 
-interface WeeklySettlementRow {
-  weekStart: string
-  weekEnd: string
-  salary: number
-  incentive: number
-  advance: number
-  carryForward: number
-  netPayable: number
-  projected: boolean
-  settlement: DriverSettlementRow | undefined
-}
-
 function WeeklySettlementPanel({
   rows,
   settlingId,
@@ -71,7 +60,7 @@ function WeeklySettlementPanel({
   rows: WeeklySettlementRow[]
   settlingId: number | null
   onSettle: (row: WeeklySettlementRow) => void
-  onUndo: (settlement: DriverSettlementRow) => void
+  onUndo: (settlement: WeeklySettlementLike) => void
   t: ReturnType<typeof useLanguage>['t']
 }) {
   return (
@@ -154,6 +143,8 @@ export default function Drivers() {
   const prevEnd = prevMonthEnd(startDate)
   const allPrevExpenses = useExpenses('2000-01-01', prevEnd)
   const allPrevIncomes = useIncomes('2000-01-01', prevEnd)
+  const allExpenses = useAllExpenses()
+  const allIncomes = useAllIncomes()
   const cars = useCars()
   const settlements = useDriverSettlements({})
   const [showForm, setShowForm] = useState(false)
@@ -182,7 +173,6 @@ export default function Drivers() {
   const [settlingId, setSettlingId] = useState<number | null>(null)
   const [removingId, setRemovingId] = useState<number | null>(null)
   const currentDate = todayStr()
-  const currentWeekEnd = getWeekEnd(currentDate)
 
   const defaultBase = localStorage.getItem('hpa_incentive_base') || '500'
   const defaultStep = localStorage.getItem('hpa_incentive_step') || '250'
@@ -535,7 +525,6 @@ export default function Drivers() {
           (settlement) => (settlement.period_type ?? 'month') === 'month' && settlement.month === month
         )
         const allDriverIncomes = [...(allPrevIncomes ?? []), ...(incomes ?? [])]
-        const allDriverExpenses = [...(allPrevExpenses ?? []), ...(expenses ?? [])]
         const { weeks: incentiveWeeks, totalIncentive } = calculateWeeklyIncentives(
           allDriverIncomes,
           driver.car_id,
@@ -585,53 +574,13 @@ export default function Drivers() {
           .reduce((sum, s) => sum + s.amount, 0)
         const netPayable = proRated + totalIncentive - totalAdvance + carryForward - weeklySettledInsideMonth
 
-        let weeklyCarryForward = 0
-        const weeklyRows = getWeeksCoveringRange(
-          driver.start_date,
-          driver.end_date && driver.end_date < currentDate ? driver.end_date : currentDate
-        )
-          .filter((week) => week.start <= currentWeekEnd)
-          .map((week) => {
-            const weekSalary = prorateSalaryForWeek(
-              driver.monthly_salary,
-              driver.start_date,
-              driver.end_date,
-              week
-            ).amount
-            const weekIncentive = calculateWeeklyIncentiveForRange(
-              allDriverIncomes,
-              driver.car_id,
-              driver.incentive_target,
-              driver.incentive_base,
-              driver.incentive_step,
-              driver.incentive_slab,
-              week
-            ).incentive
-            const weekAdvance = allDriverExpenses
-              .filter((expense) => expense.category === 'driver_advance' && (
-                expense.driver_profile_id === driver.id ||
-                expense.note?.toLowerCase().includes(driver.name.toLowerCase())
-              ) && expense.date >= week.start && expense.date <= week.end)
-              .reduce((sum, expense) => sum + expense.amount, 0)
-            const settlement = driverSettlements.find(
-              (s) => (s.period_type ?? 'month') === 'week' && s.period_start === week.start
-            )
-            const base = weekSalary + weekIncentive - weekAdvance
-            const row = {
-              weekStart: week.start,
-              weekEnd: week.end,
-              salary: weekSalary,
-              incentive: weekIncentive,
-              advance: weekAdvance,
-              carryForward: weeklyCarryForward,
-              netPayable: base + weeklyCarryForward,
-              projected: week.end > currentDate,
-              settlement,
-            }
-            weeklyCarryForward = getSettlementCarryForward(row.netPayable, settlement?.amount)
-            return row
-          })
-          .reverse()
+        const weeklyRows = deriveWeeklySettlementRows(
+          driver,
+          allIncomes ?? [],
+          allExpenses ?? [],
+          driverSettlements,
+          currentDate
+        ).reverse()
 
         const isExpanded = expandedId === driver.id
 
@@ -656,7 +605,7 @@ export default function Drivers() {
           }
         }
 
-        const handleWeeklyUndo = async (settlement: DriverSettlementRow) => {
+        const handleWeeklyUndo = async (settlement: WeeklySettlementLike) => {
           setSettlingId(driver.id)
           try {
             await removeSettlement(settlement.id)
