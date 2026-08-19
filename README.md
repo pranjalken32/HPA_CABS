@@ -308,8 +308,11 @@ After the base table setup, apply these repository-owned SQL files in order:
 
 1. `supabase-rls-roles.sql` — role-based owner and driver access.
 2. `supabase-data-constraints.sql` — database validation for dates, amounts, and settlements.
+3. `supabase-link-triggers.sql` — database-enforced fuel and service expense linkage.
 
 Do not recreate blanket `auth.role() = 'authenticated'` policies from legacy setup scripts.
+
+The link triggers ensure every fuel log and service record has exactly one linked expense, adopt matching unlinked expenses, prevent duplicate expenses from older clients, propagate amount/date/note edits in both directions, remove the related row when either side is deleted, and keep CNG odometer readings ordered by date. This file is safe to re-run.
 
 ### Roles
 
