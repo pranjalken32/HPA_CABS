@@ -14,14 +14,21 @@ import {
   useDriverSettlements,
   addSettlement,
   removeSettlement,
+  getSettlementErrorKind,
   useDriverUsers,
 } from '../hooks/useSupabase'
-import type { DriverProfileRow } from '../hooks/useSupabase'
+import type { DriverProfileRow, DriverSettlementRow } from '../hooks/useSupabase'
 import { Users, Plus, Edit2, Trash2, FileText, Upload, X, Calendar, Phone, IndianRupee, CheckCircle2, Target, TrendingUp } from 'lucide-react'
 import { useLanguage } from '../useLanguage'
-import { isValidCalendarDate, lastDayOfMonth, todayStr } from '../utils/date'
+import { getWeekEnd, getWeeksCoveringRange, isValidCalendarDate, lastDayOfMonth, todayStr } from '../utils/date'
 import { fmt, parseNonNegativeNumber, parsePositiveAmount } from '../utils/money'
-import { calculateWeeklyIncentives, prorateSalary } from '../utils/calculations'
+import {
+  calculateWeeklyIncentiveForRange,
+  calculateWeeklyIncentives,
+  getSettlementCarryForward,
+  prorateSalary,
+  prorateSalaryForWeek,
+} from '../utils/calculations'
 
 function prevMonthEnd(startDate: string): string {
   const [year, month] = startDate.split('-').map(Number)
@@ -42,6 +49,102 @@ function getMonthsBetween(from: string, toMonth: string): string[] {
   return months
 }
 
+interface WeeklySettlementRow {
+  weekStart: string
+  weekEnd: string
+  salary: number
+  incentive: number
+  advance: number
+  carryForward: number
+  netPayable: number
+  projected: boolean
+  settlement: DriverSettlementRow | undefined
+}
+
+function WeeklySettlementPanel({
+  rows,
+  settlingId,
+  onSettle,
+  onUndo,
+  t,
+}: {
+  rows: WeeklySettlementRow[]
+  settlingId: number | null
+  onSettle: (row: WeeklySettlementRow) => void
+  onUndo: (settlement: DriverSettlementRow) => void
+  t: ReturnType<typeof useLanguage>['t']
+}) {
+  return (
+    <div className="space-y-2">
+      <div className="bg-surface-elevated rounded-xl p-3 border border-border-dim">
+        <p className="text-[10px] text-text-muted uppercase">{t.weeklySettlement}</p>
+        <p className="text-[10px] text-text-secondary mt-1">
+          {t.weeklySettlementRule}
+        </p>
+      </div>
+      {rows.map((row) => (
+        <div key={row.weekStart} className="bg-surface-elevated rounded-xl p-3 border border-border-dim space-y-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-white">{row.weekStart} → {row.weekEnd}</p>
+              {row.projected && (
+                <p className="text-[10px] text-text-muted">{t.projected} · {t.settlesOn} {row.weekEnd}</p>
+              )}
+            </div>
+            {row.settlement && (
+              <span className="text-[10px] font-semibold text-income flex items-center gap-1">
+                <CheckCircle2 size={13} /> {t.settled}
+              </span>
+            )}
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-center">
+            <div className="bg-surface-card rounded-lg p-2">
+              <p className="text-[9px] text-text-muted uppercase">{t.weekSalary}</p>
+              <p className="text-xs font-bold text-white">₹{fmt(row.salary)}</p>
+            </div>
+            <div className="bg-surface-card rounded-lg p-2">
+              <p className="text-[9px] text-text-muted uppercase">{t.weekIncentive}</p>
+              <p className="text-xs font-bold text-income">+₹{fmt(row.incentive)}</p>
+            </div>
+            <div className="bg-surface-card rounded-lg p-2">
+              <p className="text-[9px] text-text-muted uppercase">{t.weekAdvance}</p>
+              <p className="text-xs font-bold text-white">−₹{fmt(row.advance)}</p>
+            </div>
+            <div className="bg-surface-card rounded-lg p-2">
+              <p className="text-[9px] text-text-muted uppercase">{t.weekNet}</p>
+              <p className={`text-xs font-bold ${row.netPayable >= 0 ? 'text-expense' : 'text-income'}`}>
+                ₹{fmt(row.netPayable)}
+              </p>
+            </div>
+          </div>
+          {row.settlement ? (
+            <div className="flex items-center justify-between text-[10px] text-text-muted">
+              <span>{t.paidOn} {row.settlement.settled_date} · ₹{fmt(row.settlement.amount)}</span>
+              <button
+                disabled={settlingId !== null}
+                onClick={() => onUndo(row.settlement!)}
+                className="underline hover:text-white disabled:opacity-50"
+              >
+                {t.undo}
+              </button>
+            </div>
+          ) : row.projected ? (
+            <p className="text-[10px] text-text-muted text-center">{t.settlesOn} {row.weekEnd}</p>
+          ) : (
+            <button
+              disabled={row.netPayable <= 0 || settlingId !== null}
+              onClick={() => onSettle(row)}
+              className="w-full py-2 rounded-lg text-sm font-semibold bg-white text-black disabled:bg-surface-card disabled:text-text-muted"
+            >
+              {row.netPayable > 0 ? `${t.markSettled} — ₹${fmt(row.netPayable)}` : t.noDrivers}
+            </button>
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export default function Drivers() {
   const { month, setMonth, startDate, endDate } = useMonthFilter()
   const { t } = useLanguage()
@@ -56,6 +159,7 @@ export default function Drivers() {
   const [showForm, setShowForm] = useState(false)
   const [editDriver, setEditDriver] = useState<DriverProfileRow | null>(null)
   const [expandedId, setExpandedId] = useState<number | null>(null)
+  const [viewMode, setViewMode] = useState<'month' | 'week'>('month')
 
   // Form state
   const [name, setName] = useState('')
@@ -77,6 +181,8 @@ export default function Drivers() {
   const [submitting, setSubmitting] = useState(false)
   const [settlingId, setSettlingId] = useState<number | null>(null)
   const [removingId, setRemovingId] = useState<number | null>(null)
+  const currentDate = todayStr()
+  const currentWeekEnd = getWeekEnd(currentDate)
 
   const defaultBase = localStorage.getItem('hpa_incentive_base') || '500'
   const defaultStep = localStorage.getItem('hpa_incentive_step') || '250'
@@ -190,6 +296,17 @@ export default function Drivers() {
             onChange={(e) => setMonth(e.target.value)}
             className="border border-border-dim rounded-xl px-3 py-1.5 text-sm bg-surface-card text-white"
           />
+          <div className="flex rounded-xl border border-border-dim overflow-hidden">
+            {(['month', 'week'] as const).map((mode) => (
+              <button
+                key={mode}
+                onClick={() => setViewMode(mode)}
+                className={`px-2.5 py-1.5 text-xs ${viewMode === mode ? 'bg-white text-black' : 'bg-surface-card text-text-muted'}`}
+              >
+                {mode === 'month' ? t.monthlyView : t.weeklyView}
+              </button>
+            ))}
+          </div>
           <button
             onClick={() => { resetForm(); setShowForm(true) }}
             className="bg-white text-black rounded-xl p-2"
@@ -411,8 +528,16 @@ export default function Drivers() {
           driver.monthly_salary, driver.start_date, driver.end_date, filterYear, filterMonth
         )
 
+        const driverSettlements = settlements.filter(
+          (settlement) => settlement.driver_profile_id === driver.id || settlement.driver_name === driver.name
+        )
+        const monthlySettlement = driverSettlements.find(
+          (settlement) => (settlement.period_type ?? 'month') === 'month' && settlement.month === month
+        )
+        const allDriverIncomes = [...(allPrevIncomes ?? []), ...(incomes ?? [])]
+        const allDriverExpenses = [...(allPrevExpenses ?? []), ...(expenses ?? [])]
         const { weeks: incentiveWeeks, totalIncentive } = calculateWeeklyIncentives(
-          incomes ?? [],
+          allDriverIncomes,
           driver.car_id,
           driver.incentive_target,
           driver.incentive_base,
@@ -434,7 +559,7 @@ export default function Drivers() {
         const prevMonths = getMonthsBetween(driverStartMonth, month)
         let carryForward = 0
         for (const pm of prevMonths) {
-          const settled = settlements.find((s) => (s.driver_profile_id === driver.id || s.driver_name === driver.name) && s.month === pm)
+          const settled = driverSettlements.find((s) => (s.period_type ?? 'month') === 'month' && s.month === pm)
           if (settled) continue
           const [py, pmm] = pm.split('-').map(Number)
           const { amount: pmSalary } = prorateSalary(driver.monthly_salary, driver.start_date, driver.end_date, py, pmm)
@@ -446,15 +571,153 @@ export default function Drivers() {
             ) && e.date >= pmStart && e.date <= pmEnd
           ).reduce((s, e) => s + e.amount, 0)
           const { totalIncentive: pmIncentive } = calculateWeeklyIncentives(
-            (allPrevIncomes ?? []).filter((i) => i.date >= pmStart && i.date <= pmEnd),
+            allDriverIncomes,
             driver.car_id, driver.incentive_target, driver.incentive_base, driver.incentive_step, driver.incentive_slab, py, pmm
           )
-          carryForward += pmSalary + pmIncentive - pmAdvances
+          const pmWeeklySettled = driverSettlements
+            .filter((s) => (s.period_type ?? 'month') === 'week' && s.period_end.slice(0, 7) === pm)
+            .reduce((sum, s) => sum + s.amount, 0)
+          carryForward += pmSalary + pmIncentive - pmAdvances - pmWeeklySettled
         }
 
-        const netPayable = proRated + totalIncentive - totalAdvance + carryForward
+        const weeklySettledInsideMonth = driverSettlements
+          .filter((s) => (s.period_type ?? 'month') === 'week' && s.period_end.slice(0, 7) === month)
+          .reduce((sum, s) => sum + s.amount, 0)
+        const netPayable = proRated + totalIncentive - totalAdvance + carryForward - weeklySettledInsideMonth
+
+        let weeklyCarryForward = 0
+        const weeklyRows = getWeeksCoveringRange(
+          driver.start_date,
+          driver.end_date && driver.end_date < currentDate ? driver.end_date : currentDate
+        )
+          .filter((week) => week.start <= currentWeekEnd)
+          .map((week) => {
+            const weekSalary = prorateSalaryForWeek(
+              driver.monthly_salary,
+              driver.start_date,
+              driver.end_date,
+              week
+            ).amount
+            const weekIncentive = calculateWeeklyIncentiveForRange(
+              allDriverIncomes,
+              driver.car_id,
+              driver.incentive_target,
+              driver.incentive_base,
+              driver.incentive_step,
+              driver.incentive_slab,
+              week
+            ).incentive
+            const weekAdvance = allDriverExpenses
+              .filter((expense) => expense.category === 'driver_advance' && (
+                expense.driver_profile_id === driver.id ||
+                expense.note?.toLowerCase().includes(driver.name.toLowerCase())
+              ) && expense.date >= week.start && expense.date <= week.end)
+              .reduce((sum, expense) => sum + expense.amount, 0)
+            const settlement = driverSettlements.find(
+              (s) => (s.period_type ?? 'month') === 'week' && s.period_start === week.start
+            )
+            const base = weekSalary + weekIncentive - weekAdvance
+            const row = {
+              weekStart: week.start,
+              weekEnd: week.end,
+              salary: weekSalary,
+              incentive: weekIncentive,
+              advance: weekAdvance,
+              carryForward: weeklyCarryForward,
+              netPayable: base + weeklyCarryForward,
+              projected: week.end > currentDate,
+              settlement,
+            }
+            weeklyCarryForward = getSettlementCarryForward(row.netPayable, settlement?.amount)
+            return row
+          })
+          .reverse()
 
         const isExpanded = expandedId === driver.id
+
+        const handleWeeklySettle = async (row: WeeklySettlementRow) => {
+          setSettlingId(driver.id)
+          try {
+            await addSettlement({
+              driver_name: driver.name,
+              driver_profile_id: driver.id,
+              month: row.weekEnd.slice(0, 7),
+              amount: row.netPayable,
+              settled_date: row.weekEnd,
+              period_type: 'week',
+              period_start: row.weekStart,
+              period_end: row.weekEnd,
+            })
+          } catch (error) {
+            console.error('Weekly settlement save failed:', error)
+            notifyApp('error', getSettlementErrorKind(error) === 'overlap' ? t.settlementOverlap : t.settlementFailed)
+          } finally {
+            setSettlingId(null)
+          }
+        }
+
+        const handleWeeklyUndo = async (settlement: DriverSettlementRow) => {
+          setSettlingId(driver.id)
+          try {
+            await removeSettlement(settlement.id)
+          } catch (error) {
+            console.error('Weekly settlement undo failed:', error)
+            notifyApp('error', t.settlementUndoFailed)
+          } finally {
+            setSettlingId(null)
+          }
+        }
+        const handleMonthlySettle = async () => {
+          setSettlingId(driver.id)
+          try {
+            const earlier = prevMonths.filter((pm) => pm < month && !driverSettlements.some((s) => (
+              ((s.period_type ?? 'month') === 'month' && s.month === pm) ||
+              ((s.period_type ?? 'month') === 'week' && s.period_end.slice(0, 7) === pm)
+            )))
+            for (const pm of earlier) {
+              const [py, pmm] = pm.split('-').map(Number)
+              await addSettlement({
+                driver_name: driver.name,
+                driver_profile_id: driver.id,
+                month: pm,
+                amount: 0,
+                settled_date: currentDate,
+                period_type: 'month',
+                period_start: `${pm}-01`,
+                period_end: `${pm}-${String(lastDayOfMonth(py, pmm)).padStart(2, '0')}`,
+              })
+            }
+            await addSettlement({
+              driver_name: driver.name,
+              driver_profile_id: driver.id,
+              month,
+              amount: netPayable,
+              settled_date: currentDate,
+              period_type: 'month',
+              period_start: `${month}-01`,
+              period_end: `${month}-${String(lastDayOfMonth(filterYear, filterMonth)).padStart(2, '0')}`,
+            })
+          } catch (error) {
+            console.error('Settlement save failed:', error)
+            notifyApp('error', getSettlementErrorKind(error) === 'overlap' ? t.settlementOverlap : t.settlementFailed)
+          } finally {
+            setSettlingId(null)
+          }
+        }
+
+        const handleMonthlyUndo = async (settlement: DriverSettlementRow) => {
+          setSettlingId(driver.id)
+          try {
+            await removeSettlement(settlement.id)
+          } catch (error) {
+            console.error('Settlement undo failed:', error)
+            notifyApp('error', t.settlementUndoFailed)
+          } finally {
+            setSettlingId(null)
+          }
+        }
+        const headerWeeklyRow = weeklyRows[0]
+        const headerSettlement = viewMode === 'month' ? monthlySettlement : headerWeeklyRow?.settlement
 
         return (
           <div key={driver.id} className="bg-surface-card rounded-2xl border border-border-dim overflow-hidden">
@@ -480,17 +743,17 @@ export default function Drivers() {
                 </div>
               </div>
               <div className="text-right">
-                {settlements.find((s) => (s.driver_profile_id === driver.id || s.driver_name === driver.name) && s.month === month) ? (
+                {headerSettlement ? (
                   <>
                     <p className="text-sm font-bold text-income">Settled</p>
-                    <p className="text-[10px] text-text-muted">₹{fmt(settlements.find((s) => (s.driver_profile_id === driver.id || s.driver_name === driver.name) && s.month === month)?.amount ?? 0)}</p>
+                    <p className="text-[10px] text-text-muted">₹{fmt(headerSettlement.amount)}</p>
                   </>
                 ) : (
                   <>
-                    <p className={`text-sm font-bold ${netPayable >= 0 ? 'text-expense' : 'text-income'}`}>
-                      {netPayable >= 0 ? 'Pay' : 'Over'} ₹{fmt(netPayable)}
+                    <p className={`text-sm font-bold ${(viewMode === 'month' ? netPayable : headerWeeklyRow?.netPayable ?? 0) >= 0 ? 'text-expense' : 'text-income'}`}>
+                      {(viewMode === 'month' ? netPayable : headerWeeklyRow?.netPayable ?? 0) >= 0 ? 'Pay' : 'Over'} ₹{fmt(viewMode === 'month' ? netPayable : headerWeeklyRow?.netPayable ?? 0)}
                     </p>
-                    <p className="text-[10px] text-text-muted">this month</p>
+                    <p className="text-[10px] text-text-muted">{viewMode === 'month' ? t.settlementThisMonth : t.settlementThisWeek}</p>
                   </>
                 )}
               </div>
@@ -499,6 +762,16 @@ export default function Drivers() {
             {/* Expanded Details */}
             {isExpanded && (
               <div className="border-t border-border-dim px-4 py-3 space-y-3">
+                {viewMode === 'week' ? (
+                  <WeeklySettlementPanel
+                    rows={weeklyRows}
+                    settlingId={settlingId}
+                    onSettle={handleWeeklySettle}
+                    onUndo={handleWeeklyUndo}
+                    t={t}
+                  />
+                ) : (
+                <div className="space-y-3">
                 {/* Salary Breakdown */}
                 <div className="grid grid-cols-3 gap-2">
                   <div className="bg-surface-elevated rounded-xl p-2.5 text-center">
@@ -562,7 +835,7 @@ export default function Drivers() {
 
                 {/* Settlement Status */}
                 {(() => {
-                  const settlement = settlements.find((s) => (s.driver_profile_id === driver.id || s.driver_name === driver.name) && s.month === month)
+                  const settlement = monthlySettlement
                   return (
                     <div className="bg-surface-elevated rounded-xl p-3">
                       {settlement ? (
@@ -576,17 +849,7 @@ export default function Drivers() {
                           </div>
                           <button
                             disabled={settlingId === driver.id}
-                            onClick={async () => {
-                              setSettlingId(driver.id)
-                              try {
-                                await removeSettlement(driver.id, month)
-                              } catch (error) {
-                                console.error('Settlement undo failed:', error)
-                                notifyApp('error', 'Settlement could not be undone.')
-                              } finally {
-                                setSettlingId(null)
-                              }
-                            }}
+                            onClick={() => handleMonthlyUndo(settlement)}
                             className="text-[10px] text-text-muted hover:text-white underline"
                           >
                             Undo
@@ -594,37 +857,19 @@ export default function Drivers() {
                         </div>
                       ) : (
                         <button
-                          disabled={netPayable <= 0 || settlingId === driver.id}
-                          onClick={async () => {
-                            setSettlingId(driver.id)
-                            try {
-                              const earlier = prevMonths.filter((pm) => pm < month && !settlements.some((s) => (
-                                (s.driver_profile_id === driver.id || s.driver_name === driver.name) && s.month === pm
-                              )))
-                              for (const pm of earlier) {
-                                await addSettlement({
-                                  driver_name: driver.name,
-                                  driver_profile_id: driver.id,
-                                  month: pm,
-                                  amount: 0,
-                                  settled_date: todayStr(),
-                                })
-                              }
-                              await addSettlement({ driver_name: driver.name, driver_profile_id: driver.id, month, amount: netPayable, settled_date: todayStr() })
-                            } catch (error) {
-                              console.error('Settlement save failed:', error)
-                              notifyApp('error', 'Settlement could not be saved.')
-                            } finally {
-                              setSettlingId(null)
-                            }
-                          }}
+                          disabled={netPayable <= 0 || settlingId === driver.id || weeklySettledInsideMonth > 0}
+                          onClick={handleMonthlySettle}
                           className={`w-full py-2 rounded-lg text-sm font-semibold transition-all ${
-                            netPayable > 0
+                            netPayable > 0 && weeklySettledInsideMonth === 0
                               ? 'bg-white text-black hover:bg-gray-200'
                               : 'bg-surface-card text-text-muted cursor-not-allowed'
                           }`}
                         >
-                          {netPayable > 0 ? `Mark Settled — ₹${fmt(netPayable)}` : 'Nothing to settle'}
+                          {weeklySettledInsideMonth > 0
+                            ? t.weeklyPortionsSettled
+                            : netPayable > 0
+                              ? `Mark Settled — ₹${fmt(netPayable)}`
+                              : t.nothingToSettle}
                         </button>
                       )}
                     </div>
@@ -744,6 +989,8 @@ export default function Drivers() {
                       ))}
                     </div>
                   </div>
+                )}
+                </div>
                 )}
               </div>
             )}

@@ -309,6 +309,7 @@ After the base table setup, apply these repository-owned SQL files in order:
 1. `supabase-rls-roles.sql` — role-based owner and driver access.
 2. `supabase-data-constraints.sql` — database validation for dates, amounts, and settlements.
 3. `supabase-link-triggers.sql` — database-enforced fuel and service expense linkage.
+4. `supabase-weekly-settlements.sql` — weekly settlement periods and overlap protection.
 
 Do not recreate blanket `auth.role() = 'authenticated'` policies from legacy setup scripts.
 

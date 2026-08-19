@@ -50,3 +50,49 @@ export function getInclusiveOverlapDays(
   if (start > end) return 0
   return Math.round((end - start) / DAY_MS) + 1
 }
+
+export interface WeekRange {
+  start: string
+  end: string
+}
+
+export function addLocalDays(dateStr: string, days: number): string {
+  const date = parseLocalDate(dateStr)
+  date.setDate(date.getDate() + days)
+  return formatLocalDate(date)
+}
+
+export function getWeekStart(dateStr: string): string {
+  const date = parseLocalDate(dateStr)
+  const day = date.getDay()
+  date.setDate(date.getDate() - (day === 0 ? 6 : day - 1))
+  return formatLocalDate(date)
+}
+
+export function getWeekEnd(dateStr: string): string {
+  return addLocalDays(getWeekStart(dateStr), 6)
+}
+
+export function getWeeksCoveringRange(rangeStart: string, rangeEnd: string): WeekRange[] {
+  if (rangeStart > rangeEnd) return []
+  const weeks: WeekRange[] = []
+  let weekStart = getWeekStart(rangeStart)
+  const finalWeekStart = getWeekStart(rangeEnd)
+  while (weekStart <= finalWeekStart) {
+    weeks.push({ start: weekStart, end: addLocalDays(weekStart, 6) })
+    weekStart = addLocalDays(weekStart, 7)
+  }
+  return weeks
+}
+
+export function getWeeksForMonth(month: string): WeekRange[] {
+  const [year, monthNumber] = month.split('-').map(Number)
+  const first = `${month}-01`
+  const last = `${month}-${String(lastDayOfMonth(year, monthNumber)).padStart(2, '0')}`
+  return getWeeksCoveringRange(first, last).filter((week) => week.end.slice(0, 7) === month)
+}
+
+export function getWeekIndexForMonth(month: string, dateStr: string): number {
+  const weekStart = getWeekStart(dateStr)
+  return getWeeksForMonth(month).findIndex((week) => week.start === weekStart)
+}

@@ -1,4 +1,9 @@
-import { getInclusiveOverlapDays, lastDayOfMonth } from './date'
+import {
+  getInclusiveOverlapDays,
+  getWeeksForMonth,
+  lastDayOfMonth,
+  type WeekRange,
+} from './date'
 
 export interface SalaryProration {
   amount: number
@@ -30,12 +35,80 @@ export function prorateSalary(
   }
 }
 
+export interface WeeklySalaryProration {
+  amount: number
+  daysByMonth: Record<string, number>
+}
+
+export function prorateSalaryForWeek(
+  monthlySalary: number,
+  employmentStart: string,
+  employmentEnd: string | null,
+  week: WeekRange
+): WeeklySalaryProration {
+  const daysByMonth: Record<string, number> = {}
+  let amount = 0
+  let cursorMonth = week.start.slice(0, 7)
+  const endMonth = week.end.slice(0, 7)
+
+  while (cursorMonth <= endMonth) {
+    const [year, month] = cursorMonth.split('-').map(Number)
+    const monthStart = `${cursorMonth}-01`
+    const monthEnd = `${cursorMonth}-${String(lastDayOfMonth(year, month)).padStart(2, '0')}`
+    const periodStart = week.start > monthStart ? week.start : monthStart
+    const periodEnd = week.end < monthEnd ? week.end : monthEnd
+    if (periodStart <= periodEnd) {
+      const days = getInclusiveOverlapDays(employmentStart, employmentEnd, periodStart, periodEnd)
+      if (days > 0) {
+        daysByMonth[cursorMonth] = days
+        amount += (monthlySalary / lastDayOfMonth(year, month)) * days
+      }
+    }
+    const nextMonth = month + 1
+    const nextYear = year + (nextMonth > 12 ? 1 : 0)
+    cursorMonth = `${nextYear}-${String(nextMonth > 12 ? 1 : nextMonth).padStart(2, '0')}`
+  }
+
+  return { amount: Math.round(amount * 100) / 100, daysByMonth }
+}
+
+export function getSettlementCarryForward(netPayable: number, settledAmount?: number): number {
+  return settledAmount === undefined ? netPayable : netPayable - settledAmount
+}
+
 export interface WeekIncentive {
   weekNum: number
+  weekStart: string
+  weekEnd: string
   revenue: number
   target: number
   incentive: number
   hit: boolean
+}
+
+export function calculateWeeklyIncentiveForRange(
+  incomes: { date: string; amount: number; car_id: number | null }[],
+  carId: number | null,
+  incentiveTarget: number,
+  incentiveBase: number,
+  incentiveStep: number,
+  incentiveSlab: number,
+  week: WeekRange,
+  weekNum = 1
+): WeekIncentive {
+  const weeklyTarget = incentiveTarget / 4
+  const revenue = carId
+    ? incomes
+      .filter((income) => income.car_id === carId && income.date >= week.start && income.date <= week.end)
+      .reduce((sum, income) => sum + income.amount, 0)
+    : 0
+  const hit = revenue >= weeklyTarget && weeklyTarget > 0
+  const incentive = !hit
+    ? 0
+    : incentiveSlab > 0
+      ? incentiveBase + Math.floor((revenue - weeklyTarget) / incentiveSlab) * incentiveStep
+      : incentiveBase
+  return { weekNum, weekStart: week.start, weekEnd: week.end, revenue, target: weeklyTarget, incentive, hit }
 }
 
 export function calculateWeeklyIncentives(
@@ -49,31 +122,18 @@ export function calculateWeeklyIncentives(
   month: number
 ): { weeks: WeekIncentive[]; totalIncentive: number } {
   if (!carId || incentiveTarget <= 0) return { weeks: [], totalIncentive: 0 }
-  const weeklyTarget = incentiveTarget / 4
-  const revenues: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0 }
-  for (const income of incomes) {
-    if (income.car_id !== carId) continue
-    const date = income.date
-    const incomeYear = Number(date.slice(0, 4))
-    const incomeMonth = Number(date.slice(5, 7))
-    if (incomeYear !== year || incomeMonth !== month) continue
-    const week = Math.min(Math.ceil(Number(date.slice(8, 10)) / 7), 4)
-    revenues[week] += income.amount
-  }
-
-  const weeks: WeekIncentive[] = []
-  let totalIncentive = 0
-  for (let weekNum = 1; weekNum <= 4; weekNum++) {
-    const revenue = revenues[weekNum]
-    const hit = revenue >= weeklyTarget
-    const incentive = !hit
-      ? 0
-      : incentiveSlab > 0
-        ? incentiveBase + Math.floor((revenue - weeklyTarget) / incentiveSlab) * incentiveStep
-        : incentiveBase
-    weeks.push({ weekNum, revenue, target: weeklyTarget, incentive, hit })
-    totalIncentive += incentive
-  }
+  const weeks = getWeeksForMonth(`${year}-${String(month).padStart(2, '0')}`)
+    .map((week, index) => calculateWeeklyIncentiveForRange(
+      incomes,
+      carId,
+      incentiveTarget,
+      incentiveBase,
+      incentiveStep,
+      incentiveSlab,
+      week,
+      index + 1
+    ))
+  const totalIncentive = weeks.reduce((sum, week) => sum + week.incentive, 0)
   return { weeks, totalIncentive }
 }
 

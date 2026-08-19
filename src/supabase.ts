@@ -115,5 +115,8 @@ export interface DriverSettlementRow {
   month: string
   amount: number
   settled_date: string
+  period_type: 'month' | 'week'
+  period_start: string
+  period_end: string
   created_at: string
 }
