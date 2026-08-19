@@ -1,10 +1,13 @@
 import { useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useMonthFilter } from '../hooks/useMonthFilter'
-import { useIncomes, useExpenses, useProfiles, deleteIncome, deleteExpense, updateIncome, updateExpense } from '../hooks/useSupabase'
+import { useLanguage } from '../useLanguage'
+import { notifyApp, useIncomes, useExpenses, useProfiles, useDriverSettlements, deleteIncome, deleteExpense, updateIncome, updateExpense, findDuplicateIncome, findDuplicateExpense } from '../hooks/useSupabase'
 import { exportToExcel, exportToPDF } from '../utils/export'
 import { generateMonthlySummary, shareViaWhatsApp } from '../utils/share'
 import { Trash2, Pencil, ArrowUpCircle, ArrowDownCircle, X, User, Download, FileSpreadsheet, Share2 } from 'lucide-react'
+import { isValidCalendarDate } from '../utils/date'
+import { fmt, parseNonNegativeNumber, parsePositiveAmount } from '../utils/money'
 
 type Tab = 'all' | 'income' | 'expense'
 
@@ -12,7 +15,7 @@ const PLATFORMS = ['rapido', 'ola', 'uber', 'namma_yatri', 'cash', 'refund', 'ot
 
 const CATEGORIES = [
   'commission', 'emi', 'fuel', 'driver_salary', 'driver_advance', 'driver_incentive',
-  'fare_fraud', 'insurance', 'permit', 'toll', 'car_wash', 'other',
+  'fare_fraud', 'insurance', 'permit', 'toll', 'car_wash', 'service', 'other',
 ]
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -44,16 +47,21 @@ type Entry = {
   category?: string
   trips?: number
   user_id?: string
+  fuel_log_id?: number | null
+  service_record_id?: number | null
+  driver_profile_id?: number | null
 }
 
 export default function History() {
   const { month, setMonth, startDate, endDate } = useMonthFilter()
+  const { t } = useLanguage()
   const [tab, setTab] = useState<Tab>('all')
   const [editing, setEditing] = useState<Entry | null>(null)
 
   const incomes = useIncomes(startDate, endDate)
   const expenses = useExpenses(startDate, endDate)
   const profiles = useProfiles()
+  const settlements = useDriverSettlements()
 
   const entries: Entry[] = []
   if (tab !== 'expense') {
@@ -83,18 +91,38 @@ export default function History() {
         recurring: e.recurring,
         category: e.category,
         user_id: e.user_id,
+        fuel_log_id: e.fuel_log_id,
+        service_record_id: e.service_record_id,
+        driver_profile_id: e.driver_profile_id,
       })
     }
   }
   entries.sort((a, b) => b.date.localeCompare(a.date))
+  const [deletingId, setDeletingId] = useState<number | null>(null)
+  const isLocked = (entry: Entry) => Boolean(
+    entry.kind === 'expense' &&
+    ['driver_salary', 'driver_advance', 'driver_incentive'].includes(entry.category ?? '') &&
+    settlements.some((settlement) => (
+      settlement.month === entry.date.slice(0, 7) &&
+      (settlement.driver_profile_id === entry.driver_profile_id ||
+        (!entry.driver_profile_id && settlement.driver_name && entry.note.toLowerCase().includes(settlement.driver_name.toLowerCase())))
+    ))
+  )
 
   const handleDelete = async (entry: Entry) => {
     if (!confirm('Delete this entry?')) return
-    if (entry.kind === 'income') await deleteIncome(entry.id)
-    else await deleteExpense(entry.id)
+    if (isLocked(entry)) return
+    setDeletingId(entry.id)
+    try {
+      if (entry.kind === 'income') await deleteIncome(entry.id)
+      else await deleteExpense(entry.id)
+    } catch (error) {
+      console.error('Entry deletion failed:', error)
+      notifyApp('error', 'Entry could not be deleted.')
+    } finally {
+      setDeletingId(null)
+    }
   }
-
-  const fmt = (n: number) => n.toLocaleString('en-IN')
 
   return (
     <div>
@@ -182,6 +210,21 @@ export default function History() {
                   {entry.date}
                   {entry.note ? ` · ${entry.note}` : ''}
                 </div>
+                {entry.fuel_log_id && (
+                  <div className="text-[10px] text-text-muted mt-1">
+                    {t.linkedFuelEdit}
+                  </div>
+                )}
+                {entry.service_record_id && (
+                  <div className="text-[10px] text-text-muted mt-1">
+                    {t.linkedServiceEdit}
+                  </div>
+                )}
+                {isLocked(entry) && (
+                  <div className="text-[10px] text-yellow-400 mt-1">
+                    {t.settledLocked}
+                  </div>
+                )}
                 {entry.user_id && profiles.get(entry.user_id) && (
                   <div className="flex items-center gap-1 mt-0.5">
                     <User size={10} className="text-text-secondary" />
@@ -199,12 +242,14 @@ export default function History() {
                 {entry.kind === 'income' ? '+' : '-'}₹{fmt(entry.amount)}
               </span>
               <button
+                disabled={isLocked(entry) || Boolean(entry.fuel_log_id || entry.service_record_id)}
                 onClick={() => setEditing(entry)}
                 className="text-text-muted hover:text-accent-light transition-colors"
               >
                 <Pencil size={15} />
               </button>
               <button
+                disabled={isLocked(entry) || deletingId === entry.id}
                 onClick={() => handleDelete(entry)}
                 className="text-text-muted hover:text-expense transition-colors"
               >
@@ -218,6 +263,7 @@ export default function History() {
       {editing && createPortal(
         <EditModal
           entry={editing}
+          locked={isLocked(editing)}
           onClose={() => setEditing(null)}
         />,
         document.body
@@ -226,7 +272,8 @@ export default function History() {
   )
 }
 
-function EditModal({ entry, onClose }: { entry: Entry; onClose: () => void }) {
+function EditModal({ entry, onClose, locked }: { entry: Entry; onClose: () => void; locked: boolean }) {
+  const { t } = useLanguage()
   const [date, setDate] = useState(entry.date)
   const [amount, setAmount] = useState(String(entry.amount))
   const [note, setNote] = useState(entry.note)
@@ -238,29 +285,40 @@ function EditModal({ entry, onClose }: { entry: Entry; onClose: () => void }) {
   // Expense fields
   const [category, setCategory] = useState(entry.category ?? 'fuel')
   const [recurring, setRecurring] = useState(entry.recurring ?? false)
+  const [submitting, setSubmitting] = useState(false)
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!amount || Number(amount) <= 0) return
-
-    if (entry.kind === 'income') {
-      await updateIncome(entry.id, {
-        date,
-        platform,
-        amount: Number(amount),
-        trips: Number(trips) || 0,
-        note,
-      })
-    } else {
-      await updateExpense(entry.id, {
-        date,
-        category,
-        amount: Number(amount),
-        note,
-        recurring,
-      })
+    const parsedAmount = parsePositiveAmount(amount)
+    const parsedTrips = trips === '' ? 0 : parseNonNegativeNumber(trips)
+    if (!isValidCalendarDate(date) || parsedAmount === null || parsedTrips === null || locked) {
+      notifyApp('error', 'Enter valid values. Settled or linked expenses cannot be changed here.')
+      return
     }
-    onClose()
+    setSubmitting(true)
+    try {
+      if (entry.kind === 'income') {
+        if (
+          navigator.onLine &&
+          await findDuplicateIncome({ date, platform, amount: parsedAmount }, entry.id) &&
+          !confirm('A matching income already exists. Save another entry?')
+        ) return
+        await updateIncome(entry.id, { date, platform, amount: parsedAmount, trips: parsedTrips, note })
+      } else {
+        if (
+          navigator.onLine &&
+          await findDuplicateExpense({ date, category, amount: parsedAmount }, entry.id) &&
+          !confirm('A matching expense already exists. Save another entry?')
+        ) return
+        await updateExpense(entry.id, { date, category, amount: parsedAmount, note, recurring })
+      }
+      onClose()
+    } catch (error) {
+      console.error('Entry update failed:', error)
+      notifyApp('error', 'Entry could not be updated.')
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -344,6 +402,7 @@ function EditModal({ entry, onClose }: { entry: Entry; onClose: () => void }) {
                     <button
                       key={c}
                       type="button"
+                      disabled={locked || Boolean(entry.fuel_log_id || entry.service_record_id)}
                       onClick={() => {
                         setCategory(c)
                         if (c === 'emi') setRecurring(true)
@@ -358,6 +417,11 @@ function EditModal({ entry, onClose }: { entry: Entry; onClose: () => void }) {
                     </button>
                   ))}
                 </div>
+                {(entry.fuel_log_id || entry.service_record_id) && (
+                  <p className="text-xs text-text-muted mt-2">
+                    {entry.fuel_log_id ? t.linkedFuelEdit : t.linkedServiceEdit}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -406,13 +470,14 @@ function EditModal({ entry, onClose }: { entry: Entry; onClose: () => void }) {
             </button>
             <button
               type="submit"
-              className={`flex-1 py-3 rounded-xl text-sm font-semibold text-black transition-all ${
+              disabled={submitting || locked}
+              className={`flex-1 py-3 rounded-xl text-sm font-semibold text-black transition-all disabled:opacity-50 ${
                 entry.kind === 'income'
                   ? 'bg-white shadow-none'
                   : 'bg-white shadow-none'
               }`}
             >
-              Save Changes
+              {submitting ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
         </form>

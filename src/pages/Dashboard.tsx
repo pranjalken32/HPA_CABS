@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useMonthFilter } from '../hooks/useMonthFilter'
-import { useIncomes, useExpenses, useGoal, upsertGoal, useDriverProfiles } from '../hooks/useSupabase'
+import { notifyApp, useIncomes, useExpenses, useGoal, upsertGoal, useDriverProfiles } from '../hooks/useSupabase'
 import {
   BarChart,
   Bar,
@@ -27,8 +27,10 @@ import {
   Target,
 } from 'lucide-react'
 import { generateMonthlySummary, shareViaWhatsApp } from '../utils/share'
-import { formatLocalDate, getInclusiveOverlapDays, parseLocalDate } from '../utils/date'
-import { useLanguage } from '../LanguageContext'
+import { formatLocalDate, lastDayOfMonth, parseLocalDate } from '../utils/date'
+import { parsePositiveAmount } from '../utils/money'
+import { prorateSalary } from '../utils/calculations'
+import { useLanguage } from '../useLanguage'
 
 const PLATFORM_COLORS: Record<string, string> = {
   rapido: '#f97316',
@@ -110,12 +112,9 @@ export default function Dashboard() {
   const emiMonthly = expByCategory('emi')
   // Salary from driver profiles (prorated based on start/end dates)
   const driverProfiles = useDriverProfiles()
-  const totalDaysInMonth = new Date(y, m, 0).getDate()
-  const monthStart = `${month}-01`
-  const monthEnd = `${month}-${String(totalDaysInMonth).padStart(2, '0')}`
+  const totalDaysInMonth = lastDayOfMonth(y, m)
   const totalProratedSalary = driverProfiles.reduce((sum, d) => {
-    const workDays = getInclusiveOverlapDays(d.start_date, d.end_date, monthStart, monthEnd)
-    return sum + Math.round((d.monthly_salary / totalDaysInMonth) * workDays)
+    return sum + prorateSalary(d.monthly_salary, d.start_date, d.end_date, y, m).amount
   }, 0)
   // Prorate EMI by days elapsed; salary already reflects each driver's employment window.
   const today = new Date()
@@ -126,11 +125,23 @@ export default function Dashboard() {
   const emiTillDate = (emiMonthly / totalDaysInMonth) * daysElapsed
   const salaryTillDate = isCurrentMonth
     ? driverProfiles.reduce((sum, d) => {
-        const workDays = getInclusiveOverlapDays(d.start_date, d.end_date, monthStart, todayStr)
-        return sum + Math.round((d.monthly_salary / totalDaysInMonth) * workDays)
+        const endDay = Number(todayStr.slice(8, 10))
+        const tillDays = Math.max(0, endDay - 1 + 1)
+        const overlap = prorateSalary(d.monthly_salary, d.start_date, d.end_date, y, m)
+        const startDay = Math.max(1, Number(d.start_date.slice(8, 10)))
+        const employmentEnd = d.end_date && d.end_date.slice(0, 7) === month
+          ? Number(d.end_date.slice(8, 10))
+          : totalDaysInMonth
+        const workingDays = Math.max(0, Math.min(tillDays, employmentEnd) - startDay + 1)
+        return sum + Math.round((d.monthly_salary / totalDaysInMonth) * Math.min(overlap.workingDays, workingDays))
       }, 0)
     : totalProratedSalary
   const grossProfit = totalRevenue - cngTotal - petrolTotal - commissionTotal - tollTotal - carWashTotal - fareFraudTotal - emiTillDate - salaryTillDate
+  const monthDays = Array.from({ length: totalDaysInMonth }, (_, index) => `${month}-${String(index + 1).padStart(2, '0')}`)
+  const incomeDates = new Set((incomes ?? []).map((income) => income.date))
+  const missingIncomeDays = monthDays.filter((day) => !incomeDates.has(day)).length
+  const zeroTripRows = (incomes ?? []).filter((income) => income.trips === 0).length
+  const [goalSubmitting, setGoalSubmitting] = useState(false)
 
   const platformData = Object.entries(
     (incomes ?? []).reduce<Record<string, number>>((acc, i) => {
@@ -271,15 +282,27 @@ export default function Dashboard() {
           <div className="flex gap-2">
             <button
               onClick={async () => {
-                if (Number(goalInput) > 0) {
-                  await upsertGoal(month, Number(goalInput))
+                const target = parsePositiveAmount(goalInput)
+                if (target === null) {
+                  notifyApp('error', 'Enter a valid positive goal.')
+                  return
+                }
+                setGoalSubmitting(true)
+                try {
+                  await upsertGoal(month, target)
                   setShowGoalInput(false)
                   setGoalInput('')
+                } catch (error) {
+                  console.error('Goal save failed:', error)
+                  notifyApp('error', 'Goal could not be saved.')
+                } finally {
+                  setGoalSubmitting(false)
                 }
               }}
+              disabled={goalSubmitting}
               className="flex-1 bg-white text-black text-sm font-semibold py-2 rounded-xl"
             >
-              Set Goal
+              {goalSubmitting ? 'Saving...' : 'Set Goal'}
             </button>
             <button
               onClick={() => { setShowGoalInput(false); setGoalInput('') }}
@@ -318,6 +341,14 @@ export default function Dashboard() {
         <SummaryCard label={t.expenses} value={fmt(totalExpense)} icon={<TrendingDown size={20} />} color="text-expense" />
         <SummaryCard label={t.totalTrips} value={String(totalTrips)} icon={<Car size={20} />} color="text-white" isCurrency={false} />
       </div>
+      {(missingIncomeDays > 0 || zeroTripRows > 0) && (
+        <div className="bg-surface-card rounded-2xl p-4 border border-border-dim">
+          <p className="text-sm font-semibold text-white">{t.dataGaps}</p>
+          <p className="text-xs text-text-muted mt-1">
+            {missingIncomeDays} {t.noIncomeDays}, and {zeroTripRows} {t.zeroTripRows}.
+          </p>
+        </div>
+      )}
 
       {/* CASH FLOW */}
       <div className="bg-surface-card rounded-2xl p-4 border border-border-dim space-y-3">

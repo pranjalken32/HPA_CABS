@@ -1,16 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useMonthFilter } from '../hooks/useMonthFilter'
-import { useExpenses, useIncomes, useCars, useFuelLogs, addFuelLog, useDriverProfiles, useDriverSettlements } from '../hooks/useSupabase'
-import { useAuth } from '../AuthContext'
-import { useLanguage } from '../LanguageContext'
+import { useExpenses, useIncomes, useCars, useFuelLogs, addFuelLog, findDuplicateExpense, notifyApp, useDriverProfiles, useDriverSettlements } from '../hooks/useSupabase'
+import { useAuth } from '../useAuth'
+import { useLanguage } from '../useLanguage'
 import { LANGUAGES } from '../i18n'
-import { getInclusiveOverlapDays, parseLocalDate } from '../utils/date'
+import { isValidCalendarDate, todayStr } from '../utils/date'
+import { parseNonNegativeNumber, parsePositiveAmount, fmt } from '../utils/money'
+import { calculateWeeklyIncentives, prorateSalary } from '../utils/calculations'
 import { Fuel, Car, Wallet, ArrowUpCircle, ChevronRight, CheckCircle2, Target, History, Globe } from 'lucide-react'
-
-function todayStr(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
 
 export default function DriverHome() {
   const { month, setMonth, startDate, endDate } = useMonthFilter()
@@ -37,14 +34,6 @@ export default function DriverHome() {
   const myName = myProfile?.name?.trim() || displayName || ''
   const assignedCarId = myProfile?.car_id ?? null
 
-  // Auto-select assigned car on load
-  useEffect(() => {
-    if (assignedCarId && !selectedCarId) {
-      setSelectedCarId(assignedCarId)
-      setShowFuelForm(true)
-    }
-  }, [assignedCarId]) // eslint-disable-line react-hooks/exhaustive-deps
-
   const selectedCar = cars.find((c) => c.id === selectedCarId)
   const fuelLogs = useFuelLogs(selectedCarId ?? 0)
 
@@ -62,15 +51,7 @@ export default function DriverHome() {
     if (!myProfile) return 0
     const salary = myProfile.monthly_salary ?? 0
     const [fy, fm] = month.split('-').map(Number)
-    const totalDays = new Date(fy, fm, 0).getDate()
-    const monthPrefix = `${month}-`
-    const workingDays = getInclusiveOverlapDays(
-      myProfile.start_date,
-      myProfile.end_date,
-      `${monthPrefix}01`,
-      `${monthPrefix}${String(totalDays).padStart(2, '0')}`
-    )
-    return Math.round((salary / totalDays) * workingDays)
+    return prorateSalary(salary, myProfile.start_date, myProfile.end_date, fy, fm).amount
   })()
 
   // ---- Incentive Calculation ----
@@ -87,31 +68,16 @@ export default function DriverHome() {
 
   // Calculate weekly incentives
   const [filterYear, filterMonth] = month.split('-').map(Number)
-  const weeklyData = (() => {
-    if (!assignedCarId || incentiveTarget <= 0) return []
-    const carIncomes = (incomes ?? []).filter((i) => i.car_id === assignedCarId)
-    const weekRevenues: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0 }
-    for (const inc of carIncomes) {
-      const d = parseLocalDate(inc.date)
-      if (d.getFullYear() !== filterYear || d.getMonth() + 1 !== filterMonth) continue
-      const day = d.getDate()
-      const wk = Math.min(Math.ceil(day / 7), 4)
-      weekRevenues[wk] = (weekRevenues[wk] || 0) + inc.amount
-    }
-    const weeks = []
-    for (let w = 1; w <= 4; w++) {
-      const revenue = weekRevenues[w] || 0
-      const hit = revenue >= weeklyTarget
-      let incentive = 0
-      if (hit && incentiveSlab > 0) {
-        incentive = incentiveBase + Math.floor((revenue - weeklyTarget) / incentiveSlab) * incentiveStep
-      } else if (hit) {
-        incentive = incentiveBase
-      }
-      weeks.push({ weekNum: w, revenue, incentive, hit })
-    }
-    return weeks
-  })()
+  const weeklyData = calculateWeeklyIncentives(
+    incomes ?? [],
+    assignedCarId,
+    incentiveTarget,
+    incentiveBase,
+    incentiveStep,
+    incentiveSlab,
+    filterYear,
+    filterMonth
+  ).weeks
 
   const currentWeek = weeklyData.find((w) => w.weekNum === currentWeekNum)
   const totalMonthIncentive = weeklyData.reduce((s, w) => s + w.incentive, 0)
@@ -121,33 +87,75 @@ export default function DriverHome() {
   // Net payable = salary + incentive - advances (matches owner's calculation)
   const balance = totalSalary + totalMonthIncentive - totalAdvance
 
-  const fmt = (n: number) => Math.abs(n).toLocaleString('en-IN')
+  const [fuelSubmitting, setFuelSubmitting] = useState(false)
 
   const handleAddFuel = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedCarId || !fuelAmount || Number(fuelAmount) <= 0) return
-    const totalCost = Number(fuelAmount)
+    if (!navigator.onLine) {
+      notifyApp('error', t.connectionRequired)
+      return
+    }
+    const totalCost = parsePositiveAmount(fuelAmount)
+    if (!selectedCarId || totalCost === null || !isValidCalendarDate(fuelDate)) {
+      notifyApp('error', 'Enter a valid fuel date and amount.')
+      return
+    }
     const price = fuelType === 'cng' ? cngRate : 0
     const qty = price > 0 ? Math.round((totalCost / price) * 100) / 100 : 0
-    await addFuelLog({
-      car_id: selectedCarId,
-      date: fuelDate,
-      quantity_kg: qty,
-      price_per_kg: price,
-      total_cost: totalCost,
-      odometer_km: fuelType === 'cng' ? (Number(fuelOdo) || 0) : 0,
-      fuel_type: fuelType,
-    })
-    setSaved(true)
-    setTimeout(() => {
-      setSaved(false)
-      setFuelAmount('')
-      setFuelOdo('')
-    }, 1200)
+    const odometer = fuelType === 'cng' ? parseNonNegativeNumber(fuelOdo) : 0
+    if (fuelType === 'cng' && (odometer === null || odometer <= 0)) {
+      notifyApp('error', 'Enter a valid odometer reading for CNG.')
+      return
+    }
+    const previous = fuelLogs
+      .filter((log) => log.fuel_type !== 'petrol' && log.odometer_km > 0)
+      .sort((a, b) => `${b.date}-${b.id}`.localeCompare(`${a.date}-${a.id}`))[0]
+    if (previous && odometer !== null && odometer <= previous.odometer_km) {
+      notifyApp('error', 'Odometer must be higher than the previous CNG fill.')
+      return
+    }
+    const efficiency = previous && odometer !== null && qty > 0
+      ? (odometer - previous.odometer_km) / qty
+      : null
+    if (efficiency !== null && (efficiency < 5 || efficiency > 30) && !confirm(`This fill implies ${efficiency.toFixed(1)} km/kg, outside the usual range. Save anyway?`)) return
+    setFuelSubmitting(true)
+    try {
+      const row = {
+        car_id: selectedCarId,
+        date: fuelDate,
+        quantity_kg: qty,
+        price_per_kg: price,
+        total_cost: totalCost,
+        odometer_km: fuelType === 'cng' ? (odometer ?? 0) : 0,
+        fuel_type: fuelType,
+      }
+      if (navigator.onLine && await findDuplicateExpense({ date: fuelDate, category: 'fuel', amount: totalCost }) && !confirm('A matching fuel expense already exists. Save another fill?')) return
+      await addFuelLog(row)
+      setSaved(true)
+      setTimeout(() => {
+        setSaved(false)
+        setFuelAmount('')
+        setFuelOdo('')
+      }, 1200)
+    } catch (error) {
+      console.error('Fuel save failed:', error)
+      notifyApp('error', 'Fuel entry could not be saved.')
+    } finally {
+      setFuelSubmitting(false)
+    }
   }
 
   // Fuel efficiency (CNG only)
   const cngLogs = fuelLogs.filter((l) => l.fuel_type !== 'petrol')
+  const previousCngFill = [...fuelLogs]
+    .filter((log) => log.fuel_type !== 'petrol' && log.odometer_km > 0)
+    .sort((a, b) => `${b.date}-${b.id}`.localeCompare(`${a.date}-${a.id}`))[0]
+  const previewAmount = parsePositiveAmount(fuelAmount)
+  const previewOdometer = parseNonNegativeNumber(fuelOdo)
+  const previewQuantity = previewAmount !== null && cngRate > 0 ? previewAmount / cngRate : 0
+  const previewEfficiency = previousCngFill && previewOdometer !== null && previewQuantity > 0
+    ? (previewOdometer - previousCngFill.odometer_km) / previewQuantity
+    : null
   const fuelEfficiency = (() => {
     if (cngLogs.length < 2) return null
     const sorted = [...cngLogs].sort((a, b) => a.odometer_km - b.odometer_km)
@@ -418,12 +426,18 @@ export default function DriverHome() {
                   />
                 </div>
               )}
+              {fuelType === 'cng' && previewEfficiency !== null && Number.isFinite(previewEfficiency) && previewEfficiency > 0 && (
+                <p className="text-xs text-text-secondary">
+                  {t.estimatedEfficiency}: {previewEfficiency.toFixed(1)} km/kg
+                </p>
+              )}
 
               <button
                 type="submit"
-                className="w-full bg-white text-black font-semibold py-3 rounded-xl hover:bg-gray-200 transition-all"
+                disabled={fuelSubmitting || saved}
+                className="w-full bg-white text-black font-semibold py-3 rounded-xl hover:bg-gray-200 transition-all disabled:opacity-60"
               >
-                {t.saveFuelEntry}
+                {fuelSubmitting ? 'Saving...' : t.saveFuelEntry}
               </button>
             </form>
 

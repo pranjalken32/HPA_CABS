@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useMonthFilter } from '../hooks/useMonthFilter'
 import {
+  notifyApp,
   useDriverProfiles,
   useExpenses,
   useIncomes,
@@ -17,93 +18,15 @@ import {
 } from '../hooks/useSupabase'
 import type { DriverProfileRow } from '../hooks/useSupabase'
 import { Users, Plus, Edit2, Trash2, FileText, Upload, X, Calendar, Phone, IndianRupee, CheckCircle2, Target, TrendingUp } from 'lucide-react'
-import { useLanguage } from '../LanguageContext'
-import { getInclusiveOverlapDays } from '../utils/date'
-
-function todayStr(): string {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
-function daysInMonth(year: number, month: number): number {
-  return new Date(year, month, 0).getDate()
-}
-
-function calcProRatedSalary(
-  monthlySalary: number,
-  startDate: string,
-  endDate: string | null,
-  filterYear: number,
-  filterMonth: number
-): { proRated: number; workingDays: number; totalDays: number } {
-  const totalDays = daysInMonth(filterYear, filterMonth)
-  const monthPrefix = `${filterYear}-${String(filterMonth).padStart(2, '0')}`
-  const workingDays = getInclusiveOverlapDays(
-    startDate,
-    endDate,
-    `${monthPrefix}-01`,
-    `${monthPrefix}-${String(totalDays).padStart(2, '0')}`
-  )
-  const proRated = Math.round((monthlySalary / totalDays) * workingDays)
-  return { proRated, workingDays, totalDays }
-}
-
-interface WeekIncentive {
-  weekNum: number
-  revenue: number
-  target: number
-  incentive: number
-  hit: boolean
-}
-
-function calcWeeklyIncentives(
-  incomes: { date: string; amount: number; car_id: number | null }[],
-  carId: number | null,
-  incentiveTarget: number,
-  incentiveBase: number,
-  incentiveStep: number,
-  incentiveSlab: number,
-  year: number,
-  monthNum: number
-): { weeks: WeekIncentive[]; totalIncentive: number } {
-  if (!carId || incentiveTarget <= 0) return { weeks: [], totalIncentive: 0 }
-
-  const weeklyTarget = incentiveTarget / 4
-  const carIncomes = incomes.filter((i) => i.car_id === carId)
-
-  // Group income by week of month
-  const weekRevenues: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0 }
-  for (const inc of carIncomes) {
-    const d = new Date(inc.date)
-    if (d.getFullYear() !== year || d.getMonth() + 1 !== monthNum) continue
-    const day = d.getDate()
-    const weekNum = Math.min(Math.ceil(day / 7), 4)
-    weekRevenues[weekNum] = (weekRevenues[weekNum] || 0) + inc.amount
-  }
-
-  const weeks: WeekIncentive[] = []
-  let totalIncentive = 0
-  for (let w = 1; w <= 4; w++) {
-    const revenue = weekRevenues[w] || 0
-    const hit = revenue >= weeklyTarget
-    let incentive = 0
-    if (hit && incentiveSlab > 0) {
-      const extraSlabs = Math.floor((revenue - weeklyTarget) / incentiveSlab)
-      incentive = incentiveBase + extraSlabs * incentiveStep
-    } else if (hit) {
-      incentive = incentiveBase
-    }
-    weeks.push({ weekNum: w, revenue, target: weeklyTarget, incentive, hit })
-    totalIncentive += incentive
-  }
-
-  return { weeks, totalIncentive }
-}
+import { useLanguage } from '../useLanguage'
+import { isValidCalendarDate, lastDayOfMonth, todayStr } from '../utils/date'
+import { fmt, parseNonNegativeNumber, parsePositiveAmount } from '../utils/money'
+import { calculateWeeklyIncentives, prorateSalary } from '../utils/calculations'
 
 function prevMonthEnd(startDate: string): string {
-  const d = new Date(startDate)
-  d.setDate(0)
-  return d.toISOString().slice(0, 10)
+  const [year, month] = startDate.split('-').map(Number)
+  const d = new Date(year, month - 1, 0)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
 function getMonthsBetween(from: string, toMonth: string): string[] {
@@ -151,7 +74,9 @@ export default function Drivers() {
 
   const [filterYear, filterMonth] = month.split('-').map(Number)
 
-  const fmt = (n: number) => Math.abs(n).toLocaleString('en-IN')
+  const [submitting, setSubmitting] = useState(false)
+  const [settlingId, setSettlingId] = useState<number | null>(null)
+  const [removingId, setRemovingId] = useState<number | null>(null)
 
   const defaultBase = localStorage.getItem('hpa_incentive_base') || '500'
   const defaultStep = localStorage.getItem('hpa_incentive_step') || '250'
@@ -191,19 +116,29 @@ export default function Drivers() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!name || !salary) return
+    const monthlySalary = parsePositiveAmount(salary)
+    const carId = carIdInput === '' ? null : parseNonNegativeNumber(carIdInput)
+    const incentiveTarget = incTarget === '' ? 0 : parseNonNegativeNumber(incTarget)
+    const incentiveBase = incBase === '' ? 500 : parseNonNegativeNumber(incBase)
+    const incentiveStep = incStep === '' ? 250 : parseNonNegativeNumber(incStep)
+    const incentiveSlab = incSlab === '' ? 5000 : parseNonNegativeNumber(incSlab)
+    if (!name.trim() || monthlySalary === null || (carIdInput !== '' && carId === null) || incentiveTarget === null || incentiveBase === null || incentiveStep === null || incentiveSlab === null ||
+      !isValidCalendarDate(startDateInput) || (endDateInput !== '' && !isValidCalendarDate(endDateInput))) {
+      notifyApp('error', 'Enter valid driver, date, salary, and incentive values.')
+      return
+    }
 
     const payload = {
       name,
       phone,
       start_date: startDateInput,
       end_date: endDateInput || null,
-      monthly_salary: Number(salary),
-      car_id: carIdInput ? Number(carIdInput) : null,
-      incentive_target: Number(incTarget) || 0,
-      incentive_base: Number(incBase) || 500,
-      incentive_step: Number(incStep) || 250,
-      incentive_slab: Number(incSlab) || 5000,
+      monthly_salary: monthlySalary,
+      car_id: carId,
+      incentive_target: incentiveTarget,
+      incentive_base: incentiveBase,
+      incentive_step: incentiveStep,
+      incentive_slab: incentiveSlab,
       dl_url: editDriver?.dl_url ?? null,
       aadhaar_url: editDriver?.aadhaar_url ?? null,
       pan_url: editDriver?.pan_url ?? null,
@@ -211,12 +146,20 @@ export default function Drivers() {
       auth_user_id: authUserIdInput || null,
     }
 
-    if (editDriver) {
-      await updateDriverProfile(editDriver.id, payload)
-    } else {
-      await addDriverProfile(payload)
+    setSubmitting(true)
+    try {
+      if (editDriver) {
+        await updateDriverProfile(editDriver.id, payload)
+      } else {
+        await addDriverProfile(payload)
+      }
+      resetForm()
+    } catch (error) {
+      console.error('Driver save failed:', error)
+      notifyApp('error', 'Driver could not be saved.')
+    } finally {
+      setSubmitting(false)
     }
-    resetForm()
   }
 
   const handleDocUpload = async (driverId: number, docType: 'dl_url' | 'aadhaar_url' | 'pan_url', file: File) => {
@@ -224,6 +167,9 @@ export default function Drivers() {
     try {
       const url = await uploadDriverDoc(file)
       await updateDriverProfile(driverId, { [docType]: url })
+    } catch (error) {
+      console.error('Driver document upload failed:', error)
+      notifyApp('error', 'Driver document could not be uploaded.')
     } finally {
       setUploading(false)
     }
@@ -443,9 +389,10 @@ export default function Drivers() {
 
           <button
             type="submit"
+            disabled={submitting}
             className="w-full bg-white text-black font-semibold rounded-xl py-2.5 text-sm"
           >
-            {editDriver ? t.updateDriver : t.addDriver}
+            {submitting ? 'Saving...' : editDriver ? t.updateDriver : t.addDriver}
           </button>
         </form>
       )}
@@ -460,15 +407,11 @@ export default function Drivers() {
       )}
 
       {drivers.map((driver) => {
-        const { proRated, workingDays, totalDays } = calcProRatedSalary(
-          driver.monthly_salary,
-          driver.start_date,
-          driver.end_date,
-          filterYear,
-          filterMonth
+        const { amount: proRated, workingDays, totalDays } = prorateSalary(
+          driver.monthly_salary, driver.start_date, driver.end_date, filterYear, filterMonth
         )
 
-        const { weeks: incentiveWeeks, totalIncentive } = calcWeeklyIncentives(
+        const { weeks: incentiveWeeks, totalIncentive } = calculateWeeklyIncentives(
           incomes ?? [],
           driver.car_id,
           driver.incentive_target,
@@ -494,15 +437,15 @@ export default function Drivers() {
           const settled = settlements.find((s) => (s.driver_profile_id === driver.id || s.driver_name === driver.name) && s.month === pm)
           if (settled) continue
           const [py, pmm] = pm.split('-').map(Number)
-          const { proRated: pmSalary } = calcProRatedSalary(driver.monthly_salary, driver.start_date, driver.end_date, py, pmm)
+          const { amount: pmSalary } = prorateSalary(driver.monthly_salary, driver.start_date, driver.end_date, py, pmm)
           const pmStart = `${pm}-01`
-          const pmEnd = `${pm}-${String(daysInMonth(py, pmm)).padStart(2, '0')}`
+          const pmEnd = `${pm}-${String(lastDayOfMonth(py, pmm)).padStart(2, '0')}`
           const pmAdvances = (allPrevExpenses ?? []).filter(
             (e) => e.category === 'driver_advance' && (
               e.driver_profile_id === driver.id || e.note?.toLowerCase().includes(driver.name.toLowerCase())
             ) && e.date >= pmStart && e.date <= pmEnd
           ).reduce((s, e) => s + e.amount, 0)
-          const { totalIncentive: pmIncentive } = calcWeeklyIncentives(
+          const { totalIncentive: pmIncentive } = calculateWeeklyIncentives(
             (allPrevIncomes ?? []).filter((i) => i.date >= pmStart && i.date <= pmEnd),
             driver.car_id, driver.incentive_target, driver.incentive_base, driver.incentive_step, driver.incentive_slab, py, pmm
           )
@@ -632,7 +575,18 @@ export default function Drivers() {
                             </div>
                           </div>
                           <button
-                            onClick={() => removeSettlement(driver.id, month)}
+                            disabled={settlingId === driver.id}
+                            onClick={async () => {
+                              setSettlingId(driver.id)
+                              try {
+                                await removeSettlement(driver.id, month)
+                              } catch (error) {
+                                console.error('Settlement undo failed:', error)
+                                notifyApp('error', 'Settlement could not be undone.')
+                              } finally {
+                                setSettlingId(null)
+                              }
+                            }}
                             className="text-[10px] text-text-muted hover:text-white underline"
                           >
                             Undo
@@ -640,8 +594,30 @@ export default function Drivers() {
                         </div>
                       ) : (
                         <button
-                          onClick={() => addSettlement({ driver_name: driver.name, driver_profile_id: driver.id, month, amount: netPayable, settled_date: todayStr() })}
-                          disabled={netPayable <= 0}
+                          disabled={netPayable <= 0 || settlingId === driver.id}
+                          onClick={async () => {
+                            setSettlingId(driver.id)
+                            try {
+                              const earlier = prevMonths.filter((pm) => pm < month && !settlements.some((s) => (
+                                (s.driver_profile_id === driver.id || s.driver_name === driver.name) && s.month === pm
+                              )))
+                              for (const pm of earlier) {
+                                await addSettlement({
+                                  driver_name: driver.name,
+                                  driver_profile_id: driver.id,
+                                  month: pm,
+                                  amount: 0,
+                                  settled_date: todayStr(),
+                                })
+                              }
+                              await addSettlement({ driver_name: driver.name, driver_profile_id: driver.id, month, amount: netPayable, settled_date: todayStr() })
+                            } catch (error) {
+                              console.error('Settlement save failed:', error)
+                              notifyApp('error', 'Settlement could not be saved.')
+                            } finally {
+                              setSettlingId(null)
+                            }
+                          }}
                           className={`w-full py-2 rounded-lg text-sm font-semibold transition-all ${
                             netPayable > 0
                               ? 'bg-white text-black hover:bg-gray-200'
@@ -691,8 +667,13 @@ export default function Drivers() {
                           {url ? (
                             <button
                               onClick={async () => {
-                                const signedUrl = await getSignedUrl(url)
-                                if (signedUrl) window.open(signedUrl, '_blank')
+                                try {
+                                  const signedUrl = await getSignedUrl(url)
+                                  if (signedUrl) window.open(signedUrl, '_blank')
+                                } catch (error) {
+                                  console.error('Driver document link failed:', error)
+                                  notifyApp('error', 'Document could not be opened.')
+                                }
                               }}
                               className="w-full flex flex-col items-center gap-1 bg-surface-elevated rounded-xl p-2.5 border border-border-dim hover:border-white/30 transition-colors"
                             >
@@ -729,13 +710,22 @@ export default function Drivers() {
                   >
                     <Edit2 size={12} /> Edit
                   </button>
-                  <button
+                    <button
+                    disabled={removingId === driver.id}
                     onClick={async () => {
                       if (confirm(`Remove ${driver.name}?`)) {
-                        await deleteDriverProfile(driver.id)
+                        setRemovingId(driver.id)
+                        try {
+                          await deleteDriverProfile(driver.id)
+                        } catch (error) {
+                          console.error('Driver removal failed:', error)
+                          notifyApp('error', 'Driver could not be removed.')
+                        } finally {
+                          setRemovingId(null)
+                        }
                       }
                     }}
-                    className="flex items-center gap-1 text-xs text-expense hover:text-red-300 transition-colors"
+                    className="flex items-center gap-1 text-xs text-expense hover:text-red-300 transition-colors disabled:opacity-50"
                   >
                     <Trash2 size={12} /> Remove
                   </button>

@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../AuthContext'
-import { useLanguage } from '../LanguageContext'
+import { useAuth } from '../useAuth'
+import { useLanguage } from '../useLanguage'
 import { LANGUAGES } from '../i18n'
+import { notifyApp } from '../hooks/useSupabase'
+import { parseNonNegativeNumber } from '../utils/money'
 import {
   BarChart3,
   Clock,
@@ -33,18 +35,27 @@ export default function More() {
   const [rpmSaved, setRpmSaved] = useState(false)
 
   const handleSaveRate = () => {
-    const rate = Number(cngRate)
-    if (rate > 0) {
+    const rate = parseNonNegativeNumber(cngRate)
+    if (rate !== null && rate > 0) {
       localStorage.setItem('hpa_cng_rate', String(rate))
       setSaved(true)
       setTimeout(() => setSaved(false), 1500)
+    } else {
+      notifyApp('error', t.invalidPositiveCngRate)
     }
   }
 
   const handleSaveIncentive = () => {
-    localStorage.setItem('hpa_incentive_base', String(Number(incBase) || 500))
-    localStorage.setItem('hpa_incentive_step', String(Number(incStep) || 250))
-    localStorage.setItem('hpa_incentive_slab', String(Number(incSlab) || 5000))
+    const base = incBase === '' ? 500 : parseNonNegativeNumber(incBase)
+    const step = incStep === '' ? 250 : parseNonNegativeNumber(incStep)
+    const slab = incSlab === '' ? 5000 : parseNonNegativeNumber(incSlab)
+    if (base === null || step === null || slab === null) {
+      notifyApp('error', t.invalidIncentiveValues)
+      return
+    }
+    localStorage.setItem('hpa_incentive_base', String(base))
+    localStorage.setItem('hpa_incentive_step', String(step))
+    localStorage.setItem('hpa_incentive_slab', String(slab))
     setIncSaved(true)
     setTimeout(() => setIncSaved(false), 1500)
   }
@@ -226,7 +237,12 @@ export default function More() {
           </div>
           <button
             onClick={() => {
-              localStorage.setItem('hpa_revenue_per_km_threshold', String(Number(rpmThreshold) || 12))
+              const threshold = rpmThreshold === '' ? 12 : parseNonNegativeNumber(rpmThreshold)
+              if (threshold === null || threshold <= 0) {
+                notifyApp('error', t.invalidRevenueKmThreshold)
+                return
+              }
+              localStorage.setItem('hpa_revenue_per_km_threshold', String(threshold))
               setRpmSaved(true)
               setTimeout(() => setRpmSaved(false), 1500)
             }}

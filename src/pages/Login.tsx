@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { useAuth } from '../AuthContext'
-import { useLanguage } from '../LanguageContext'
+import { useAuth } from '../useAuth'
+import { useLanguage } from '../useLanguage'
 import Logo from '../components/Logo'
 
 export default function Login() {
