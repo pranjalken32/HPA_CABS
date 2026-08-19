@@ -115,6 +115,8 @@ export interface WeeklySettlementRow {
   projected: boolean
   settlement: WeeklySettlementLike | undefined
   coveringSettlement: WeeklySettlementLike | undefined
+  coveringPeriodStart: string | undefined
+  coveringPeriodEnd: string | undefined
   coverage: 'none' | 'weekly' | 'monthly' | 'partial'
   settleable: boolean
 }
@@ -146,22 +148,31 @@ export function deriveWeeklySettlementRows(
       const coveringSettlement = exactSettlement ? undefined : overlappingMonthlySettlements.find(
         (candidate) => candidate.period_start <= week.end && candidate.period_end >= week.end
       ) ?? overlappingMonthlySettlements[0]
+      const weekDays = Array.from({ length: 7 }, (_, index) => addLocalDays(week.start, index))
+      const coveredDays = new Set<string>()
+      for (const settlement of overlappingMonthlySettlements) {
+        for (const day of weekDays) {
+          if (day >= settlement.period_start && day <= settlement.period_end) {
+            coveredDays.add(day)
+          }
+        }
+      }
       const fullyCovered = !exactSettlement &&
-        coveringSettlement !== undefined &&
-        coveringSettlement.period_start <= week.start &&
-        coveringSettlement.period_end >= week.end
+        coveredDays.size === weekDays.length
       const partiallyCovered = !exactSettlement &&
-        coveringSettlement !== undefined &&
+        coveredDays.size > 0 &&
         !fullyCovered
       const uncoveredRanges = partiallyCovered
-        ? [
-            ...(week.start < coveringSettlement.period_start
-              ? [{ start: week.start, end: addLocalDays(coveringSettlement.period_start, -1) }]
-              : []),
-            ...(week.end > coveringSettlement.period_end
-              ? [{ start: addLocalDays(coveringSettlement.period_end, 1), end: week.end }]
-              : []),
-          ]
+        ? weekDays.reduce<{ start: string; end: string }[]>((ranges, day) => {
+            if (coveredDays.has(day)) return ranges
+            const previous = ranges.at(-1)
+            if (previous && addLocalDays(previous.end, 1) === day) {
+              previous.end = day
+            } else {
+              ranges.push({ start: day, end: day })
+            }
+            return ranges
+          }, [])
         : []
       const salary = (partiallyCovered ? uncoveredRanges : [week]).reduce(
         (sum, range) => sum + prorateSalaryForWeek(
@@ -211,8 +222,20 @@ export function deriveWeeklySettlementRows(
         projected: week.end > asOfDate,
         settlement: exactSettlement,
         coveringSettlement,
+        coveringPeriodStart: overlappingMonthlySettlements.length > 0
+          ? overlappingMonthlySettlements.reduce(
+            (start, settlement) => settlement.period_start < start ? settlement.period_start : start,
+            overlappingMonthlySettlements[0].period_start
+          )
+          : undefined,
+        coveringPeriodEnd: overlappingMonthlySettlements.length > 0
+          ? overlappingMonthlySettlements.reduce(
+            (end, settlement) => settlement.period_end > end ? settlement.period_end : end,
+            overlappingMonthlySettlements[0].period_end
+          )
+          : undefined,
         coverage,
-        settleable: !exactSettlement && !coveringSettlement && week.end <= asOfDate,
+        settleable: !exactSettlement && overlappingMonthlySettlements.length === 0 && week.end <= asOfDate,
       }
       carryForward = fullyCovered
         ? 0
