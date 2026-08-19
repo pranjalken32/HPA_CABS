@@ -109,21 +109,88 @@ export function useAllExpenses() {
   return data
 }
 
-export async function addExpense(row: Omit<ExpenseRow, 'id' | 'user_id'>) {
-  const { error } = await supabase.from('expenses').insert(row)
+type ExpenseInsert = Omit<ExpenseRow, 'id' | 'user_id' | 'fuel_log_id' | 'service_record_id'> &
+  Partial<Pick<ExpenseRow, 'fuel_log_id' | 'service_record_id'>>
+
+export async function addExpense(row: ExpenseInsert) {
+  const { error } = await supabase.from('expenses').insert({
+    ...row,
+    fuel_log_id: row.fuel_log_id ?? null,
+    service_record_id: row.service_record_id ?? null,
+  })
   if (error) throw error
   triggerRefresh()
 }
 
 export async function updateExpense(id: number, updates: Partial<ExpenseRow>) {
+  const { data: expense, error: fetchError } = await supabase
+    .from('expenses')
+    .select('*')
+    .eq('id', id)
+    .single()
+  if (fetchError) throw fetchError
+
   const { error } = await supabase.from('expenses').update(updates).eq('id', id)
   if (error) throw error
+
+  if (expense.fuel_log_id) {
+    const fuelUpdates: Partial<FuelLogRow> = {}
+    if (updates.date !== undefined) fuelUpdates.date = updates.date
+    if (updates.amount !== undefined) {
+      const { data: fuelLog, error: fuelError } = await supabase
+        .from('fuel_logs')
+        .select('price_per_kg')
+        .eq('id', expense.fuel_log_id)
+        .single()
+      if (fuelError) throw fuelError
+      fuelUpdates.total_cost = updates.amount
+      if (fuelLog.price_per_kg > 0) {
+        fuelUpdates.quantity_kg = Math.round((updates.amount / fuelLog.price_per_kg) * 100) / 100
+      }
+    }
+    if (Object.keys(fuelUpdates).length > 0) {
+      const { error: fuelUpdateError } = await supabase
+        .from('fuel_logs')
+        .update(fuelUpdates)
+        .eq('id', expense.fuel_log_id)
+      if (fuelUpdateError) throw fuelUpdateError
+    }
+  } else if (expense.service_record_id) {
+    const serviceUpdates: Partial<ServiceRecordRow> = {}
+    if (updates.date !== undefined) serviceUpdates.date = updates.date
+    if (updates.amount !== undefined) serviceUpdates.cost = updates.amount
+    if (updates.note !== undefined) serviceUpdates.description = updates.note
+    if (Object.keys(serviceUpdates).length > 0) {
+      const { error: serviceUpdateError } = await supabase
+        .from('service_records')
+        .update(serviceUpdates)
+        .eq('id', expense.service_record_id)
+      if (serviceUpdateError) throw serviceUpdateError
+    }
+  }
+
   triggerRefresh()
 }
 
 export async function deleteExpense(id: number) {
-  const { error } = await supabase.from('expenses').delete().eq('id', id)
-  if (error) throw error
+  const { data: expense, error: fetchError } = await supabase
+    .from('expenses')
+    .select('fuel_log_id, service_record_id')
+    .eq('id', id)
+    .single()
+  if (fetchError) throw fetchError
+
+  if (expense.fuel_log_id) {
+    const { error } = await supabase.from('fuel_logs').delete().eq('id', expense.fuel_log_id)
+    if (error) throw error
+  } else if (expense.service_record_id) {
+    const { error } = await supabase.from('service_records').delete().eq('id', expense.service_record_id)
+    if (error) throw error
+  } else {
+    const { error } = await supabase.from('expenses').delete().eq('id', id)
+    if (error) throw error
+  }
+
   triggerRefresh()
 }
 
@@ -241,11 +308,15 @@ export function useServiceRecords(carId: number) {
 }
 
 export async function addServiceRecord(row: Omit<ServiceRecordRow, 'id' | 'user_id'>) {
-  const { error } = await supabase.from('service_records').insert(row)
+  const { data: record, error } = await supabase
+    .from('service_records')
+    .insert(row)
+    .select()
+    .single()
   if (error) throw error
 
   if (row.cost > 0) {
-    await supabase.from('expenses').insert({
+    const { error: expenseError } = await supabase.from('expenses').insert({
       date: row.date,
       category: 'service',
       amount: row.cost,
@@ -253,23 +324,18 @@ export async function addServiceRecord(row: Omit<ServiceRecordRow, 'id' | 'user_
       recurring: false,
       car_id: row.car_id,
       receipt_url: null,
+      fuel_log_id: null,
+      service_record_id: record.id,
     })
+    if (expenseError) throw expenseError
   }
 
   triggerRefresh()
 }
 
 export async function deleteServiceRecord(id: number) {
-  const { data: rec } = await supabase.from('service_records').select('*').eq('id', id).single()
   const { error } = await supabase.from('service_records').delete().eq('id', id)
   if (error) throw error
-  if (rec) {
-    await supabase.from('expenses').delete()
-      .eq('category', 'service')
-      .eq('date', rec.date)
-      .eq('amount', rec.cost)
-      .eq('car_id', rec.car_id)
-  }
   triggerRefresh()
 }
 
@@ -314,14 +380,18 @@ export function useFuelLogs(carId: number) {
 }
 
 export async function addFuelLog(row: Omit<FuelLogRow, 'id' | 'user_id'>) {
-  const { error } = await supabase.from('fuel_logs').insert(row)
+  const { data: log, error } = await supabase
+    .from('fuel_logs')
+    .insert(row)
+    .select()
+    .single()
   if (error) throw error
   // Auto-create matching expense for this fuel fill
   if (row.total_cost > 0) {
     const fuelNote = row.fuel_type === 'petrol'
       ? `Petrol ₹${row.total_cost}`
       : `${row.quantity_kg}kg CNG @ ₹${row.price_per_kg}/kg`
-    await supabase.from('expenses').insert({
+    const { error: expenseError } = await supabase.from('expenses').insert({
       date: row.date,
       category: 'fuel',
       amount: row.total_cost,
@@ -329,23 +399,42 @@ export async function addFuelLog(row: Omit<FuelLogRow, 'id' | 'user_id'>) {
       recurring: false,
       car_id: row.car_id,
       receipt_url: null,
+      fuel_log_id: log.id,
+      service_record_id: null,
     })
+    if (expenseError) throw expenseError
   }
   triggerRefresh()
 }
 
+export async function updateFuelLog(id: number, updates: Partial<FuelLogRow>) {
+  const { data: log, error } = await supabase
+    .from('fuel_logs')
+    .update(updates)
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+
+  const fuelNote = log.fuel_type === 'petrol'
+    ? `Petrol ₹${log.total_cost}`
+    : `${log.quantity_kg}kg CNG @ ₹${log.price_per_kg}/kg`
+  const { error: expenseError } = await supabase
+    .from('expenses')
+    .update({
+      date: log.date,
+      amount: log.total_cost,
+      note: fuelNote,
+    })
+    .eq('fuel_log_id', id)
+  if (expenseError) throw expenseError
+
+  triggerRefresh()
+}
+
 export async function deleteFuelLog(id: number) {
-  // Fetch the log first so we can remove the linked expense
-  const { data: log } = await supabase.from('fuel_logs').select('*').eq('id', id).single()
   const { error } = await supabase.from('fuel_logs').delete().eq('id', id)
   if (error) throw error
-  if (log) {
-    await supabase.from('expenses').delete()
-      .eq('category', 'fuel')
-      .eq('date', log.date)
-      .eq('amount', log.total_cost)
-      .eq('car_id', log.car_id)
-  }
   triggerRefresh()
 }
 
@@ -431,7 +520,7 @@ export async function processRecurringExpenses() {
     (thisMonthExpenses ?? []).map((e: ExpenseRow) => `${e.category}|${e.amount}|${e.note}`)
   )
 
-  const toAdd: Omit<ExpenseRow, 'id' | 'user_id'>[] = []
+  const toAdd: ExpenseInsert[] = []
   for (const [key, tmpl] of templates) {
     if (!existingKeys.has(key)) {
       toAdd.push({
@@ -442,6 +531,8 @@ export async function processRecurringExpenses() {
         recurring: true,
         car_id: tmpl.car_id,
         receipt_url: null,
+        fuel_log_id: null,
+        service_record_id: null,
       })
     }
   }

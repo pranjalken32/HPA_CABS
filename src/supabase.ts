@@ -29,6 +29,8 @@ export interface ExpenseRow {
   car_id: number | null
   receipt_url: string | null
   driver_profile_id?: number | null
+  fuel_log_id: number | null
+  service_record_id: number | null
 }
 
 export interface CarRow {
