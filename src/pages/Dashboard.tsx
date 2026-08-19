@@ -27,6 +27,7 @@ import {
   Target,
 } from 'lucide-react'
 import { generateMonthlySummary, shareViaWhatsApp } from '../utils/share'
+import { formatLocalDate, getInclusiveOverlapDays, parseLocalDate } from '../utils/date'
 import { useLanguage } from '../LanguageContext'
 
 const PLATFORM_COLORS: Record<string, string> = {
@@ -53,7 +54,7 @@ const tooltipStyle = {
 }
 
 function getWeekNumber(dateStr: string): number {
-  const d = new Date(dateStr)
+  const d = parseLocalDate(dateStr)
   return Math.ceil(d.getDate() / 7)
 }
 
@@ -110,24 +111,25 @@ export default function Dashboard() {
   // Salary from driver profiles (prorated based on start/end dates)
   const driverProfiles = useDriverProfiles()
   const totalDaysInMonth = new Date(y, m, 0).getDate()
-  const monthStart = new Date(y, m - 1, 1)
-  const monthEnd = new Date(y, m - 1, totalDaysInMonth)
+  const monthStart = `${month}-01`
+  const monthEnd = `${month}-${String(totalDaysInMonth).padStart(2, '0')}`
   const totalProratedSalary = driverProfiles.reduce((sum, d) => {
-    const driverStart = new Date(d.start_date)
-    const driverEnd = d.end_date ? new Date(d.end_date) : null
-    if (driverStart > monthEnd) return sum
-    if (driverEnd && driverEnd < monthStart) return sum
-    const effStart = driverStart > monthStart ? driverStart : monthStart
-    const effEnd = driverEnd && driverEnd < monthEnd ? driverEnd : monthEnd
-    const workDays = Math.floor((effEnd.getTime() - effStart.getTime()) / (1000 * 60 * 60 * 24)) + 1
+    const workDays = getInclusiveOverlapDays(d.start_date, d.end_date, monthStart, monthEnd)
     return sum + Math.round((d.monthly_salary / totalDaysInMonth) * workDays)
   }, 0)
-  // Prorate EMI & salary: ÷ total days × days elapsed so far
-  const dayOfMonth = new Date().getDate()
-  const isCurrentMonth = month === `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
+  // Prorate EMI by days elapsed; salary already reflects each driver's employment window.
+  const today = new Date()
+  const dayOfMonth = today.getDate()
+  const todayStr = formatLocalDate(today)
+  const isCurrentMonth = month === todayStr.slice(0, 7)
   const daysElapsed = isCurrentMonth ? dayOfMonth : totalDaysInMonth
   const emiTillDate = (emiMonthly / totalDaysInMonth) * daysElapsed
-  const salaryTillDate = (totalProratedSalary / totalDaysInMonth) * daysElapsed
+  const salaryTillDate = isCurrentMonth
+    ? driverProfiles.reduce((sum, d) => {
+        const workDays = getInclusiveOverlapDays(d.start_date, d.end_date, monthStart, todayStr)
+        return sum + Math.round((d.monthly_salary / totalDaysInMonth) * workDays)
+      }, 0)
+    : totalProratedSalary
   const grossProfit = totalRevenue - cngTotal - petrolTotal - commissionTotal - tollTotal - carWashTotal - fareFraudTotal - emiTillDate - salaryTillDate
 
   const platformData = Object.entries(
