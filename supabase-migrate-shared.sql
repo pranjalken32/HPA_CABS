@@ -3,6 +3,8 @@
 -- Run ONLY if you previously ran the old supabase-setup.sql
 -- (that had "Users see own ..." policies).
 -- If setting up fresh, use supabase-setup.sql instead.
+-- This is a legacy migration only. Do not run it for a fresh setup; apply
+-- supabase-rls-roles.sql and supabase-data-constraints.sql instead.
 -- ============================================
 
 -- Drop old per-user policies

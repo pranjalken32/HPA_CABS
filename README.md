@@ -302,6 +302,15 @@ Sorted by expiry date ascending (nearest expiry first).
 
 ## User & Role Management
 
+### Supabase security follow-up
+
+After the base table setup, apply these repository-owned SQL files in order:
+
+1. `supabase-rls-roles.sql` — role-based owner and driver access.
+2. `supabase-data-constraints.sql` — database validation for dates, amounts, and settlements.
+
+Do not recreate blanket `auth.role() = 'authenticated'` policies from legacy setup scripts.
+
 ### Roles
 
 | Role | Access |
