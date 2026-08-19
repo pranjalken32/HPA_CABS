@@ -4,9 +4,9 @@ import { useExpenses, useIncomes, useCars, useFuelLogs, addFuelLog, findDuplicat
 import { useAuth } from '../useAuth'
 import { useLanguage } from '../useLanguage'
 import { LANGUAGES } from '../i18n'
-import { isValidCalendarDate, todayStr } from '../utils/date'
+import { getWeekEnd, getWeekStart, isValidCalendarDate, todayStr } from '../utils/date'
 import { parseNonNegativeNumber, parsePositiveAmount, fmt } from '../utils/money'
-import { calculateWeeklyIncentives, prorateSalary } from '../utils/calculations'
+import { calculateWeeklyIncentiveForRange, calculateWeeklyIncentives, prorateSalary, prorateSalaryForWeek } from '../utils/calculations'
 import { Fuel, Car, Wallet, ArrowUpCircle, ChevronRight, CheckCircle2, Target, History, Globe } from 'lucide-react'
 
 export default function DriverHome() {
@@ -14,6 +14,10 @@ export default function DriverHome() {
   const { displayName, user } = useAuth()
   const { lang, t, setLang } = useLanguage()
   const expenses = useExpenses(startDate, endDate)
+  const currentDate = todayStr()
+  const currentWeekStart = getWeekStart(currentDate)
+  const currentWeekEnd = getWeekEnd(currentDate)
+  const weekExpenses = useExpenses(currentWeekStart, currentDate)
   const cars = useCars()
   const driverProfiles = useDriverProfiles()
   const [selectedCarId, setSelectedCarId] = useState<number | null>(null)
@@ -56,16 +60,13 @@ export default function DriverHome() {
   })()
 
   // ---- Incentive Calculation ----
-  const incomes = useIncomes(startDate, endDate)
+  const incomeEndDate = currentWeekEnd > endDate ? currentWeekEnd : endDate
+  const incomes = useIncomes(getWeekStart(startDate), incomeEndDate)
   const incentiveTarget = myProfile?.incentive_target ?? 0
   const incentiveBase = myProfile?.incentive_base ?? 500
   const incentiveStep = myProfile?.incentive_step ?? 250
   const incentiveSlab = myProfile?.incentive_slab ?? 5000
   const weeklyTarget = incentiveTarget > 0 ? incentiveTarget / 4 : 0
-
-  // Current week number (1-4)
-  const today = new Date()
-  const currentWeekNum = Math.min(Math.ceil(today.getDate() / 7), 4)
 
   // Calculate weekly incentives
   const [filterYear, filterMonth] = month.split('-').map(Number)
@@ -80,13 +81,35 @@ export default function DriverHome() {
     filterMonth
   ).weeks
 
-  const currentWeek = weeklyData.find((w) => w.weekNum === currentWeekNum)
+  const currentWeek = calculateWeeklyIncentiveForRange(
+    incomes ?? [],
+    assignedCarId,
+    incentiveTarget,
+    incentiveBase,
+    incentiveStep,
+    incentiveSlab,
+    { start: currentWeekStart, end: currentWeekEnd }
+  )
+  const currentWeekNum = currentWeek.weekNum
   const totalMonthIncentive = weeklyData.reduce((s, w) => s + w.incentive, 0)
   const currentRevenue = currentWeek?.revenue ?? 0
   const remainingForTarget = Math.max(weeklyTarget - currentRevenue, 0)
 
   // Net payable = salary + incentive - advances (matches owner's calculation)
   const balance = totalSalary + totalMonthIncentive - totalAdvance
+  const thisWeekSalary = myProfile
+    ? prorateSalaryForWeek(myProfile.monthly_salary, myProfile.start_date, myProfile.end_date, {
+      start: currentWeekStart,
+      end: currentDate,
+    }).amount
+    : 0
+  const thisWeekAdvance = (weekExpenses ?? [])
+    .filter((expense) => expense.category === 'driver_advance' && (
+      (myProfile && expense.driver_profile_id === myProfile.id) ||
+      (myName && expense.note?.toLowerCase().includes(myName.toLowerCase()))
+    ))
+    .reduce((sum, expense) => sum + expense.amount, 0)
+  const thisWeekNet = thisWeekSalary + currentWeek.incentive - thisWeekAdvance
 
   const [fuelSubmitting, setFuelSubmitting] = useState(false)
 
@@ -244,7 +267,7 @@ export default function DriverHome() {
           {/* This Week Progress */}
           <div className="bg-surface-elevated rounded-xl p-4">
             <div className="flex justify-between items-center mb-2">
-              <span className="text-xs text-text-muted">Week {currentWeekNum} Progress</span>
+              <span className="text-xs text-text-muted">{t.weekRange} {currentWeekStart} → {currentWeekEnd}</span>
               <span className="text-xs font-bold text-white">
                 ₹{fmt(currentRevenue)} / ₹{fmt(weeklyTarget)}
               </span>
@@ -273,6 +296,24 @@ export default function DriverHome() {
                 )}
               </div>
             )}
+          </div>
+
+          <div className="bg-surface-elevated rounded-xl p-4">
+            <p className="text-xs text-text-muted uppercase mb-2">{t.thisWeek}</p>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <div>
+                <p className="text-[10px] text-text-muted">{t.earnedSalary}</p>
+                <p className="text-sm font-bold text-white">₹{fmt(thisWeekSalary)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-text-muted">{t.weekAdvance}</p>
+                <p className="text-sm font-bold text-white">₹{fmt(thisWeekAdvance)}</p>
+              </div>
+              <div>
+                <p className="text-[10px] text-text-muted">{t.weekNet}</p>
+                <p className={`text-sm font-bold ${thisWeekNet >= 0 ? 'text-income' : 'text-expense'}`}>₹{fmt(thisWeekNet)}</p>
+              </div>
+            </div>
           </div>
 
           {/* Monthly Summary — big simple numbers */}

@@ -894,18 +894,34 @@ export function useDriverSettlements(filter?: { driverProfileId?: number; driver
   return data
 }
 
-export async function addSettlement(row: { driver_name: string; driver_profile_id: number; month: string; amount: number; settled_date: string }) {
+export async function addSettlement(row: {
+  driver_name: string
+  driver_profile_id: number
+  month: string
+  amount: number
+  settled_date: string
+  period_type: 'month' | 'week'
+  period_start: string
+  period_end: string
+}) {
   const { error } = await supabase.from('driver_settlements').insert(row)
   if (error) throw error
   triggerRefresh()
 }
 
-export async function removeSettlement(driverProfileId: number, month: string) {
+export async function removeSettlement(id: number) {
   const { error } = await supabase
     .from('driver_settlements')
     .delete()
-    .eq('driver_profile_id', driverProfileId)
-    .eq('month', month)
+    .eq('id', id)
   if (error) throw error
   triggerRefresh()
+}
+
+export function getSettlementErrorMessage(error: unknown): string {
+  const message = String((error as { message?: string })?.message ?? '')
+  if (/overlaps the settlement/i.test(message)) {
+    return 'This settlement overlaps an existing settlement and was not saved.'
+  }
+  return 'Settlement could not be saved. Please try again.'
 }

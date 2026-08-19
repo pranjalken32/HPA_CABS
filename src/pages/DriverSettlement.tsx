@@ -1,7 +1,7 @@
 import { useMonthFilter } from '../hooks/useMonthFilter'
 import { useExpenses } from '../hooks/useSupabase'
 import { Users, ArrowUpCircle, ArrowDownCircle, Wallet } from 'lucide-react'
-import { parseLocalDate } from '../utils/date'
+import { getWeeksForMonth } from '../utils/date'
 
 export default function DriverSettlement() {
   const { month, setMonth, startDate, endDate } = useMonthFilter()
@@ -16,22 +16,22 @@ export default function DriverSettlement() {
 
   const fmt = (n: number) => Math.abs(n).toLocaleString('en-IN')
 
-  // Weekly breakdown
-  const weekMap: Record<number, { salary: number; advance: number }> = {}
-  for (const e of salaryEntries) {
-    const w = Math.ceil(parseLocalDate(e.date).getDate() / 7)
-    if (!weekMap[w]) weekMap[w] = { salary: 0, advance: 0 }
-    weekMap[w].salary += e.amount
-  }
-  for (const e of advanceEntries) {
-    const w = Math.ceil(parseLocalDate(e.date).getDate() / 7)
-    if (!weekMap[w]) weekMap[w] = { salary: 0, advance: 0 }
-    weekMap[w].advance += e.amount
-  }
-
-  const weeks = Object.entries(weekMap)
-    .map(([w, data]) => ({ week: Number(w), ...data, balance: data.salary - data.advance }))
-    .sort((a, b) => a.week - b.week)
+  const weeks = getWeeksForMonth(month).map((week, index) => {
+    const salary = salaryEntries
+      .filter((entry) => entry.date >= week.start && entry.date <= week.end)
+      .reduce((sum, entry) => sum + entry.amount, 0)
+    const advance = advanceEntries
+      .filter((entry) => entry.date >= week.start && entry.date <= week.end)
+      .reduce((sum, entry) => sum + entry.amount, 0)
+    return {
+      week: index + 1,
+      start: week.start,
+      end: week.end,
+      salary,
+      advance,
+      balance: salary - advance,
+    }
+  })
 
   return (
     <div className="space-y-4">
@@ -102,7 +102,7 @@ export default function DriverSettlement() {
           <div className="divide-y divide-border-dim">
             {weeks.map((w) => (
               <div key={w.week} className="px-4 py-3 flex items-center justify-between">
-                <span className="text-sm text-text-secondary">Week {w.week}</span>
+                <span className="text-sm text-text-secondary">Week {w.week} · {w.start} → {w.end}</span>
                 <div className="flex items-center gap-4 text-xs">
                   <span className="text-expense">Salary ₹{fmt(w.salary)}</span>
                   <span className="text-income">Advance ₹{fmt(w.advance)}</span>
