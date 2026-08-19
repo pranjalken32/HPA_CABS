@@ -11,15 +11,17 @@ export function prorateSalary(
   startDate: string,
   endDate: string | null,
   year: number,
-  month: number
+  month: number,
+  periodEnd?: string
 ): SalaryProration {
   const totalDays = lastDayOfMonth(year, month)
   const monthPrefix = `${year}-${String(month).padStart(2, '0')}`
+  const monthEnd = `${monthPrefix}-${String(totalDays).padStart(2, '0')}`
   const workingDays = getInclusiveOverlapDays(
     startDate,
     endDate,
     `${monthPrefix}-01`,
-    `${monthPrefix}-${String(totalDays).padStart(2, '0')}`
+    periodEnd && periodEnd < monthEnd ? periodEnd : monthEnd
   )
   return {
     amount: Math.round((monthlySalary / totalDays) * workingDays),

@@ -8,6 +8,15 @@ describe('salary and incentive calculations', () => {
     expect(prorateSalary(25000, '2026-06-15', '2026-07-23', 2026, 7)).toMatchObject({ workingDays: 23, amount: 18548 })
   })
 
+  it('uses the viewed month period for till-date salary calculations', () => {
+    expect(prorateSalary(24000, '2026-06-15', null, 2026, 8, '2026-08-19')).toMatchObject({
+      workingDays: 19,
+    })
+    expect(prorateSalary(24000, '2026-08-14', null, 2026, 8, '2026-08-19')).toMatchObject({
+      workingDays: 6,
+    })
+  })
+
   it('calculates incentive slabs with the existing four-week semantics', () => {
     const result = calculateWeeklyIncentives(
       [{ date: '2026-08-01', amount: 25000, car_id: 1 }],

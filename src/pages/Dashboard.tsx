@@ -123,24 +123,28 @@ export default function Dashboard() {
   const isCurrentMonth = month === todayStr.slice(0, 7)
   const daysElapsed = isCurrentMonth ? dayOfMonth : totalDaysInMonth
   const emiTillDate = (emiMonthly / totalDaysInMonth) * daysElapsed
-  const salaryTillDate = isCurrentMonth
-    ? driverProfiles.reduce((sum, d) => {
-        const endDay = Number(todayStr.slice(8, 10))
-        const tillDays = Math.max(0, endDay - 1 + 1)
-        const overlap = prorateSalary(d.monthly_salary, d.start_date, d.end_date, y, m)
-        const startDay = Math.max(1, Number(d.start_date.slice(8, 10)))
-        const employmentEnd = d.end_date && d.end_date.slice(0, 7) === month
-          ? Number(d.end_date.slice(8, 10))
-          : totalDaysInMonth
-        const workingDays = Math.max(0, Math.min(tillDays, employmentEnd) - startDay + 1)
-        return sum + Math.round((d.monthly_salary / totalDaysInMonth) * Math.min(overlap.workingDays, workingDays))
-      }, 0)
-    : totalProratedSalary
+  const salaryTillDate = driverProfiles.reduce(
+    (sum, d) => sum + prorateSalary(
+      d.monthly_salary,
+      d.start_date,
+      d.end_date,
+      y,
+      m,
+      isCurrentMonth ? todayStr : undefined
+    ).amount,
+    0
+  )
   const grossProfit = totalRevenue - cngTotal - petrolTotal - commissionTotal - tollTotal - carWashTotal - fareFraudTotal - emiTillDate - salaryTillDate
-  const monthDays = Array.from({ length: totalDaysInMonth }, (_, index) => `${month}-${String(index + 1).padStart(2, '0')}`)
+  const currentMonth = todayStr.slice(0, 7)
+  const daysToCount = month < currentMonth
+    ? totalDaysInMonth
+    : month === currentMonth
+      ? dayOfMonth
+      : 0
+  const monthDays = Array.from({ length: daysToCount }, (_, index) => `${month}-${String(index + 1).padStart(2, '0')}`)
   const incomeDates = new Set((incomes ?? []).map((income) => income.date))
   const missingIncomeDays = monthDays.filter((day) => !incomeDates.has(day)).length
-  const zeroTripRows = (incomes ?? []).filter((income) => income.trips === 0).length
+  const zeroTripRows = (incomes ?? []).filter((income) => income.date <= (monthDays.at(-1) ?? '') && income.trips === 0).length
   const [goalSubmitting, setGoalSubmitting] = useState(false)
 
   const platformData = Object.entries(
