@@ -187,6 +187,16 @@ drop policy if exists "Authenticated users can delete fuel_logs" on fuel_logs;
 create policy "Authenticated users can delete fuel_logs" on fuel_logs for delete using (auth.role() = 'authenticated');
 create index if not exists idx_fuel_logs_car on fuel_logs(car_id, date);
 
+-- Link auto-created expenses to their source records
+alter table expenses add column if not exists fuel_log_id bigint
+  references fuel_logs(id) on delete cascade;
+alter table expenses add column if not exists service_record_id bigint
+  references service_records(id) on delete cascade;
+create unique index if not exists idx_expenses_fuel_log_unique
+  on expenses(fuel_log_id) where fuel_log_id is not null;
+create unique index if not exists idx_expenses_service_record_unique
+  on expenses(service_record_id) where service_record_id is not null;
+
 -- Goals (monthly revenue targets)
 create table if not exists goals (
   id bigint generated always as identity primary key,

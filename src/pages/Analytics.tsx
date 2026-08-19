@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react'
 import { useIncomes, useExpenses, useDriverProfiles } from '../hooks/useSupabase'
 import { exportToExcel, exportToPDF } from '../utils/export'
+import { getInclusiveOverlapDays, parseLocalDate } from '../utils/date'
 import {
   BarChart,
   Bar,
@@ -68,7 +69,7 @@ function getMonthLabel(monthStr: string): string {
 }
 
 function getDayName(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString('en-IN', { weekday: 'short' })
+  return parseLocalDate(dateStr).toLocaleDateString('en-IN', { weekday: 'short' })
 }
 
 type Section = 'overview' | 'revenue' | 'expenses' | 'daily' | 'alerts'
@@ -279,16 +280,14 @@ export default function Analytics() {
   const analyticsSalary = months.reduce((total, mo) => {
     const [aY, aM] = mo.split('-').map(Number)
     const aTotalDays = new Date(aY, aM, 0).getDate()
-    const aMonthStart = new Date(aY, aM - 1, 1)
-    const aMonthEnd = new Date(aY, aM - 1, aTotalDays)
+    const monthPrefix = `${mo}-`
     return total + analyticsDriverProfiles.reduce((sum, d) => {
-      const ds = new Date(d.start_date)
-      const de = d.end_date ? new Date(d.end_date) : null
-      if (ds > aMonthEnd) return sum
-      if (de && de < aMonthStart) return sum
-      const es = ds > aMonthStart ? ds : aMonthStart
-      const ee = de && de < aMonthEnd ? de : aMonthEnd
-      const wd = Math.floor((ee.getTime() - es.getTime()) / (1000 * 60 * 60 * 24)) + 1
+      const wd = getInclusiveOverlapDays(
+        d.start_date,
+        d.end_date,
+        `${monthPrefix}01`,
+        `${monthPrefix}${String(aTotalDays).padStart(2, '0')}`
+      )
       return sum + Math.round((d.monthly_salary / aTotalDays) * wd)
     }, 0)
   }, 0)
