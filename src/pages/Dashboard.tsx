@@ -11,6 +11,7 @@ import {
   upsertGoal,
   useDriverProfiles,
   useDriverSettlements,
+  useDriverDailyIncentives,
 } from '../hooks/useSupabase'
 import {
   BarChart,
@@ -109,6 +110,7 @@ export default function Dashboard() {
   const allExpenses = useAllExpenses()
   const goal = useGoal(month)
   const settlements = useDriverSettlements({})
+  const dailyIncentives = useDriverDailyIncentives()
 
   const totalRevenue = incomes?.reduce((s, i) => s + i.amount, 0) ?? 0
   const totalExpense = expenses?.reduce((s, e) => s + e.amount, 0) ?? 0
@@ -173,7 +175,8 @@ export default function Dashboard() {
         allIncomes ?? [],
         allExpenses ?? [],
         driverSettlements,
-        asOfDate
+        asOfDate,
+        dailyIncentives.filter((entry) => entry.driver_profile_id === driver.id)
       )
       const latestUnsettledCompleted = rows
         .filter((row) => (

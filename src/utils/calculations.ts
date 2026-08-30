@@ -90,6 +90,130 @@ export interface WeeklyDriverProfile {
   incentive_base: number
   incentive_step: number
   incentive_slab: number
+  daily_incentive_from?: string | null
+  daily_incentive_slabs?: { revenue: number; incentive: number }[]
+}
+
+export interface DailyIncentiveSlab {
+  revenue: number
+  incentive: number
+}
+
+export interface DailyIncentiveDay {
+  date: string
+  revenue: number
+  incentive: number
+  source: 'slab' | 'manual'
+}
+
+export interface DailyIncentiveResult {
+  totalIncentive: number
+  days: DailyIncentiveDay[]
+}
+
+export function calculateDailyIncentive(
+  revenue: number,
+  slabs: DailyIncentiveSlab[]
+): number {
+  const reached = slabs
+    .filter((slab) => slab.revenue <= revenue)
+    .sort((left, right) => right.revenue - left.revenue)
+  return reached[0]?.incentive ?? 0
+}
+
+export function calculateDailyIncentivesForRange(
+  incomes: { date: string; amount: number; car_id: number | null }[],
+  carId: number | null,
+  slabs: DailyIncentiveSlab[],
+  startDate: string,
+  endDate: string,
+  manualIncentives: { date: string; amount: number }[] = []
+): DailyIncentiveResult {
+  if (startDate > endDate) return { totalIncentive: 0, days: [] }
+  const manualByDate = new Map(manualIncentives.map((entry) => [entry.date, entry.amount]))
+  const days: DailyIncentiveDay[] = []
+  for (let date = startDate; date <= endDate; date = addLocalDays(date, 1)) {
+    const revenue = carId
+      ? incomes
+        .filter((income) => income.car_id === carId && income.date === date)
+        .reduce((sum, income) => sum + income.amount, 0)
+      : 0
+    const manualAmount = manualByDate.get(date)
+    days.push({
+      date,
+      revenue,
+      incentive: manualAmount ?? calculateDailyIncentive(revenue, slabs),
+      source: manualAmount === undefined ? 'slab' : 'manual',
+    })
+  }
+  return {
+    totalIncentive: days.reduce((sum, day) => sum + day.incentive, 0),
+    days,
+  }
+}
+
+export function calculateWeeklyIncentiveWithDailyRule(
+  incomes: { date: string; amount: number; car_id: number | null }[],
+  carId: number | null,
+  incentiveTarget: number,
+  incentiveBase: number,
+  incentiveStep: number,
+  incentiveSlab: number,
+  week: WeekRange,
+  dailyIncentiveFrom: string | null | undefined,
+  dailyIncentiveSlabs: DailyIncentiveSlab[],
+  manualIncentives: { date: string; amount: number }[]
+): { incentive: number; dailyIncentives: DailyIncentiveDay[] } {
+  const manualForWeek = manualIncentives.filter(
+    (entry) => entry.date >= week.start && entry.date <= week.end
+  )
+  const weekly = calculateWeeklyIncentiveForRange(
+    incomes,
+    carId,
+    incentiveTarget,
+    incentiveBase,
+    incentiveStep,
+    incentiveSlab,
+    week
+  )
+  if (!dailyIncentiveFrom || week.end < dailyIncentiveFrom) {
+    if (manualForWeek.length === 0) return { incentive: weekly.incentive, dailyIncentives: [] }
+    const manualDays = calculateDailyIncentivesForRange(
+      incomes,
+      carId,
+      [],
+      week.start,
+      week.end,
+      manualForWeek
+    ).days.filter((day) => day.source === 'manual')
+    return {
+      incentive: weekly.incentive + manualForWeek.reduce((sum, entry) => sum + entry.amount, 0),
+      dailyIncentives: manualDays,
+    }
+  }
+
+  const dailyStart = week.start > dailyIncentiveFrom ? week.start : dailyIncentiveFrom
+  const daily = calculateDailyIncentivesForRange(
+    incomes,
+    carId,
+    dailyIncentiveSlabs,
+    dailyStart,
+    week.end,
+    manualForWeek
+  )
+  const preCutoffManual = manualForWeek.filter((entry) => entry.date < dailyIncentiveFrom)
+  const preCutoffManualDays = calculateDailyIncentivesForRange(
+    incomes,
+    carId,
+    [],
+    week.start,
+    addLocalDays(dailyStart, -1),
+    preCutoffManual
+  ).days.filter((day) => day.source === 'manual')
+  return {
+    incentive: preCutoffManual.reduce((sum, entry) => sum + entry.amount, 0) + daily.totalIncentive,
+    dailyIncentives: [...preCutoffManualDays, ...daily.days],
+  }
 }
 
 export interface WeeklySettlementLike {
@@ -119,6 +243,7 @@ export interface WeeklySettlementRow {
   coveringPeriodEnd: string | undefined
   coverage: 'none' | 'weekly' | 'monthly' | 'partial'
   settleable: boolean
+  dailyIncentives: DailyIncentiveDay[]
 }
 
 export function deriveWeeklySettlementRows(
@@ -126,7 +251,8 @@ export function deriveWeeklySettlementRows(
   incomes: { date: string; amount: number; car_id: number | null }[],
   expenses: { date: string; amount: number; category: string; driver_profile_id?: number | null; note?: string | null }[],
   settlements: WeeklySettlementLike[],
-  asOfDate: string
+  asOfDate: string,
+  manualIncentives: { date: string; amount: number }[] = []
 ): WeeklySettlementRow[] {
   const rangeEnd = driver.end_date && driver.end_date < asOfDate ? driver.end_date : asOfDate
   if (driver.start_date > rangeEnd) return []
@@ -183,17 +309,24 @@ export function deriveWeeklySettlementRows(
         ).amount,
         0
       )
-      const incentive = partiallyCovered
-        ? 0
-        : calculateWeeklyIncentiveForRange(
+      const incentiveResult = partiallyCovered
+        ? { incentive: 0, dailyIncentives: [] as DailyIncentiveDay[] }
+        : calculateWeeklyIncentiveWithDailyRule(
           incomes,
           driver.car_id,
           driver.incentive_target,
           driver.incentive_base,
           driver.incentive_step,
           driver.incentive_slab,
-          week
-        ).incentive
+          {
+            start: week.start < driver.start_date ? driver.start_date : week.start,
+            end: driver.end_date && driver.end_date < week.end ? driver.end_date : week.end,
+          },
+          driver.daily_incentive_from,
+          driver.daily_incentive_slabs ?? [],
+          manualIncentives
+        )
+      const incentive = incentiveResult.incentive
       const advance = expenses
         .filter((expense) => expense.category === 'driver_advance' && (
           expense.driver_profile_id === driver.id ||
@@ -236,6 +369,7 @@ export function deriveWeeklySettlementRows(
           : undefined,
         coverage,
         settleable: !exactSettlement && overlappingMonthlySettlements.length === 0 && week.end <= asOfDate,
+        dailyIncentives: incentiveResult.dailyIncentives,
       }
       carryForward = fullyCovered
         ? 0
@@ -252,6 +386,7 @@ export interface WeekIncentive {
   target: number
   incentive: number
   hit: boolean
+  dailyIncentives?: DailyIncentiveDay[]
 }
 
 export function calculateWeeklyIncentiveForRange(
@@ -287,11 +422,15 @@ export function calculateWeeklyIncentives(
   incentiveStep: number,
   incentiveSlab: number,
   year: number,
-  month: number
+  month: number,
+  dailyIncentiveFrom?: string | null,
+  dailyIncentiveSlabs: DailyIncentiveSlab[] = [],
+  manualIncentives: { date: string; amount: number }[] = []
 ): { weeks: WeekIncentive[]; totalIncentive: number } {
-  if (!carId || incentiveTarget <= 0) return { weeks: [], totalIncentive: 0 }
+  if (!carId || (!dailyIncentiveFrom && incentiveTarget <= 0)) return { weeks: [], totalIncentive: 0 }
   const weeks = getWeeksForMonth(`${year}-${String(month).padStart(2, '0')}`)
-    .map((week, index) => calculateWeeklyIncentiveForRange(
+    .map((week, index) => {
+      const result = calculateWeeklyIncentiveWithDailyRule(
       incomes,
       carId,
       incentiveTarget,
@@ -299,8 +438,24 @@ export function calculateWeeklyIncentives(
       incentiveStep,
       incentiveSlab,
       week,
-      index + 1
-    ))
+      dailyIncentiveFrom,
+      dailyIncentiveSlabs,
+      manualIncentives
+      )
+      const revenue = incomes
+        .filter((income) => income.car_id === carId && income.date >= week.start && income.date <= week.end)
+        .reduce((sum, income) => sum + income.amount, 0)
+      return {
+        weekNum: index + 1,
+        weekStart: week.start,
+        weekEnd: week.end,
+        revenue,
+        target: incentiveTarget / 4,
+        incentive: result.incentive,
+        hit: result.incentive > 0,
+        dailyIncentives: result.dailyIncentives,
+      }
+    })
   const totalIncentive = weeks.reduce((sum, week) => sum + week.incentive, 0)
   return { weeks, totalIncentive }
 }
