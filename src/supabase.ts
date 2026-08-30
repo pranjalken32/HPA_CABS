@@ -101,6 +101,8 @@ export interface DriverProfileRow {
   incentive_base: number
   incentive_step: number
   incentive_slab: number
+  daily_incentive_from: string | null
+  daily_incentive_slabs: { revenue: number; incentive: number }[]
   dl_url: string | null
   aadhaar_url: string | null
   pan_url: string | null
@@ -118,5 +120,14 @@ export interface DriverSettlementRow {
   period_type: 'month' | 'week'
   period_start: string
   period_end: string
+  created_at: string
+}
+
+export interface DriverDailyIncentiveRow {
+  id: number
+  driver_profile_id: number
+  date: string
+  amount: number
+  note: string | null
   created_at: string
 }

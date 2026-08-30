@@ -1,12 +1,12 @@
 import { useState } from 'react'
 import { useMonthFilter } from '../hooks/useMonthFilter'
-import { useExpenses, useIncomes, useCars, useFuelLogs, addFuelLog, findDuplicateExpense, notifyApp, useDriverProfiles, useDriverSettlements } from '../hooks/useSupabase'
+import { useExpenses, useIncomes, useCars, useFuelLogs, addFuelLog, findDuplicateExpense, notifyApp, useDriverProfiles, useDriverSettlements, useDriverDailyIncentives } from '../hooks/useSupabase'
 import { useAuth } from '../useAuth'
 import { useLanguage } from '../useLanguage'
 import { LANGUAGES } from '../i18n'
 import { getWeekEnd, getWeekIndexForMonth, getWeekStart, isValidCalendarDate, todayStr } from '../utils/date'
 import { parseNonNegativeNumber, parsePositiveAmount, fmt } from '../utils/money'
-import { calculateWeeklyIncentiveForRange, calculateWeeklyIncentives, prorateSalary, prorateSalaryForWeek } from '../utils/calculations'
+import { calculateWeeklyIncentiveForRange, calculateWeeklyIncentiveWithDailyRule, calculateWeeklyIncentives, prorateSalary, prorateSalaryForWeek } from '../utils/calculations'
 import { Fuel, Car, Wallet, ArrowUpCircle, ChevronRight, CheckCircle2, Target, History, Globe } from 'lucide-react'
 
 export default function DriverHome() {
@@ -20,6 +20,7 @@ export default function DriverHome() {
   const weekExpenses = useExpenses(currentWeekStart, currentDate)
   const cars = useCars()
   const driverProfiles = useDriverProfiles()
+  const dailyIncentives = useDriverDailyIncentives()
   const [selectedCarId, setSelectedCarId] = useState<number | null>(null)
   const [showFuelForm, setShowFuelForm] = useState(false)
   const [fuelDate, setFuelDate] = useState(todayStr())
@@ -67,6 +68,7 @@ export default function DriverHome() {
   const incentiveStep = myProfile?.incentive_step ?? 250
   const incentiveSlab = myProfile?.incentive_slab ?? 5000
   const weeklyTarget = incentiveTarget > 0 ? incentiveTarget / 4 : 0
+  const myManualIncentives = dailyIncentives.filter((entry) => entry.driver_profile_id === myProfile?.id)
 
   // Calculate weekly incentives
   const [filterYear, filterMonth] = month.split('-').map(Number)
@@ -78,10 +80,13 @@ export default function DriverHome() {
     incentiveStep,
     incentiveSlab,
     filterYear,
-    filterMonth
+    filterMonth,
+    myProfile?.daily_incentive_from,
+    myProfile?.daily_incentive_slabs ?? [],
+    myManualIncentives
   ).weeks
 
-  const currentWeek = calculateWeeklyIncentiveForRange(
+  const currentWeekBase = calculateWeeklyIncentiveForRange(
     incomes ?? [],
     assignedCarId,
     incentiveTarget,
@@ -90,6 +95,23 @@ export default function DriverHome() {
     incentiveSlab,
     { start: currentWeekStart, end: currentWeekEnd }
   )
+  const currentWeekRule = calculateWeeklyIncentiveWithDailyRule(
+    incomes ?? [],
+    assignedCarId,
+    incentiveTarget,
+    incentiveBase,
+    incentiveStep,
+    incentiveSlab,
+    { start: currentWeekStart, end: currentWeekEnd },
+    myProfile?.daily_incentive_from,
+    myProfile?.daily_incentive_slabs ?? [],
+    myManualIncentives
+  )
+  const currentWeek = {
+    ...currentWeekBase,
+    incentive: currentWeekRule.incentive,
+    dailyIncentives: currentWeekRule.dailyIncentives,
+  }
   const currentWeekIndex = getWeekIndexForMonth(month, currentWeekStart)
   const totalMonthIncentive = weeklyData.reduce((s, w) => s + w.incentive, 0)
   const currentRevenue = currentWeek?.revenue ?? 0
@@ -257,14 +279,31 @@ export default function DriverHome() {
       </div>
 
       {/* Incentive Tracker — only show if incentive is configured */}
-      {weeklyTarget > 0 && (
+      {(weeklyTarget > 0 || (myProfile?.daily_incentive_slabs?.length ?? 0) > 0) && (
         <div className="bg-surface-card rounded-2xl p-4 border border-border-dim space-y-4">
           <div className="flex items-center gap-2">
             <Target size={18} className="text-income" />
             <h3 className="text-sm font-semibold text-white">{t.myIncentive}</h3>
           </div>
 
-          {/* This Week Progress */}
+          {myProfile?.daily_incentive_from ? (
+            <div className="bg-surface-elevated rounded-xl p-4">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-xs text-text-muted">{t.weekRange} {currentWeekStart} → {currentWeekEnd}</span>
+                <span className="text-xs font-bold text-income">+₹{fmt(currentWeek.incentive)}</span>
+              </div>
+              <p className="text-[10px] text-text-muted uppercase mb-2">{t.dailyIncentive}</p>
+              <div className="space-y-1">
+                {currentWeek.dailyIncentives?.filter((day) => day.incentive > 0).map((day) => (
+                  <div key={day.date} className="flex justify-between text-xs">
+                    <span className="text-text-secondary">{day.date} {day.source === 'manual' && <span className="text-accent">· {t.manual}</span>}</span>
+                    <span className="text-income">+₹{fmt(day.incentive)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+          /* This Week Progress */
           <div className="bg-surface-elevated rounded-xl p-4">
             <div className="flex justify-between items-center mb-2">
               <span className="text-xs text-text-muted">{t.weekRange} {currentWeekStart} → {currentWeekEnd}</span>
@@ -297,6 +336,7 @@ export default function DriverHome() {
               </div>
             )}
           </div>
+          )}
 
           <div className="bg-surface-elevated rounded-xl p-4">
             <p className="text-xs text-text-muted uppercase mb-2">{t.thisWeek}</p>
@@ -323,8 +363,8 @@ export default function DriverHome() {
               <p className="text-xl font-black text-income">₹{fmt(totalMonthIncentive)}</p>
             </div>
             <div className="bg-surface-elevated rounded-xl p-3 text-center">
-              <p className="text-[10px] text-text-muted uppercase">{t.weeklyTarget}</p>
-              <p className="text-xl font-black text-white">₹{fmt(weeklyTarget)}</p>
+              <p className="text-[10px] text-text-muted uppercase">{myProfile?.daily_incentive_from ? t.dailyIncentive : t.weeklyTarget}</p>
+              <p className="text-xl font-black text-white">₹{fmt(myProfile?.daily_incentive_from ? totalMonthIncentive : weeklyTarget)}</p>
             </div>
           </div>
 
@@ -344,6 +384,11 @@ export default function DriverHome() {
                     ? `+₹${w.incentive}`
                     : w.weekEnd <= currentDate ? 'Miss' : '—'}
                 </p>
+                {w.dailyIncentives?.filter((day) => day.incentive > 0).map((day) => (
+                  <p key={day.date} className="text-[8px] text-text-muted">
+                    {day.date.slice(5)} +₹{fmt(day.incentive)}{day.source === 'manual' ? ` · ${t.manual}` : ''}
+                  </p>
+                ))}
               </div>
             ))}
           </div>

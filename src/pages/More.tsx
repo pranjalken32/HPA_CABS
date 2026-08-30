@@ -25,9 +25,25 @@ export default function More() {
   const [saved, setSaved] = useState(false)
 
   // Incentive defaults
-  const [incBase, setIncBase] = useState(localStorage.getItem('hpa_incentive_base') || '500')
-  const [incStep, setIncStep] = useState(localStorage.getItem('hpa_incentive_step') || '250')
-  const [incSlab, setIncSlab] = useState(localStorage.getItem('hpa_incentive_slab') || '5000')
+  const [dailySlabs, setDailySlabs] = useState(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem('hpa_incentive_slabs') || 'null')
+      if (Array.isArray(stored)) {
+        return stored.map((slab) => ({
+          revenue: String(slab.revenue ?? ''),
+          incentive: String(slab.incentive ?? ''),
+        }))
+      }
+    } catch {
+      // Use the agreed defaults below.
+    }
+    return [
+      { revenue: '3000', incentive: '100' },
+      { revenue: '3500', incentive: '200' },
+      { revenue: '4000', incentive: '400' },
+      { revenue: '4500', incentive: '650' },
+    ]
+  })
   const [incSaved, setIncSaved] = useState(false)
 
   // Revenue per KM threshold
@@ -46,16 +62,15 @@ export default function More() {
   }
 
   const handleSaveIncentive = () => {
-    const base = incBase === '' ? 500 : parseNonNegativeNumber(incBase)
-    const step = incStep === '' ? 250 : parseNonNegativeNumber(incStep)
-    const slab = incSlab === '' ? 5000 : parseNonNegativeNumber(incSlab)
-    if (base === null || step === null || slab === null) {
+    const slabs = dailySlabs.map((slab) => ({
+      revenue: parseNonNegativeNumber(slab.revenue),
+      incentive: parseNonNegativeNumber(slab.incentive),
+    }))
+    if (slabs.some((slab) => slab.revenue === null || slab.incentive === null)) {
       notifyApp('error', t.invalidIncentiveValues)
       return
     }
-    localStorage.setItem('hpa_incentive_base', String(base))
-    localStorage.setItem('hpa_incentive_step', String(step))
-    localStorage.setItem('hpa_incentive_slab', String(slab))
+    localStorage.setItem('hpa_incentive_slabs', JSON.stringify(slabs))
     setIncSaved(true)
     setTimeout(() => setIncSaved(false), 1500)
   }
@@ -157,48 +172,42 @@ export default function More() {
         <p className="text-xs text-text-muted">
           {t.incentiveDefaultsDesc}
         </p>
-        <div className="grid grid-cols-3 gap-2">
-          <div>
-            <label className="text-[9px] text-text-muted uppercase block mb-1">{t.basePerWeek}</label>
-            <input
-              type="number"
-              inputMode="decimal"
-              step="0.01"
-              value={incBase}
-              onChange={(e) => setIncBase(e.target.value)}
-              className="w-full border border-border-dim bg-surface-elevated rounded-xl px-3 py-2.5 text-sm text-white focus:border-white focus:outline-none"
-              placeholder="500"
-            />
-          </div>
-          <div>
-            <label className="text-[9px] text-text-muted uppercase block mb-1">{t.extraPerSlab}</label>
-            <input
-              type="number"
-              inputMode="decimal"
-              step="0.01"
-              value={incStep}
-              onChange={(e) => setIncStep(e.target.value)}
-              className="w-full border border-border-dim bg-surface-elevated rounded-xl px-3 py-2.5 text-sm text-white focus:border-white focus:outline-none"
-              placeholder="250"
-            />
-          </div>
-          <div>
-            <label className="text-[9px] text-text-muted uppercase block mb-1">{t.slabSize}</label>
-            <input
-              type="number"
-              inputMode="decimal"
-              step="0.01"
-              value={incSlab}
-              onChange={(e) => setIncSlab(e.target.value)}
-              className="w-full border border-border-dim bg-surface-elevated rounded-xl px-3 py-2.5 text-sm text-white focus:border-white focus:outline-none"
-              placeholder="5000"
-            />
-          </div>
+        <div className="space-y-2">
+          {dailySlabs.map((slab, index) => (
+            <div key={index} className="flex items-center gap-2">
+              <span className="text-xs text-text-muted">{t.revenueThreshold}</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={slab.revenue}
+                onChange={(e) => setDailySlabs((current) => current.map((item, i) => i === index ? { ...item, revenue: e.target.value } : item))}
+                className="w-24 border border-border-dim bg-surface-elevated rounded-xl px-2 py-2 text-sm text-white focus:border-white focus:outline-none"
+              />
+              <span className="text-xs text-text-muted">{t.incentiveAmount}</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={slab.incentive}
+                onChange={(e) => setDailySlabs((current) => current.map((item, i) => i === index ? { ...item, incentive: e.target.value } : item))}
+                className="w-24 border border-border-dim bg-surface-elevated rounded-xl px-2 py-2 text-sm text-white focus:border-white focus:outline-none"
+              />
+              <button type="button" onClick={() => setDailySlabs((current) => current.filter((_, i) => i !== index))} className="text-text-muted hover:text-white">
+                ×
+              </button>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() => setDailySlabs((current) => [...current, { revenue: '', incentive: '' }])}
+            className="text-xs text-text-secondary underline"
+          >
+            + {t.addSlab}
+          </button>
         </div>
         <div className="flex items-center justify-between">
-          <p className="text-[10px] text-text-muted">
-            Base ₹{incBase}/week + ₹{incStep} per extra ₹{incSlab} above target
-          </p>
+          <p className="text-[10px] text-text-muted">{t.defaultDailySlabs}</p>
           <button
             onClick={handleSaveIncentive}
             className="bg-white text-black font-semibold px-4 py-2 rounded-xl text-sm hover:bg-gray-200 transition-all"

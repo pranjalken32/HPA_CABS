@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../supabase'
-import type { IncomeRow, ExpenseRow, CarRow, CarDocumentRow, ServiceRecordRow, ProfileRow, FuelLogRow, GoalRow, DriverProfileRow, DriverSettlementRow } from '../supabase'
+import type { IncomeRow, ExpenseRow, CarRow, CarDocumentRow, ServiceRecordRow, ProfileRow, FuelLogRow, GoalRow, DriverProfileRow, DriverSettlementRow, DriverDailyIncentiveRow } from '../supabase'
 import { getCachedData, cacheData } from '../utils/offline'
 import { getRecurringRowsToAdd, getRecurringTemplates } from '../utils/calculations'
 import { lastDayOfMonthString } from '../utils/date'
 import { isOnline, queueMutation } from '../utils/offline'
 
-export type { DriverProfileRow, DriverSettlementRow }
+export type { DriverProfileRow, DriverSettlementRow, DriverDailyIncentiveRow }
 
 export type AppNotification = {
   id: number
@@ -914,6 +914,46 @@ export async function removeSettlement(id: number) {
     .from('driver_settlements')
     .delete()
     .eq('id', id)
+  if (error) throw error
+  triggerRefresh()
+}
+
+export function useDriverDailyIncentives() {
+  const [data, setData] = useState<DriverDailyIncentiveRow[]>([])
+  const refresh = useRefresh()
+
+  useEffect(() => {
+    fetchPaged((from, to) => supabase
+      .from('driver_daily_incentives')
+      .select('*')
+      .order('date', { ascending: false })
+      .range(from, to))
+      .then(setData)
+      .catch((error) => reportSupabaseError(error, 'Daily incentive query'))
+  }, [refresh])
+
+  return data
+}
+
+export async function upsertDriverDailyIncentive(row: {
+  driver_profile_id: number
+  date: string
+  amount: number
+  note?: string | null
+}) {
+  const { error } = await supabase
+    .from('driver_daily_incentives')
+    .upsert(row, { onConflict: 'driver_profile_id,date' })
+  if (error) throw error
+  triggerRefresh()
+}
+
+export async function removeDriverDailyIncentive(driverProfileId: number, date: string) {
+  const { error } = await supabase
+    .from('driver_daily_incentives')
+    .delete()
+    .eq('driver_profile_id', driverProfileId)
+    .eq('date', date)
   if (error) throw error
   triggerRefresh()
 }

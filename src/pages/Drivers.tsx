@@ -14,6 +14,9 @@ import {
   uploadDriverDoc,
   getSignedUrl,
   useDriverSettlements,
+  useDriverDailyIncentives,
+  upsertDriverDailyIncentive,
+  removeDriverDailyIncentive,
   addSettlement,
   removeSettlement,
   getSettlementErrorKind,
@@ -30,6 +33,30 @@ import {
   prorateSalary,
 } from '../utils/calculations'
 import type { WeeklySettlementLike, WeeklySettlementRow } from '../utils/calculations'
+
+type SlabInput = { revenue: string; incentive: string }
+
+const FALLBACK_DAILY_SLABS: SlabInput[] = [
+  { revenue: '3000', incentive: '100' },
+  { revenue: '3500', incentive: '200' },
+  { revenue: '4000', incentive: '400' },
+  { revenue: '4500', incentive: '650' },
+]
+
+function getDefaultDailySlabs(): SlabInput[] {
+  try {
+    const stored = JSON.parse(localStorage.getItem('hpa_incentive_slabs') || 'null')
+    if (Array.isArray(stored)) {
+      return stored.map((slab) => ({
+        revenue: String(slab.revenue ?? ''),
+        incentive: String(slab.incentive ?? ''),
+      }))
+    }
+  } catch {
+    // Fall through to the agreed defaults.
+  }
+  return FALLBACK_DAILY_SLABS.map((slab) => ({ ...slab }))
+}
 
 function prevMonthEnd(startDate: string): string {
   const [year, month] = startDate.split('-').map(Number)
@@ -106,6 +133,16 @@ function WeeklySettlementPanel({
               </p>
             </div>
           </div>
+          {row.dailyIncentives.length > 0 && (
+            <div className="text-[10px] text-text-muted">
+              {row.dailyIncentives.filter((day) => day.incentive > 0).length} {t.incentiveDays}
+              {row.dailyIncentives.some((day) => day.source === 'manual') && (
+                <span className="ml-2 text-accent">
+                  · {t.manual}: {row.dailyIncentives.filter((day) => day.source === 'manual').map((day) => `${day.date} ₹${fmt(day.incentive)}`).join(', ')}
+                </span>
+              )}
+            </div>
+          )}
           {row.coverage === 'monthly' ? (
             <p className="text-[10px] text-income text-center">
               {t.coveredByMonthlySettlement} · {row.coveringPeriodStart} → {row.coveringPeriodEnd}
@@ -155,6 +192,7 @@ export default function Drivers() {
   const allIncomes = useAllIncomes()
   const cars = useCars()
   const settlements = useDriverSettlements({})
+  const dailyIncentives = useDriverDailyIncentives()
   const [showForm, setShowForm] = useState(false)
   const [editDriver, setEditDriver] = useState<DriverProfileRow | null>(null)
   const [expandedId, setExpandedId] = useState<number | null>(null)
@@ -171,6 +209,12 @@ export default function Drivers() {
   const [incBase, setIncBase] = useState(localStorage.getItem('hpa_incentive_base') || '500')
   const [incStep, setIncStep] = useState(localStorage.getItem('hpa_incentive_step') || '250')
   const [incSlab, setIncSlab] = useState(localStorage.getItem('hpa_incentive_slab') || '5000')
+  const [dailyIncentiveFrom, setDailyIncentiveFrom] = useState('')
+  const [dailySlabs, setDailySlabs] = useState<SlabInput[]>(getDefaultDailySlabs)
+  const [manualDate, setManualDate] = useState(todayStr())
+  const [manualAmount, setManualAmount] = useState('')
+  const [manualNote, setManualNote] = useState('')
+  const [manualSubmitting, setManualSubmitting] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [authUserIdInput, setAuthUserIdInput] = useState<string>('')
   const driverUsers = useDriverUsers()
@@ -197,6 +241,8 @@ export default function Drivers() {
     setIncBase(defaultBase)
     setIncStep(defaultStep)
     setIncSlab(defaultSlab)
+    setDailyIncentiveFrom('')
+    setDailySlabs(getDefaultDailySlabs())
     setAuthUserIdInput('')
     setEditDriver(null)
     setShowForm(false)
@@ -214,6 +260,11 @@ export default function Drivers() {
     setIncBase(d.incentive_base ? String(d.incentive_base) : '500')
     setIncStep(d.incentive_step ? String(d.incentive_step) : '250')
     setIncSlab(d.incentive_slab ? String(d.incentive_slab) : '5000')
+    setDailyIncentiveFrom(d.daily_incentive_from ?? '')
+    setDailySlabs((d.daily_incentive_slabs ?? []).map((slab) => ({
+      revenue: String(slab.revenue),
+      incentive: String(slab.incentive),
+    })))
     setAuthUserIdInput(d.auth_user_id ?? '')
     setShowForm(true)
   }
@@ -226,8 +277,14 @@ export default function Drivers() {
     const incentiveBase = incBase === '' ? 500 : parseNonNegativeNumber(incBase)
     const incentiveStep = incStep === '' ? 250 : parseNonNegativeNumber(incStep)
     const incentiveSlab = incSlab === '' ? 5000 : parseNonNegativeNumber(incSlab)
+    const parsedDailySlabs = dailySlabs.map((slab) => ({
+      revenue: parseNonNegativeNumber(slab.revenue),
+      incentive: parseNonNegativeNumber(slab.incentive),
+    }))
     if (!name.trim() || monthlySalary === null || (carIdInput !== '' && carId === null) || incentiveTarget === null || incentiveBase === null || incentiveStep === null || incentiveSlab === null ||
-      !isValidCalendarDate(startDateInput) || (endDateInput !== '' && !isValidCalendarDate(endDateInput))) {
+      !isValidCalendarDate(startDateInput) || (endDateInput !== '' && !isValidCalendarDate(endDateInput)) ||
+      (dailyIncentiveFrom !== '' && !isValidCalendarDate(dailyIncentiveFrom)) ||
+      parsedDailySlabs.some((slab) => slab.revenue === null || slab.incentive === null)) {
       notifyApp('error', 'Enter valid driver, date, salary, and incentive values.')
       return
     }
@@ -243,6 +300,8 @@ export default function Drivers() {
       incentive_base: incentiveBase,
       incentive_step: incentiveStep,
       incentive_slab: incentiveSlab,
+      daily_incentive_from: dailyIncentiveFrom || null,
+      daily_incentive_slabs: parsedDailySlabs as { revenue: number; incentive: number }[],
       dl_url: editDriver?.dl_url ?? null,
       aadhaar_url: editDriver?.aadhaar_url ?? null,
       pan_url: editDriver?.pan_url ?? null,
@@ -441,12 +500,12 @@ export default function Drivers() {
           {/* Incentive Config */}
           {carIdInput && (
             <div className="bg-surface-elevated rounded-xl p-3 border border-border-dim space-y-2">
-              <p className="text-[10px] text-text-muted uppercase flex items-center gap-1">
-                <Target size={10} /> Incentive Configuration
+                <p className="text-[10px] text-text-muted uppercase flex items-center gap-1">
+                <Target size={10} /> {t.incentiveSlabs}
               </p>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-[9px] text-text-muted block mb-0.5">Monthly Target (₹)</label>
+                  <label className="text-[9px] text-text-muted block mb-0.5">{t.legacyIncentiveRule} (₹)</label>
                   <input
                     type="number"
                     step="0.01"
@@ -458,47 +517,57 @@ export default function Drivers() {
                   />
                 </div>
                 <div>
-                  <label className="text-[9px] text-text-muted block mb-0.5">Base/week (₹)</label>
+                  <label className="text-[9px] text-text-muted block mb-0.5">{t.effectiveFrom}</label>
                   <input
-                    type="number"
-                    step="0.01"
-                    inputMode="decimal"
-                    value={incBase}
-                    onChange={(e) => setIncBase(e.target.value)}
+                    type="date"
+                    value={dailyIncentiveFrom}
+                    onChange={(e) => setDailyIncentiveFrom(e.target.value)}
                     className="w-full bg-surface-card border border-border-dim rounded-lg px-2.5 py-1.5 text-xs text-white"
-                    placeholder="500"
-                  />
-                </div>
-                <div>
-                  <label className="text-[9px] text-text-muted block mb-0.5">Extra per slab (₹)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    inputMode="decimal"
-                    value={incStep}
-                    onChange={(e) => setIncStep(e.target.value)}
-                    className="w-full bg-surface-card border border-border-dim rounded-lg px-2.5 py-1.5 text-xs text-white"
-                    placeholder="250"
-                  />
-                </div>
-                <div>
-                  <label className="text-[9px] text-text-muted block mb-0.5">Slab size (₹)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    inputMode="decimal"
-                    value={incSlab}
-                    onChange={(e) => setIncSlab(e.target.value)}
-                    className="w-full bg-surface-card border border-border-dim rounded-lg px-2.5 py-1.5 text-xs text-white"
-                    placeholder="5000"
                   />
                 </div>
               </div>
-              {Number(incTarget) > 0 && (
-                <p className="text-[9px] text-text-muted">
-                  Weekly target: ₹{fmt(Number(incTarget) / 4)} · Base ₹{incBase}/week + ₹{incStep} per extra ₹{incSlab}
-                </p>
-              )}
+              <p className="text-[9px] text-text-muted">{t.legacyIncentiveRule}</p>
+              <div className="space-y-1.5">
+                {dailySlabs.map((slab, index) => (
+                  <div key={index} className="flex items-center gap-1.5">
+                    <span className="text-[10px] text-text-muted">{t.revenueThreshold}</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={slab.revenue}
+                      onChange={(e) => setDailySlabs((current) => current.map((item, i) => i === index ? { ...item, revenue: e.target.value } : item))}
+                      className="min-w-0 flex-1 bg-surface-card border border-border-dim rounded-lg px-2.5 py-1.5 text-xs text-white"
+                      placeholder={t.revenue}
+                    />
+                    <span className="text-[10px] text-text-muted">{t.incentiveAmount}</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={slab.incentive}
+                      onChange={(e) => setDailySlabs((current) => current.map((item, i) => i === index ? { ...item, incentive: e.target.value } : item))}
+                      className="min-w-0 flex-1 bg-surface-card border border-border-dim rounded-lg px-2.5 py-1.5 text-xs text-white"
+                      placeholder={t.incentive}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setDailySlabs((current) => current.filter((_, i) => i !== index))}
+                      className="p-1 text-text-muted hover:text-white"
+                      aria-label={t.removeSlab}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setDailySlabs((current) => [...current, { revenue: '', incentive: '' }])}
+                  className="text-[10px] text-text-secondary underline"
+                >
+                  + {t.addSlab}
+                </button>
+              </div>
             </div>
           )}
 
@@ -529,6 +598,9 @@ export default function Drivers() {
         const driverSettlements = settlements.filter(
           (settlement) => settlement.driver_profile_id === driver.id || settlement.driver_name === driver.name
         )
+        const driverManualIncentives = dailyIncentives.filter(
+          (entry) => entry.driver_profile_id === driver.id
+        )
         const monthlySettlement = driverSettlements.find(
           (settlement) => (settlement.period_type ?? 'month') === 'month' && settlement.month === month
         )
@@ -541,7 +613,10 @@ export default function Drivers() {
           driver.incentive_step,
           driver.incentive_slab,
           filterYear,
-          filterMonth
+          filterMonth,
+          driver.daily_incentive_from,
+          driver.daily_incentive_slabs,
+          driverManualIncentives
         )
 
         const advanceEntries = (expenses ?? []).filter(
@@ -569,7 +644,8 @@ export default function Drivers() {
           ).reduce((s, e) => s + e.amount, 0)
           const { totalIncentive: pmIncentive } = calculateWeeklyIncentives(
             allDriverIncomes,
-            driver.car_id, driver.incentive_target, driver.incentive_base, driver.incentive_step, driver.incentive_slab, py, pmm
+            driver.car_id, driver.incentive_target, driver.incentive_base, driver.incentive_step, driver.incentive_slab, py, pmm,
+            driver.daily_incentive_from, driver.daily_incentive_slabs, driverManualIncentives
           )
           const pmWeeklySettled = driverSettlements
             .filter((s) => (s.period_type ?? 'month') === 'week' && s.period_end.slice(0, 7) === pm)
@@ -587,7 +663,8 @@ export default function Drivers() {
           allIncomes ?? [],
           allExpenses ?? [],
           driverSettlements,
-          currentDate
+          currentDate,
+          driverManualIncentives
         ).reverse()
 
         const isExpanded = expandedId === driver.id
@@ -622,6 +699,38 @@ export default function Drivers() {
             notifyApp('error', t.settlementUndoFailed)
           } finally {
             setSettlingId(null)
+          }
+        }
+        const handleManualIncentiveSave = async (event: React.FormEvent) => {
+          event.preventDefault()
+          const amount = parseNonNegativeNumber(manualAmount)
+          if (!isValidCalendarDate(manualDate) || amount === null) {
+            notifyApp('error', t.invalidManualIncentive)
+            return
+          }
+          setManualSubmitting(true)
+          try {
+            await upsertDriverDailyIncentive({
+              driver_profile_id: driver.id,
+              date: manualDate,
+              amount,
+              note: manualNote || null,
+            })
+            setManualAmount('')
+            setManualNote('')
+          } catch (error) {
+            console.error('Manual incentive save failed:', error)
+            notifyApp('error', t.manualIncentiveFailed)
+          } finally {
+            setManualSubmitting(false)
+          }
+        }
+        const handleManualIncentiveRemove = async (date: string) => {
+          try {
+            await removeDriverDailyIncentive(driver.id, date)
+          } catch (error) {
+            console.error('Manual incentive delete failed:', error)
+            notifyApp('error', t.manualIncentiveFailed)
           }
         }
         const handleMonthlySettle = async () => {
@@ -719,6 +828,73 @@ export default function Drivers() {
             {/* Expanded Details */}
             {isExpanded && (
               <div className="border-t border-border-dim px-4 py-3 space-y-3">
+                <div className="bg-surface-elevated rounded-xl p-3 border border-border-dim space-y-2">
+                  <p className="text-[10px] text-text-muted uppercase">{t.manualIncentive}</p>
+                  <form onSubmit={handleManualIncentiveSave} className="grid grid-cols-3 gap-1.5">
+                    <input
+                      type="date"
+                      value={manualDate}
+                      onChange={(event) => setManualDate(event.target.value)}
+                      className="bg-surface-card border border-border-dim rounded-lg px-2 py-1.5 text-xs text-white"
+                    />
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={manualAmount}
+                      onChange={(event) => setManualAmount(event.target.value)}
+                      placeholder={t.amount}
+                      className="bg-surface-card border border-border-dim rounded-lg px-2 py-1.5 text-xs text-white"
+                    />
+                    <input
+                      value={manualNote}
+                      onChange={(event) => setManualNote(event.target.value)}
+                      placeholder={t.note}
+                      className="bg-surface-card border border-border-dim rounded-lg px-2 py-1.5 text-xs text-white"
+                    />
+                    <button
+                      type="submit"
+                      disabled={manualSubmitting}
+                      className="col-span-3 bg-white text-black rounded-lg py-1.5 text-xs font-semibold disabled:opacity-50"
+                    >
+                      {manualSubmitting ? t.saving : t.save}
+                    </button>
+                  </form>
+                  {driverManualIncentives.length === 0 ? (
+                    <p className="text-[10px] text-text-muted">{t.noManualIncentives}</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {driverManualIncentives.map((entry) => (
+                        <div key={entry.date} className="flex items-center justify-between text-[10px]">
+                          <span className="text-text-secondary">
+                            <span className="text-accent mr-1">{t.manual}</span>
+                            {entry.date} · ₹{fmt(entry.amount)}{entry.note ? ` · ${entry.note}` : ''}
+                          </span>
+                          <span className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setManualDate(entry.date)
+                                setManualAmount(String(entry.amount))
+                                setManualNote(entry.note ?? '')
+                              }}
+                              className="text-text-muted hover:text-white underline"
+                            >
+                              {t.edit}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleManualIncentiveRemove(entry.date)}
+                              className="text-text-muted hover:text-white underline"
+                            >
+                              {t.delete}
+                            </button>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 {viewMode === 'week' ? (
                   <WeeklySettlementPanel
                     rows={weeklyRows}
@@ -764,11 +940,15 @@ export default function Drivers() {
                 </div>
 
                 {/* Weekly Incentive Breakdown */}
-                {incentiveWeeks.length > 0 && driver.incentive_target > 0 && (
+                {incentiveWeeks.length > 0 && (driver.incentive_target > 0 || driver.daily_incentive_slabs.length > 0) && (
                   <div className="bg-surface-elevated rounded-xl p-3 border border-border-dim">
                     <div className="flex items-center gap-1.5 mb-2">
                       <TrendingUp size={12} className="text-income" />
-                      <p className="text-[10px] text-text-muted uppercase">Weekly Incentive (Target: ₹{fmt(driver.incentive_target / 4)}/wk)</p>
+                      <p className="text-[10px] text-text-muted uppercase">
+                        {driver.daily_incentive_from
+                          ? t.dailyIncentive
+                          : `${t.weekIncentive} (Target: ₹${fmt(driver.incentive_target / 4)}/wk)`}
+                      </p>
                     </div>
                     <div className="space-y-1.5">
                       {incentiveWeeks.map((w) => (
