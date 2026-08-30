@@ -89,8 +89,8 @@ describe('salary and incentive calculations', () => {
       8,
       '2026-08-14',
       [],
-      [{ date: '2026-08-02', amount: 75 }]
-    ).weeks[0].incentive).toBe(75)
+      [{ date: '2026-08-02', amount: 300 }]
+    ).weeks[0].incentive).toBe(1050)
     expect(old.incentive).toBe(750)
   })
 

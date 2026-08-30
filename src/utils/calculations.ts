@@ -152,8 +152,6 @@ export function calculateDailyIncentivesForRange(
   }
 }
 
-export const deriveDailyIncentives = calculateDailyIncentivesForRange
-
 export function calculateWeeklyIncentiveWithDailyRule(
   incomes: { date: string; amount: number; car_id: number | null }[],
   carId: number | null,
@@ -178,7 +176,7 @@ export function calculateWeeklyIncentiveWithDailyRule(
     incentiveSlab,
     week
   )
-  if (!dailyIncentiveFrom) {
+  if (!dailyIncentiveFrom || week.end < dailyIncentiveFrom) {
     if (manualForWeek.length === 0) return { incentive: weekly.incentive, dailyIncentives: [] }
     const manualDays = calculateDailyIncentivesForRange(
       incomes,
@@ -189,22 +187,7 @@ export function calculateWeeklyIncentiveWithDailyRule(
       manualForWeek
     ).days.filter((day) => day.source === 'manual')
     return {
-      incentive: manualForWeek.reduce((sum, entry) => sum + entry.amount, 0),
-      dailyIncentives: manualDays,
-    }
-  }
-  if (week.end < dailyIncentiveFrom) {
-    if (manualForWeek.length === 0) return { incentive: weekly.incentive, dailyIncentives: [] }
-    const manualDays = calculateDailyIncentivesForRange(
-      incomes,
-      carId,
-      [],
-      week.start,
-      week.end,
-      manualForWeek
-    ).days.filter((day) => day.source === 'manual')
-    return {
-      incentive: manualForWeek.reduce((sum, entry) => sum + entry.amount, 0),
+      incentive: weekly.incentive + manualForWeek.reduce((sum, entry) => sum + entry.amount, 0),
       dailyIncentives: manualDays,
     }
   }
@@ -224,7 +207,7 @@ export function calculateWeeklyIncentiveWithDailyRule(
     carId,
     [],
     week.start,
-    dailyStart,
+    addLocalDays(dailyStart, -1),
     preCutoffManual
   ).days.filter((day) => day.source === 'manual')
   return {

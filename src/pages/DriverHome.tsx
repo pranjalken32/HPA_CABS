@@ -363,8 +363,8 @@ export default function DriverHome() {
               <p className="text-xl font-black text-income">₹{fmt(totalMonthIncentive)}</p>
             </div>
             <div className="bg-surface-elevated rounded-xl p-3 text-center">
-              <p className="text-[10px] text-text-muted uppercase">{myProfile?.daily_incentive_from ? t.dailyIncentive : t.weeklyTarget}</p>
-              <p className="text-xl font-black text-white">₹{fmt(myProfile?.daily_incentive_from ? totalMonthIncentive : weeklyTarget)}</p>
+              <p className="text-[10px] text-text-muted uppercase">{myProfile?.daily_incentive_from ? t.thisWeekIncentive : t.weeklyTarget}</p>
+              <p className="text-xl font-black text-white">₹{fmt(myProfile?.daily_incentive_from ? currentWeek.incentive : weeklyTarget)}</p>
             </div>
           </div>
 

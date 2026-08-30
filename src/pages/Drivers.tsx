@@ -226,6 +226,13 @@ export default function Drivers() {
   const [removingId, setRemovingId] = useState<number | null>(null)
   const currentDate = todayStr()
 
+  const setExpandedDriver = (nextId: number | null) => {
+    setManualDate(todayStr())
+    setManualAmount('')
+    setManualNote('')
+    setExpandedId(nextId)
+  }
+
   const defaultBase = localStorage.getItem('hpa_incentive_base') || '500'
   const defaultStep = localStorage.getItem('hpa_incentive_step') || '250'
   const defaultSlab = localStorage.getItem('hpa_incentive_slab') || '5000'
@@ -501,11 +508,11 @@ export default function Drivers() {
           {carIdInput && (
             <div className="bg-surface-elevated rounded-xl p-3 border border-border-dim space-y-2">
                 <p className="text-[10px] text-text-muted uppercase flex items-center gap-1">
-                <Target size={10} /> {t.incentiveSlabs}
+                <Target size={10} /> {t.dailyIncentiveSlabs}
               </p>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-[9px] text-text-muted block mb-0.5">{t.legacyIncentiveRule} (₹)</label>
+                  <label className="text-[9px] text-text-muted block mb-0.5">{t.legacyWeeklyTarget}</label>
                   <input
                     type="number"
                     step="0.01"
@@ -526,7 +533,9 @@ export default function Drivers() {
                   />
                 </div>
               </div>
-              <p className="text-[9px] text-text-muted">{t.legacyIncentiveRule}</p>
+              <p className="text-[9px] text-text-muted">
+                {t.dailyRuleDescription} {dailyIncentiveFrom || t.notSet}
+              </p>
               <div className="space-y-1.5">
                 {dailySlabs.map((slab, index) => (
                   <div key={index} className="flex items-center gap-1.5">
@@ -601,6 +610,8 @@ export default function Drivers() {
         const driverManualIncentives = dailyIncentives.filter(
           (entry) => entry.driver_profile_id === driver.id
         )
+        const monthManualIncentives = driverManualIncentives.filter((entry) => entry.date.startsWith(month))
+        const monthManualTotal = monthManualIncentives.reduce((sum, entry) => sum + entry.amount, 0)
         const monthlySettlement = driverSettlements.find(
           (settlement) => (settlement.period_type ?? 'month') === 'month' && settlement.month === month
         )
@@ -615,7 +626,7 @@ export default function Drivers() {
           filterYear,
           filterMonth,
           driver.daily_incentive_from,
-          driver.daily_incentive_slabs,
+          driver.daily_incentive_slabs ?? [],
           driverManualIncentives
         )
 
@@ -645,7 +656,7 @@ export default function Drivers() {
           const { totalIncentive: pmIncentive } = calculateWeeklyIncentives(
             allDriverIncomes,
             driver.car_id, driver.incentive_target, driver.incentive_base, driver.incentive_step, driver.incentive_slab, py, pmm,
-            driver.daily_incentive_from, driver.daily_incentive_slabs, driverManualIncentives
+            driver.daily_incentive_from, driver.daily_incentive_slabs ?? [], driverManualIncentives
           )
           const pmWeeklySettled = driverSettlements
             .filter((s) => (s.period_type ?? 'month') === 'week' && s.period_end.slice(0, 7) === pm)
@@ -790,7 +801,7 @@ export default function Drivers() {
             {/* Driver Header */}
             <div
               className="px-4 py-3 flex items-center justify-between cursor-pointer"
-              onClick={() => setExpandedId(isExpanded ? null : driver.id)}
+              onClick={() => setExpandedDriver(isExpanded ? null : driver.id)}
             >
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-full bg-surface-elevated flex items-center justify-center">
@@ -860,11 +871,12 @@ export default function Drivers() {
                       {manualSubmitting ? t.saving : t.save}
                     </button>
                   </form>
-                  {driverManualIncentives.length === 0 ? (
+                  {monthManualIncentives.length === 0 ? (
                     <p className="text-[10px] text-text-muted">{t.noManualIncentives}</p>
                   ) : (
                     <div className="space-y-1">
-                      {driverManualIncentives.map((entry) => (
+                      <p className="text-[10px] text-text-secondary">{t.thisMonth}: ₹{fmt(monthManualTotal)}</p>
+                      {monthManualIncentives.map((entry) => (
                         <div key={entry.date} className="flex items-center justify-between text-[10px]">
                           <span className="text-text-secondary">
                             <span className="text-accent mr-1">{t.manual}</span>
@@ -940,7 +952,7 @@ export default function Drivers() {
                 </div>
 
                 {/* Weekly Incentive Breakdown */}
-                {incentiveWeeks.length > 0 && (driver.incentive_target > 0 || driver.daily_incentive_slabs.length > 0) && (
+                {incentiveWeeks.length > 0 && (driver.incentive_target > 0 || (driver.daily_incentive_slabs ?? []).length > 0) && (
                   <div className="bg-surface-elevated rounded-xl p-3 border border-border-dim">
                     <div className="flex items-center gap-1.5 mb-2">
                       <TrendingUp size={12} className="text-income" />
