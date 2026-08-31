@@ -30,6 +30,7 @@ import { fmt, parseNonNegativeNumber, parsePositiveAmount } from '../utils/money
 import {
   calculateWeeklyIncentives,
   deriveWeeklySettlementRows,
+  isDriverPaidExpense,
   prorateSalary,
 } from '../utils/calculations'
 import type { WeeklySettlementLike, WeeklySettlementRow } from '../utils/calculations'
@@ -633,9 +634,7 @@ export default function Drivers() {
         )
 
         const advanceEntries = (expenses ?? []).filter(
-          (e) => e.category === 'driver_advance' && (
-            e.driver_profile_id === driver.id || e.note?.toLowerCase().includes(driver.name.toLowerCase())
-          )
+          (e) => isDriverPaidExpense(e, driver)
         )
         const totalAdvance = advanceEntries.reduce((s, e) => s + e.amount, 0)
 
@@ -651,9 +650,7 @@ export default function Drivers() {
           const pmStart = `${pm}-01`
           const pmEnd = `${pm}-${String(lastDayOfMonth(py, pmm)).padStart(2, '0')}`
           const pmAdvances = (allPrevExpenses ?? []).filter(
-            (e) => e.category === 'driver_advance' && (
-              e.driver_profile_id === driver.id || e.note?.toLowerCase().includes(driver.name.toLowerCase())
-            ) && e.date >= pmStart && e.date <= pmEnd
+            (e) => isDriverPaidExpense(e, driver) && e.date >= pmStart && e.date <= pmEnd
           ).reduce((s, e) => s + e.amount, 0)
           const { totalIncentive: pmIncentive } = calculateWeeklyIncentives(
             allDriverIncomes,
@@ -1135,7 +1132,9 @@ export default function Drivers() {
                     <div className="space-y-1 max-h-24 overflow-y-auto">
                       {advanceEntries.map((e) => (
                         <div key={e.id} className="flex items-center justify-between text-xs">
-                          <span className="text-text-secondary">{e.date}</span>
+                          <span className="text-text-secondary">
+                            {e.date} · {e.category === 'driver_incentive' ? t.cat_driver_incentive : t.cat_driver_advance}
+                          </span>
                           <span className="text-income font-medium">₹{fmt(e.amount)}</span>
                         </div>
                       ))}

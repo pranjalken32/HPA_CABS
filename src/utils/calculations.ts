@@ -8,6 +8,17 @@ import {
   type WeekRange,
 } from './date'
 
+export const DRIVER_PAID_CATEGORIES = ['driver_advance', 'driver_incentive'] as const
+
+export function isDriverPaidExpense(
+  expense: { category: string; driver_profile_id?: number | null; note?: string | null },
+  driver: { id: number; name: string }
+): boolean {
+  if (!DRIVER_PAID_CATEGORIES.includes(expense.category as typeof DRIVER_PAID_CATEGORIES[number])) return false
+  return expense.driver_profile_id === driver.id ||
+    (expense.note?.toLowerCase().includes(driver.name.toLowerCase()) ?? false)
+}
+
 export interface SalaryProration {
   amount: number
   workingDays: number
@@ -328,10 +339,7 @@ export function deriveWeeklySettlementRows(
         )
       const incentive = incentiveResult.incentive
       const advance = expenses
-        .filter((expense) => expense.category === 'driver_advance' && (
-          expense.driver_profile_id === driver.id ||
-          expense.note?.toLowerCase().includes(driver.name.toLowerCase())
-        ) && (partiallyCovered
+        .filter((expense) => isDriverPaidExpense(expense, driver) && (partiallyCovered
           ? uncoveredRanges.some((range) => expense.date >= range.start && expense.date <= range.end)
           : expense.date >= week.start && expense.date <= week.end))
         .reduce((sum, expense) => sum + expense.amount, 0)

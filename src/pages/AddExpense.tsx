@@ -75,6 +75,7 @@ export default function AddExpense() {
       notifyApp('error', 'Enter a valid date and amount.')
       return
     }
+    if (date > todayStr() && !confirm('This date is in the future. Save this expense anyway?')) return
     if (isDriverCategory && !selectedDriverId) {
       notifyApp('error', 'Select a driver before saving.')
       return
@@ -151,6 +152,7 @@ export default function AddExpense() {
           <input
             type="date"
             value={date}
+            max={todayStr()}
             onChange={(e) => {
               const nextDate = e.target.value
               setDate(nextDate)

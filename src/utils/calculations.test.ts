@@ -294,6 +294,60 @@ describe('salary and incentive calculations', () => {
     expect(rows[1]).toMatchObject({ incentive: 100, projected: true, settleable: false })
   })
 
+  it('deducts driver incentive payouts but not salary expenses from weekly payable', () => {
+    const driver = {
+      id: 2,
+      name: 'Syed Nawaz Ahmed',
+      start_date: '2026-08-14',
+      end_date: null,
+      monthly_salary: 24000,
+      car_id: 1,
+      incentive_target: 90000,
+      incentive_base: 500,
+      incentive_step: 250,
+      incentive_slab: 5000,
+      daily_incentive_from: '2026-08-14',
+      daily_incentive_slabs: [{ revenue: 3000, incentive: 100 }],
+    }
+    const incomes = [
+      { date: '2026-08-15', amount: 3029, car_id: 1 },
+      { date: '2026-08-16', amount: 3006, car_id: 1 },
+    ]
+    const weekNet = (expenses: { date: string; amount: number; category: string; driver_profile_id?: number | null; note?: string | null }[]) =>
+      deriveWeeklySettlementRows(driver, incomes, expenses, [], '2026-08-19')
+        .find((row) => row.weekStart === '2026-08-10')?.netPayable ?? 0
+    const withoutPayout = weekNet([])
+
+    expect(weekNet([{
+      date: '2026-08-15',
+      amount: 100,
+      category: 'driver_incentive',
+      driver_profile_id: 2,
+      note: '',
+    }])).toBeCloseTo(withoutPayout - 100, 2)
+    expect(weekNet([{
+      date: '2026-08-15',
+      amount: 100,
+      category: 'driver_incentive',
+      driver_profile_id: null,
+      note: '[Syed Nawaz Ahmed]',
+    }])).toBeCloseTo(withoutPayout - 100, 2)
+    expect(weekNet([{
+      date: '2026-08-15',
+      amount: 100,
+      category: 'driver_salary',
+      driver_profile_id: 2,
+      note: '',
+    }])).toBeCloseTo(withoutPayout, 2)
+    expect(weekNet([{
+      date: '2026-08-17',
+      amount: 100,
+      category: 'driver_incentive',
+      driver_profile_id: 2,
+      note: '',
+    }])).toBeCloseTo(withoutPayout, 2)
+  })
+
   it('bounds monthly incentive calculations to the employment window', () => {
     const augustIncome = [
       { date: '2026-08-15', amount: 3029, car_id: 1 },

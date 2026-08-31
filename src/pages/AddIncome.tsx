@@ -28,6 +28,7 @@ export default function AddIncome() {
       notifyApp('error', 'Enter a valid date, amount, and trip count.')
       return
     }
+    if (date > todayStr() && !confirm('This date is in the future. Save this income anyway?')) return
     setSubmitting(true)
     try {
       const row = { date, platform, amount: parsedAmount, trips: parsedTrips, note, car_id: carId }
@@ -64,6 +65,7 @@ export default function AddIncome() {
           <input
             type="date"
             value={date}
+            max={todayStr()}
             onChange={(e) => setDate(e.target.value)}
             className="w-full border border-border-dim bg-surface-elevated rounded-xl px-3 py-2.5 text-sm text-text-primary focus:border-accent focus:outline-none transition-colors"
             required
