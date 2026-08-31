@@ -7,12 +7,23 @@ import {
   deriveWeeklySettlementRows,
   getSettlementCarryForward,
   getRecurringRowsToAdd,
+  isDriverPaidExpense,
   prorateSalary,
   prorateSalaryForWeek,
 } from './calculations'
 import { getWeeksCoveringRange, getWeeksForMonth } from './date'
 
 describe('salary and incentive calculations', () => {
+  it('does not match another driver when the driver name is empty', () => {
+    const expense = {
+      category: 'driver_advance',
+      driver_profile_id: 99,
+      note: '[Someone Else]',
+    }
+    expect(isDriverPaidExpense(expense, { id: 1, name: '' })).toBe(false)
+    expect(isDriverPaidExpense({ ...expense, driver_profile_id: 1 }, { id: 1, name: '' })).toBe(true)
+  })
+
   it('prorates salary over inclusive employment dates', () => {
     expect(prorateSalary(24000, '2026-08-14', null, 2026, 8)).toMatchObject({ workingDays: 18, amount: 13935 })
     expect(prorateSalary(25000, '2026-06-15', '2026-07-23', 2026, 6)).toMatchObject({ workingDays: 16, amount: 13333 })

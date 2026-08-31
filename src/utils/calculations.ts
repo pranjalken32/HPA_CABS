@@ -15,8 +15,9 @@ export function isDriverPaidExpense(
   driver: { id: number; name: string }
 ): boolean {
   if (!DRIVER_PAID_CATEGORIES.includes(expense.category as typeof DRIVER_PAID_CATEGORIES[number])) return false
-  return expense.driver_profile_id === driver.id ||
-    (expense.note?.toLowerCase().includes(driver.name.toLowerCase()) ?? false)
+  if (expense.driver_profile_id === driver.id) return true
+  const name = driver.name.trim().toLowerCase()
+  return name.length > 0 && (expense.note?.toLowerCase().includes(name) ?? false)
 }
 
 export interface SalaryProration {

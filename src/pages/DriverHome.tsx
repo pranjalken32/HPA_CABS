@@ -45,9 +45,7 @@ export default function DriverHome() {
 
   // Only show advances that match this driver (by ID or name fallback)
   const advanceEntries = (expenses ?? []).filter(
-    (e) => myProfile
-      ? isDriverPaidExpense(e, { id: myProfile.id, name: myName })
-      : Boolean(myName && isDriverPaidExpense(e, { id: -1, name: myName }))
+    (e) => isDriverPaidExpense(e, { id: myProfile?.id ?? -1, name: myName })
   )
   const totalAdvance = advanceEntries.reduce((s, e) => s + e.amount, 0)
 
@@ -148,9 +146,7 @@ export default function DriverHome() {
     }).amount
     : 0
   const thisWeekAdvance = (weekExpenses ?? [])
-    .filter((expense) => myProfile
-      ? isDriverPaidExpense(expense, { id: myProfile.id, name: myName })
-      : Boolean(myName && isDriverPaidExpense(expense, { id: -1, name: myName })))
+    .filter((expense) => isDriverPaidExpense(expense, { id: myProfile?.id ?? -1, name: myName }))
     .reduce((sum, expense) => sum + expense.amount, 0)
   const thisWeekNet = thisWeekSalary + currentWeek.incentive - thisWeekAdvance
 
