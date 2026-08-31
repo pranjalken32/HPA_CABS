@@ -425,25 +425,42 @@ export function calculateWeeklyIncentives(
   month: number,
   dailyIncentiveFrom?: string | null,
   dailyIncentiveSlabs: DailyIncentiveSlab[] = [],
-  manualIncentives: { date: string; amount: number }[] = []
+  manualIncentives: { date: string; amount: number }[] = [],
+  employmentStart?: string | null,
+  employmentEnd?: string | null
 ): { weeks: WeekIncentive[]; totalIncentive: number } {
   if (!carId || (!dailyIncentiveFrom && incentiveTarget <= 0)) return { weeks: [], totalIncentive: 0 }
   const weeks = getWeeksForMonth(`${year}-${String(month).padStart(2, '0')}`)
     .map((week, index) => {
+      const rangeStart = employmentStart && employmentStart > week.start ? employmentStart : week.start
+      const rangeEnd = employmentEnd && employmentEnd < week.end ? employmentEnd : week.end
+      if (rangeStart > rangeEnd) {
+        return {
+          weekNum: index + 1,
+          weekStart: week.start,
+          weekEnd: week.end,
+          revenue: 0,
+          target: incentiveTarget / 4,
+          incentive: 0,
+          hit: false,
+          dailyIncentives: [],
+        }
+      }
+      const range = { start: rangeStart, end: rangeEnd }
       const result = calculateWeeklyIncentiveWithDailyRule(
-      incomes,
-      carId,
-      incentiveTarget,
-      incentiveBase,
-      incentiveStep,
-      incentiveSlab,
-      week,
-      dailyIncentiveFrom,
-      dailyIncentiveSlabs,
-      manualIncentives
+        incomes,
+        carId,
+        incentiveTarget,
+        incentiveBase,
+        incentiveStep,
+        incentiveSlab,
+        range,
+        dailyIncentiveFrom,
+        dailyIncentiveSlabs,
+        manualIncentives
       )
       const revenue = incomes
-        .filter((income) => income.car_id === carId && income.date >= week.start && income.date <= week.end)
+        .filter((income) => income.car_id === carId && income.date >= rangeStart && income.date <= rangeEnd)
         .reduce((sum, income) => sum + income.amount, 0)
       return {
         weekNum: index + 1,

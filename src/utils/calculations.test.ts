@@ -294,6 +294,68 @@ describe('salary and incentive calculations', () => {
     expect(rows[1]).toMatchObject({ incentive: 100, projected: true, settleable: false })
   })
 
+  it('bounds monthly incentive calculations to the employment window', () => {
+    const augustIncome = [
+      { date: '2026-08-15', amount: 3029, car_id: 1 },
+      { date: '2026-08-16', amount: 3006, car_id: 1 },
+    ]
+    const departed = calculateWeeklyIncentives(
+      augustIncome,
+      1,
+      90000,
+      500,
+      250,
+      5000,
+      2026,
+      8,
+      '2026-08-14',
+      [{ revenue: 3000, incentive: 100 }],
+      [],
+      '2026-06-15',
+      '2026-07-23'
+    )
+    expect(departed.totalIncentive).toBe(0)
+    expect(departed.weeks.every((week) => week.revenue === 0 && week.incentive === 0)).toBe(true)
+
+    const notStarted = calculateWeeklyIncentives(
+      [{ date: '2026-06-20', amount: 25000, car_id: 1 }],
+      1,
+      80000,
+      500,
+      250,
+      5000,
+      2026,
+      6,
+      null,
+      [],
+      [],
+      '2026-08-14',
+      null
+    )
+    expect(notStarted.totalIncentive).toBe(0)
+
+    const partial = calculateWeeklyIncentives(
+      augustIncome,
+      1,
+      90000,
+      500,
+      250,
+      5000,
+      2026,
+      8,
+      '2026-08-14',
+      [{ revenue: 3000, incentive: 100 }],
+      [],
+      '2026-08-16',
+      null
+    )
+    expect(partial.weeks.find((week) => week.weekStart === '2026-08-10')).toMatchObject({
+      revenue: 3006,
+      incentive: 100,
+    })
+    expect(partial.totalIncentive).toBe(100)
+  })
+
   it('recognises Arjun weeks covered by monthly settlements', () => {
     const rows = deriveWeeklySettlementRows(
       {

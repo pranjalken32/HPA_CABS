@@ -83,30 +83,53 @@ export default function DriverHome() {
     filterMonth,
     myProfile?.daily_incentive_from,
     myProfile?.daily_incentive_slabs ?? [],
-    myManualIncentives
+    myManualIncentives,
+    myProfile?.start_date,
+    myProfile?.end_date
   ).weeks
 
-  const currentWeekBase = calculateWeeklyIncentiveForRange(
-    incomes ?? [],
-    assignedCarId,
-    incentiveTarget,
-    incentiveBase,
-    incentiveStep,
-    incentiveSlab,
-    { start: currentWeekStart, end: currentWeekEnd }
-  )
-  const currentWeekRule = calculateWeeklyIncentiveWithDailyRule(
-    incomes ?? [],
-    assignedCarId,
-    incentiveTarget,
-    incentiveBase,
-    incentiveStep,
-    incentiveSlab,
-    { start: currentWeekStart, end: currentWeekEnd },
-    myProfile?.daily_incentive_from,
-    myProfile?.daily_incentive_slabs ?? [],
-    myManualIncentives
-  )
+  const currentWeekRange = {
+    start: myProfile?.start_date && myProfile.start_date > currentWeekStart
+      ? myProfile.start_date
+      : currentWeekStart,
+    end: myProfile?.end_date && myProfile.end_date < currentWeekEnd
+      ? myProfile.end_date
+      : currentWeekEnd,
+  }
+  const currentWeekRangeValid = currentWeekRange.start <= currentWeekRange.end
+  const currentWeekBase = currentWeekRangeValid
+    ? calculateWeeklyIncentiveForRange(
+      incomes ?? [],
+      assignedCarId,
+      incentiveTarget,
+      incentiveBase,
+      incentiveStep,
+      incentiveSlab,
+      currentWeekRange
+    )
+    : {
+      weekNum: 1,
+      weekStart: currentWeekStart,
+      weekEnd: currentWeekEnd,
+      revenue: 0,
+      target: incentiveTarget / 4,
+      incentive: 0,
+      hit: false,
+    }
+  const currentWeekRule = currentWeekRangeValid
+    ? calculateWeeklyIncentiveWithDailyRule(
+      incomes ?? [],
+      assignedCarId,
+      incentiveTarget,
+      incentiveBase,
+      incentiveStep,
+      incentiveSlab,
+      currentWeekRange,
+      myProfile?.daily_incentive_from,
+      myProfile?.daily_incentive_slabs ?? [],
+      myManualIncentives
+    )
+    : { incentive: 0, dailyIncentives: [] }
   const currentWeek = {
     ...currentWeekBase,
     incentive: currentWeekRule.incentive,
