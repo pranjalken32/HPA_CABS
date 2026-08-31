@@ -6,7 +6,7 @@ import { useLanguage } from '../useLanguage'
 import { LANGUAGES } from '../i18n'
 import { getWeekEnd, getWeekIndexForMonth, getWeekStart, isValidCalendarDate, todayStr } from '../utils/date'
 import { parseNonNegativeNumber, parsePositiveAmount, fmt } from '../utils/money'
-import { calculateWeeklyIncentiveForRange, calculateWeeklyIncentiveWithDailyRule, calculateWeeklyIncentives, prorateSalary, prorateSalaryForWeek } from '../utils/calculations'
+import { calculateWeeklyIncentiveForRange, calculateWeeklyIncentiveWithDailyRule, calculateWeeklyIncentives, isDriverPaidExpense, prorateSalary, prorateSalaryForWeek } from '../utils/calculations'
 import { Fuel, Car, Wallet, ArrowUpCircle, ChevronRight, CheckCircle2, Target, History, Globe } from 'lucide-react'
 
 export default function DriverHome() {
@@ -45,10 +45,7 @@ export default function DriverHome() {
 
   // Only show advances that match this driver (by ID or name fallback)
   const advanceEntries = (expenses ?? []).filter(
-    (e) => e.category === 'driver_advance' && (
-      (myProfile && e.driver_profile_id === myProfile.id) ||
-      (myName && e.note?.toLowerCase().includes(myName.toLowerCase()))
-    )
+    (e) => isDriverPaidExpense(e, { id: myProfile?.id ?? -1, name: myName })
   )
   const totalAdvance = advanceEntries.reduce((s, e) => s + e.amount, 0)
 
@@ -149,10 +146,7 @@ export default function DriverHome() {
     }).amount
     : 0
   const thisWeekAdvance = (weekExpenses ?? [])
-    .filter((expense) => expense.category === 'driver_advance' && (
-      (myProfile && expense.driver_profile_id === myProfile.id) ||
-      (myName && expense.note?.toLowerCase().includes(myName.toLowerCase()))
-    ))
+    .filter((expense) => isDriverPaidExpense(expense, { id: myProfile?.id ?? -1, name: myName }))
     .reduce((sum, expense) => sum + expense.amount, 0)
   const thisWeekNet = thisWeekSalary + currentWeek.incentive - thisWeekAdvance
 
@@ -290,7 +284,9 @@ export default function DriverHome() {
                 <div key={e.id} className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <ArrowUpCircle size={14} className="text-income" />
-                    <span className="text-xs text-text-secondary">{e.date}</span>
+                    <span className="text-xs text-text-secondary">
+                      {e.date} · {e.category === 'driver_incentive' ? t.cat_driver_incentive : t.cat_driver_advance}
+                    </span>
                     {e.note && <span className="text-xs text-text-muted">· {e.note}</span>}
                   </div>
                   <span className="text-xs font-bold text-income">+₹{fmt(e.amount)}</span>
