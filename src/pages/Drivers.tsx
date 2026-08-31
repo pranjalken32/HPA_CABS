@@ -627,7 +627,9 @@ export default function Drivers() {
           filterMonth,
           driver.daily_incentive_from,
           driver.daily_incentive_slabs ?? [],
-          driverManualIncentives
+          driverManualIncentives,
+          driver.start_date,
+          driver.end_date
         )
 
         const advanceEntries = (expenses ?? []).filter(
@@ -656,7 +658,8 @@ export default function Drivers() {
           const { totalIncentive: pmIncentive } = calculateWeeklyIncentives(
             allDriverIncomes,
             driver.car_id, driver.incentive_target, driver.incentive_base, driver.incentive_step, driver.incentive_slab, py, pmm,
-            driver.daily_incentive_from, driver.daily_incentive_slabs ?? [], driverManualIncentives
+            driver.daily_incentive_from, driver.daily_incentive_slabs ?? [], driverManualIncentives,
+            driver.start_date, driver.end_date
           )
           const pmWeeklySettled = driverSettlements
             .filter((s) => (s.period_type ?? 'month') === 'week' && s.period_end.slice(0, 7) === pm)
