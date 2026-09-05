@@ -41,7 +41,7 @@ import {
 import { generateMonthlySummary, shareViaWhatsApp } from '../utils/share'
 import { lastDayOfMonth, parseLocalDate, todayStr } from '../utils/date'
 import { parsePositiveAmount } from '../utils/money'
-import { deriveWeeklySettlementRows, prorateSalary } from '../utils/calculations'
+import { calculateMonthlyIncentiveAccrual, deriveWeeklySettlementRows, prorateSalary } from '../utils/calculations'
 import { useLanguage } from '../useLanguage'
 
 const PLATFORM_COLORS: Record<string, string> = {
@@ -151,7 +151,32 @@ export default function Dashboard() {
     ).amount,
     0
   )
-  const grossProfit = totalRevenue - cngTotal - petrolTotal - commissionTotal - tollTotal - carWashTotal - fareFraudTotal - emiTillDate - salaryTillDate
+  const incentiveTillDate = driverProfiles.reduce(
+    (sum, driver) => sum + calculateMonthlyIncentiveAccrual(
+      driver,
+      allIncomes ?? [],
+      y,
+      m,
+      dailyIncentives.filter((entry) => entry.driver_profile_id === driver.id),
+      isCurrentMonth ? todayDateStr : undefined
+    ),
+    0
+  )
+  const accruedExpenseCategories = new Set([
+    'fuel',
+    'commission',
+    'toll',
+    'car_wash',
+    'fare_fraud',
+    'emi',
+    'driver_salary',
+    'driver_advance',
+    'driver_incentive',
+  ])
+  const otherTotal = (expenses ?? [])
+    .filter((expense) => !accruedExpenseCategories.has(expense.category))
+    .reduce((sum, expense) => sum + expense.amount, 0)
+  const grossProfit = totalRevenue - cngTotal - petrolTotal - commissionTotal - tollTotal - carWashTotal - fareFraudTotal - emiTillDate - salaryTillDate - incentiveTillDate - otherTotal
   const currentMonth = todayDateStr.slice(0, 7)
   const daysToCount = month < currentMonth
     ? totalDaysInMonth
@@ -522,6 +547,18 @@ export default function Dashboard() {
             <div className="flex items-center justify-between">
               <span className="text-xs text-text-muted">− Salary ({daysElapsed}d of {totalDaysInMonth})</span>
               <span className="text-sm font-bold text-expense">₹{fmt(Math.round(salaryTillDate))}</span>
+            </div>
+          )}
+          {incentiveTillDate > 0 && (
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-text-muted">− Incentive</span>
+              <span className="text-sm font-bold text-expense">₹{fmt(Math.round(incentiveTillDate))}</span>
+            </div>
+          )}
+          {otherTotal > 0 && (
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-text-muted">− Other</span>
+              <span className="text-sm font-bold text-expense">₹{fmt(otherTotal)}</span>
             </div>
           )}
           <div className="h-px bg-border-dim" />

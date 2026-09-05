@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   calculateDailyIncentive,
   calculateDailyIncentivesForRange,
+  calculateMonthlyIncentiveAccrual,
   calculateWeeklyIncentiveForRange,
   calculateWeeklyIncentives,
   deriveWeeklySettlementRows,
@@ -65,6 +66,95 @@ describe('salary and incentive calculations', () => {
       calculateDailyIncentive(revenue, slabs)
     )).toEqual([0, 100, 100, 200, 400, 400, 650, 650])
     expect(calculateDailyIncentive(5000, [])).toBe(0)
+  })
+
+  it('calculates monthly incentive accrual with daily rules, manual entries, and date bounds', () => {
+    const driver = {
+      id: 2,
+      name: 'Syed',
+      start_date: '2026-08-14',
+      end_date: null,
+      monthly_salary: 24000,
+      car_id: 1,
+      incentive_target: 90000,
+      incentive_base: 500,
+      incentive_step: 250,
+      incentive_slab: 5000,
+      daily_incentive_from: '2026-08-14',
+      daily_incentive_slabs: [
+        { revenue: 3000, incentive: 100 },
+        { revenue: 3500, incentive: 200 },
+      ],
+    }
+    const incomes = [
+      { date: '2026-08-15', amount: 3029, car_id: 1 },
+      { date: '2026-08-16', amount: 3006, car_id: 1 },
+      { date: '2026-08-19', amount: 2240, car_id: 1 },
+    ]
+    expect(calculateMonthlyIncentiveAccrual(driver, incomes, 2026, 8)).toBe(200)
+    expect(calculateMonthlyIncentiveAccrual(
+      driver,
+      incomes,
+      2026,
+      8,
+      [{ date: '2026-08-17', amount: 100 }]
+    )).toBe(300)
+    expect(calculateMonthlyIncentiveAccrual(
+      driver,
+      incomes,
+      2026,
+      8,
+      [{ date: '2026-08-15', amount: 0 }]
+    )).toBe(100)
+    expect(calculateMonthlyIncentiveAccrual(driver, incomes, 2026, 8, [], '2026-08-15')).toBe(100)
+    expect(calculateMonthlyIncentiveAccrual(driver, incomes, 2026, 7)).toBe(0)
+    expect(calculateMonthlyIncentiveAccrual(
+      { ...driver, end_date: '2026-07-23' },
+      incomes,
+      2026,
+      8
+    )).toBe(0)
+  })
+
+  it('uses the legacy weekly rule for pre-cutoff months and counts pre-cutoff manual entries', () => {
+    const driver = {
+      id: 2,
+      name: 'Syed',
+      start_date: '2026-08-01',
+      end_date: null,
+      monthly_salary: 24000,
+      car_id: 1,
+      incentive_target: 80000,
+      incentive_base: 500,
+      incentive_step: 250,
+      incentive_slab: 5000,
+      daily_incentive_from: '2026-09-01',
+      daily_incentive_slabs: [{ revenue: 3000, incentive: 100 }],
+    }
+    const incomes = [{ date: '2026-08-02', amount: 25000, car_id: 1 }]
+    const expected = calculateWeeklyIncentives(
+      incomes,
+      1,
+      80000,
+      500,
+      250,
+      5000,
+      2026,
+      8,
+      driver.daily_incentive_from,
+      driver.daily_incentive_slabs,
+      [],
+      driver.start_date,
+      driver.end_date
+    ).totalIncentive
+    expect(calculateMonthlyIncentiveAccrual(driver, incomes, 2026, 8)).toBe(expected)
+    expect(calculateMonthlyIncentiveAccrual(
+      { ...driver, daily_incentive_from: '2026-08-14' },
+      [{ date: '2026-08-15', amount: 3029, car_id: 1 }],
+      2026,
+      8,
+      [{ date: '2026-08-10', amount: 125 }]
+    )).toBe(225)
   })
 
   it('lets manual daily incentives replace slab amounts, including zero', () => {
