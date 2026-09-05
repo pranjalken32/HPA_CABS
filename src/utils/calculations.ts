@@ -486,6 +486,61 @@ export function calculateWeeklyIncentives(
   return { weeks, totalIncentive }
 }
 
+export function calculateMonthlyIncentiveAccrual(
+  driver: WeeklyDriverProfile,
+  incomes: { date: string; amount: number; car_id: number | null }[],
+  year: number,
+  month: number,
+  manualIncentives: { date: string; amount: number }[] = [],
+  asOfDate?: string
+): number {
+  const monthPrefix = `${year}-${String(month).padStart(2, '0')}`
+  const monthStart = `${monthPrefix}-01`
+  const monthEnd = `${monthPrefix}-${String(lastDayOfMonth(year, month)).padStart(2, '0')}`
+  const rangeStart = driver.start_date > monthStart ? driver.start_date : monthStart
+  const requestedEnd = asOfDate && asOfDate < monthEnd ? asOfDate : monthEnd
+  const rangeEnd = driver.end_date && driver.end_date < requestedEnd ? driver.end_date : requestedEnd
+  if (rangeStart > rangeEnd) return 0
+
+  let total: number
+  const cutoff = driver.daily_incentive_from
+  if (cutoff && cutoff <= rangeEnd) {
+    const dailyStart = rangeStart > cutoff ? rangeStart : cutoff
+    const dailyManual = manualIncentives.filter(
+      (entry) => entry.date >= dailyStart && entry.date <= rangeEnd
+    )
+    const daily = calculateDailyIncentivesForRange(
+      incomes,
+      driver.car_id,
+      driver.daily_incentive_slabs ?? [],
+      dailyStart,
+      rangeEnd,
+      dailyManual
+    )
+    const preCutoffManual = manualIncentives
+      .filter((entry) => entry.date >= rangeStart && entry.date < dailyStart)
+      .reduce((sum, entry) => sum + entry.amount, 0)
+    total = preCutoffManual + daily.totalIncentive
+  } else {
+    total = calculateWeeklyIncentives(
+      incomes,
+      driver.car_id,
+      driver.incentive_target,
+      driver.incentive_base,
+      driver.incentive_step,
+      driver.incentive_slab,
+      year,
+      month,
+      driver.daily_incentive_from,
+      driver.daily_incentive_slabs ?? [],
+      manualIncentives,
+      driver.start_date,
+      driver.end_date
+    ).totalIncentive
+  }
+  return Math.round(total * 100) / 100
+}
+
 export interface RecurringTemplate {
   date?: string
   category: string
