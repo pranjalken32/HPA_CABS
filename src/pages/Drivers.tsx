@@ -23,12 +23,13 @@ import {
   useDriverUsers,
 } from '../hooks/useSupabase'
 import type { DriverProfileRow, DriverSettlementRow } from '../hooks/useSupabase'
-import { Users, Plus, Edit2, Trash2, FileText, Upload, X, Calendar, Phone, IndianRupee, CheckCircle2, Target, TrendingUp } from 'lucide-react'
+import { Users, Plus, Edit2, Trash2, FileText, Upload, X, Calendar, Phone, IndianRupee, CheckCircle2, Target, TrendingUp, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useLanguage } from '../useLanguage'
-import { isValidCalendarDate, lastDayOfMonth, todayStr } from '../utils/date'
+import { isValidCalendarDate, lastDayOfMonth, parseLocalDate, todayStr } from '../utils/date'
 import { fmt, parseNonNegativeNumber, parsePositiveAmount } from '../utils/money'
 import {
   calculateWeeklyIncentives,
+  deriveDailySettlementDays,
   deriveWeeklySettlementRows,
   isDriverPaidExpense,
   prorateSalary,
@@ -76,6 +77,187 @@ function getMonthsBetween(from: string, toMonth: string): string[] {
     if (m > 12) { m = 1; y++ }
   }
   return months
+}
+
+function formatDayLabel(date: string): string {
+  return parseLocalDate(date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })
+}
+
+function formatShortDay(date: string): string {
+  return parseLocalDate(date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric' })
+}
+
+function money(value: number, decimals = 0): string {
+  const factor = 10 ** decimals
+  return fmt(Math.round(value * factor) / factor)
+}
+
+function signedMoney(value: number, currency = true): string {
+  const rounded = currency ? Math.round(value * 100) / 100 : Math.round(value)
+  return `${rounded < 0 ? '−' : '+'}${currency ? '₹' : ''}${fmt(rounded)}`
+}
+
+function balanceClass(value: number): string {
+  return Math.round(value) >= 0 ? 'text-expense' : 'text-income'
+}
+
+function DailySettlementTable({
+  rows,
+  driver,
+  incomes,
+  expenses,
+  settlingId,
+  onSettle,
+  onUndo,
+  t,
+}: {
+  rows: WeeklySettlementRow[]
+  driver: DriverProfileRow
+  settlingId: number | null
+  onSettle: (row: WeeklySettlementRow) => void
+  onUndo: (settlement: WeeklySettlementLike) => void
+  incomes: Parameters<typeof deriveDailySettlementDays>[2]
+  expenses: Parameters<typeof deriveDailySettlementDays>[3]
+  t: ReturnType<typeof useLanguage>['t']
+}) {
+  const [weekIndex, setWeekIndex] = useState(0)
+  const index = Math.min(weekIndex, rows.length - 1)
+  const row = rows[index]
+  if (!row) return null
+
+  const coveredByMonth = row.coverage === 'monthly' || row.coverage === 'partial'
+  const days = coveredByMonth ? [] : deriveDailySettlementDays(driver, row, incomes, expenses)
+  const totalRevenue = days.reduce((sum, day) => sum + day.revenue, 0)
+  const weeklyTargetIncentive = row.incentive - days.reduce((sum, day) => sum + day.incentive, 0)
+  const cell = 'py-1.5 px-0.5 text-right whitespace-nowrap'
+
+  return (
+    <div className="bg-surface-elevated rounded-xl p-3 border border-border-dim space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <button
+          type="button"
+          aria-label={t.previousWeek}
+          disabled={index >= rows.length - 1}
+          onClick={() => setWeekIndex(index + 1)}
+          className="p-1.5 rounded-lg bg-surface-card text-text-secondary disabled:opacity-30"
+        >
+          <ChevronLeft size={16} />
+        </button>
+        <div className="text-center">
+          <p className="text-[10px] text-text-muted uppercase">{t.dailyTable}</p>
+          <p className="text-xs font-semibold text-white">
+            {formatDayLabel(row.weekStart)} – {formatDayLabel(row.weekEnd)}
+          </p>
+        </div>
+        <button
+          type="button"
+          aria-label={t.nextWeek}
+          disabled={index === 0}
+          onClick={() => setWeekIndex(index - 1)}
+          className="p-1.5 rounded-lg bg-surface-card text-text-secondary disabled:opacity-30"
+        >
+          <ChevronRight size={16} />
+        </button>
+      </div>
+
+      {coveredByMonth ? (
+        <p className="text-[10px] text-text-secondary">
+          {row.coverage === 'monthly' ? t.coveredByMonthlySettlement : t.partiallyCoveredByMonthlySettlement}
+        </p>
+      ) : (
+        <>
+          <p className="text-[10px] text-text-muted">
+            {t.carriedIn}: <span className={`font-semibold ${balanceClass(row.carryForward)}`}>{signedMoney(row.carryForward)}</span>
+          </p>
+          <div className="overflow-x-auto -mx-1">
+            <table className="w-full text-[10px] tabular-nums">
+              <thead>
+                <tr className="text-[8px] uppercase text-text-muted align-bottom">
+                  <th className="py-1 px-0.5 text-left font-medium">{t.date}</th>
+                  <th className="py-1 px-0.5 text-right font-medium">{t.revenue}</th>
+                  <th className="py-1 px-0.5 text-right font-medium">{t.salary}</th>
+                  <th className="py-1 px-0.5 text-right font-medium">{t.incentive}</th>
+                  <th className="py-1 px-0.5 text-right font-medium">{t.advances}</th>
+                  <th className="py-1 px-0.5 text-right font-medium">{t.dayNet}</th>
+                  <th className="py-1 px-0.5 text-right font-medium">{t.running}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {days.map((day) => (
+                  <tr key={day.date} className="border-t border-border-dim">
+                    <td className="py-1.5 px-0.5 text-left whitespace-nowrap text-text-secondary">{formatShortDay(day.date)}</td>
+                    <td className={`${cell} text-white`}>{day.revenue > 0 ? money(day.revenue) : '—'}</td>
+                    <td className={`${cell} text-text-secondary`}>{money(day.salary)}</td>
+                    <td className={`${cell} text-income`}>
+                      {day.incentive > 0 ? money(day.incentive) : '—'}
+                      {day.incentiveSource === 'manual' && <span className="ml-0.5 text-[9px] font-bold text-accent">M</span>}
+                    </td>
+                    <td className={`${cell} text-text-secondary`}>{day.advance > 0 ? money(day.advance) : '—'}</td>
+                    <td className={`${cell} ${balanceClass(day.dayNet)}`}>{signedMoney(day.dayNet, false)}</td>
+                    <td className={`${cell} font-semibold ${balanceClass(day.running)}`}>{signedMoney(day.running, false)}</td>
+                  </tr>
+                ))}
+                {weeklyTargetIncentive > 0.005 && (
+                  <tr className="border-t border-border-dim">
+                    <td colSpan={3} className="py-1.5 px-1 text-left text-text-secondary">{t.weekIncentive}</td>
+                    <td className={`${cell} text-income`}>{money(weeklyTargetIncentive)}</td>
+                    <td colSpan={3} />
+                  </tr>
+                )}
+              </tbody>
+              <tfoot>
+                <tr className="border-t border-border-dim font-bold text-white">
+                  <td className="py-1.5 px-0.5 text-left">{t.total}</td>
+                  <td className={cell}>{money(totalRevenue)}</td>
+                  <td className={cell}>{money(row.salary)}</td>
+                  <td className={`${cell} text-income`}>{money(row.incentive)}</td>
+                  <td className={cell}>{money(row.advance)}</td>
+                  <td className={`${cell} ${balanceClass(row.basePayable)}`}>{signedMoney(row.basePayable, false)}</td>
+                  <td className={`${cell} ${balanceClass(row.netPayable)}`}>{signedMoney(row.netPayable, false)}</td>
+                </tr>
+                {row.settlement && (
+                  <tr className="border-t border-border-dim text-income">
+                    <td colSpan={5} className="py-1.5 px-1 text-left">
+                      <CheckCircle2 size={12} className="inline mr-1 -mt-0.5" />
+                      {t.paidOn} {formatDayLabel(row.settlement.settled_date)}
+                    </td>
+                    <td className={cell}>−{money(row.settlement.amount)}</td>
+                    <td className={`${cell} font-bold ${balanceClass(row.netPayable - row.settlement.amount)}`}>
+                      {signedMoney(row.netPayable - row.settlement.amount, false)}
+                    </td>
+                  </tr>
+                )}
+              </tfoot>
+            </table>
+          </div>
+          <p className="text-[9px] text-text-muted">M = {t.manual} · {t.balanceSignHint}</p>
+          {row.settlement ? (
+            <div className="flex justify-end">
+              <button
+                type="button"
+                disabled={settlingId !== null}
+                onClick={() => onUndo(row.settlement!)}
+                className="text-[10px] text-text-muted underline hover:text-white disabled:opacity-50"
+              >
+                {t.undo}
+              </button>
+            </div>
+          ) : row.projected ? (
+            <p className="text-[10px] text-text-muted text-center">{t.settlesOn} {formatDayLabel(row.weekEnd)}</p>
+          ) : row.settleable && row.netPayable > 0 ? (
+            <button
+              type="button"
+              disabled={settlingId !== null}
+              onClick={() => onSettle(row)}
+              className="w-full py-2 rounded-lg text-sm font-semibold bg-white text-black disabled:bg-surface-card disabled:text-text-muted"
+            >
+              {t.markSettled} — ₹{money(row.netPayable, 2)}
+            </button>
+          ) : null}
+        </>
+      )}
+    </div>
+  )
 }
 
 function WeeklySettlementPanel({
@@ -197,7 +379,7 @@ export default function Drivers() {
   const [showForm, setShowForm] = useState(false)
   const [editDriver, setEditDriver] = useState<DriverProfileRow | null>(null)
   const [expandedId, setExpandedId] = useState<number | null>(null)
-  const [viewMode, setViewMode] = useState<'month' | 'week'>('month')
+  const [viewMode, setViewMode] = useState<'month' | 'week'>('week')
 
   // Form state
   const [name, setName] = useState('')
@@ -839,6 +1021,19 @@ export default function Drivers() {
             {/* Expanded Details */}
             {isExpanded && (
               <div className="border-t border-border-dim px-4 py-3 space-y-3">
+                <DailySettlementTable
+                  rows={weeklyRows}
+                  driver={driver}
+                  incomes={allIncomes ?? []}
+                  expenses={allExpenses ?? []}
+                  settlingId={settlingId}
+                  onSettle={handleWeeklySettle}
+                  onUndo={handleWeeklyUndo}
+                  t={t}
+                />
+                <details>
+                  <summary className="text-xs text-text-secondary cursor-pointer select-none">{t.moreDetails}</summary>
+                  <div className="space-y-3 mt-3">
                 <div className="bg-surface-elevated rounded-xl p-3 border border-border-dim space-y-2">
                   <p className="text-[10px] text-text-muted uppercase">{t.manualIncentive}</p>
                   <form onSubmit={handleManualIncentiveSave} className="grid grid-cols-3 gap-1.5">
@@ -1143,6 +1338,8 @@ export default function Drivers() {
                 )}
                 </div>
                 )}
+                  </div>
+                </details>
               </div>
             )}
           </div>
