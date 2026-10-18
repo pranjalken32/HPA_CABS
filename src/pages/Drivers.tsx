@@ -110,8 +110,7 @@ function DriverWeekTable({
   const days = coveredByMonth ? [] : deriveDailySettlementDays(driver, row, incomes, expenses)
   const totalRevenue = days.reduce((sum, day) => sum + day.revenue, 0)
   const weeklyTargetIncentive = row.incentive - days.reduce((sum, day) => sum + day.incentive, 0)
-  const latestPaidIndex = rows.findIndex((candidate) => candidate.settlement)
-  const carriedForward = latestPaidIndex !== -1 && index > latestPaidIndex && !row.settlement
+  const isCurrentWeek = index === 0
   const balance = getWeekBalanceAsOf(row, days, today)
   const settledUp = Math.abs(balance) < 0.5
   const cell = 'py-1.5 px-0.5 text-right whitespace-nowrap'
@@ -240,8 +239,10 @@ function DriverWeekTable({
           </div>
           <p className="text-[9px] text-text-muted">M = {t.manual} · {t.balanceSignHint}</p>
 
-          {carriedForward ? (
-            <p className="text-[10px] text-text-secondary text-center">{t.carriedToLaterWeeks}</p>
+          {!isCurrentWeek ? (
+            !row.settlement && (
+              <p className="text-[10px] text-text-secondary text-center">{t.carriedToLaterWeeks}</p>
+            )
           ) : (
             <>
               <p className="text-xs text-center">
