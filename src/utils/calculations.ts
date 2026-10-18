@@ -387,6 +387,56 @@ export function deriveWeeklySettlementRows(
     })
 }
 
+export interface DailySettlementDay {
+  date: string
+  revenue: number
+  salary: number
+  incentive: number
+  incentiveSource: DailyIncentiveDay['source'] | null
+  advance: number
+  dayNet: number
+  running: number
+}
+
+export function deriveDailySettlementDays(
+  driver: Pick<WeeklyDriverProfile, 'id' | 'name' | 'start_date' | 'end_date' | 'monthly_salary' | 'car_id'>,
+  week: Pick<WeeklySettlementRow, 'weekStart' | 'weekEnd' | 'carryForward' | 'dailyIncentives'>,
+  incomes: { date: string; amount: number; car_id: number | null }[],
+  expenses: { date: string; amount: number; category: string; driver_profile_id?: number | null; note?: string | null }[]
+): DailySettlementDay[] {
+  const incentiveByDate = new Map(week.dailyIncentives.map((day) => [day.date, day]))
+  const days: DailySettlementDay[] = []
+  let running = week.carryForward
+  for (let date = week.weekStart; date <= week.weekEnd; date = addLocalDays(date, 1)) {
+    if (date < driver.start_date || (driver.end_date && date > driver.end_date)) continue
+    const [year, month] = date.split('-').map(Number)
+    const salary = driver.monthly_salary / lastDayOfMonth(year, month)
+    const revenue = driver.car_id
+      ? incomes
+        .filter((income) => income.car_id === driver.car_id && income.date === date)
+        .reduce((sum, income) => sum + income.amount, 0)
+      : 0
+    const incentiveDay = incentiveByDate.get(date)
+    const incentive = incentiveDay?.incentive ?? 0
+    const advance = expenses
+      .filter((expense) => expense.date === date && isDriverPaidExpense(expense, driver))
+      .reduce((sum, expense) => sum + expense.amount, 0)
+    const dayNet = salary + incentive - advance
+    running += dayNet
+    days.push({
+      date,
+      revenue,
+      salary,
+      incentive,
+      incentiveSource: incentiveDay && incentive > 0 ? incentiveDay.source : null,
+      advance,
+      dayNet,
+      running,
+    })
+  }
+  return days
+}
+
 export interface WeekIncentive {
   weekNum: number
   weekStart: string

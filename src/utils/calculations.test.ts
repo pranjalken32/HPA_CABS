@@ -5,6 +5,7 @@ import {
   calculateMonthlyIncentiveAccrual,
   calculateWeeklyIncentiveForRange,
   calculateWeeklyIncentives,
+  deriveDailySettlementDays,
   deriveWeeklySettlementRows,
   getSettlementCarryForward,
   getRecurringRowsToAdd,
@@ -639,3 +640,46 @@ describe('salary and incentive calculations', () => {
     expect(toAdd).toEqual([{ date: '2026-08-01', category: 'emi', car_id: 2, amount: 9000, note: 'second car' }])
   })
 })
+
+describe('deriveDailySettlementDays', () => {
+  it('breaks a settlement week into daily salary, incentive, advance and running balance', () => {
+    const driver = {
+      id: 2,
+      name: 'Syed',
+      start_date: '2026-10-14',
+      end_date: null,
+      monthly_salary: 31000,
+      car_id: 1,
+      incentive_target: 0,
+      incentive_base: 0,
+      incentive_step: 0,
+      incentive_slab: 0,
+      daily_incentive_from: '2026-10-01',
+      daily_incentive_slabs: [
+        { revenue: 3000, incentive: 100 },
+        { revenue: 4000, incentive: 400 },
+      ],
+    }
+    const incomes = [
+      { date: '2026-10-14', amount: 3100, car_id: 1 },
+      { date: '2026-10-15', amount: 4100, car_id: 1 },
+      { date: '2026-10-15', amount: 500, car_id: 2 },
+    ]
+    const expenses = [
+      { date: '2026-10-14', amount: 300, category: 'driver_advance', driver_profile_id: 2, note: '' },
+      { date: '2026-10-16', amount: 700, category: 'cng', driver_profile_id: null, note: '' },
+    ]
+    const manual = [{ date: '2026-10-16', amount: 250 }]
+    const week = deriveWeeklySettlementRows(driver, incomes, expenses, [], '2026-10-18', manual)
+      .find((row) => row.weekStart === '2026-10-12')!
+
+    const days = deriveDailySettlementDays(driver, week, incomes, expenses)
+
+    expect(days.map((day) => day.date)).toEqual(['2026-10-14', '2026-10-15', '2026-10-16', '2026-10-17', '2026-10-18'])
+    expect(days[0]).toMatchObject({ revenue: 3100, salary: 1000, incentive: 100, incentiveSource: 'slab', advance: 300, dayNet: 800, running: 800 })
+    expect(days[1]).toMatchObject({ revenue: 4100, incentive: 400, advance: 0, running: 2200 })
+    expect(days[2]).toMatchObject({ revenue: 0, incentive: 250, incentiveSource: 'manual', running: 3450 })
+    expect(days[4].running).toBeCloseTo(week.netPayable, 2)
+  })
+})
+
