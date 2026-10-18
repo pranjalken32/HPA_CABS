@@ -6,6 +6,7 @@ import {
   calculateWeeklyIncentiveForRange,
   calculateWeeklyIncentives,
   deriveDailySettlementDays,
+  getWeekBalanceAsOf,
   deriveWeeklySettlementRows,
   getSettlementCarryForward,
   getRecurringRowsToAdd,
@@ -683,3 +684,30 @@ describe('deriveDailySettlementDays', () => {
   })
 })
 
+describe('getWeekBalanceAsOf', () => {
+  const days = [
+    { date: '2026-10-19', revenue: 0, salary: 800, incentive: 0, incentiveSource: null, advance: 0, dayNet: 800, running: 799 },
+    { date: '2026-10-20', revenue: 0, salary: 800, incentive: 0, incentiveSource: null, advance: 500, dayNet: 300, running: 1099 },
+    { date: '2026-10-21', revenue: 0, salary: 800, incentive: 0, incentiveSource: null, advance: 0, dayNet: 800, running: 1899 },
+  ]
+  const settlement = {
+    id: 1, driver_name: 'Syed', driver_profile_id: 2, amount: 600, period_type: 'week' as const,
+    period_start: '2026-10-19', period_end: '2026-10-25', settled_date: '2026-10-20',
+  }
+
+  it('uses the running balance up to today for a week still in progress', () => {
+    const row = { weekEnd: '2026-10-25', netPayable: 5000, carryForward: -1, settlement: undefined }
+    expect(getWeekBalanceAsOf(row, days, '2026-10-20')).toBe(1099)
+    expect(getWeekBalanceAsOf(row, days, '2026-10-18')).toBe(-1)
+  })
+
+  it('subtracts every payment recorded for the week', () => {
+    const row = { weekEnd: '2026-10-25', netPayable: 5000, carryForward: -1, settlement }
+    expect(getWeekBalanceAsOf(row, days, '2026-10-20')).toBe(499)
+  })
+
+  it('uses the full week net once the week has ended', () => {
+    const row = { weekEnd: '2026-10-25', netPayable: 5000, carryForward: -1, settlement }
+    expect(getWeekBalanceAsOf(row, days, '2026-10-26')).toBe(4400)
+  })
+})

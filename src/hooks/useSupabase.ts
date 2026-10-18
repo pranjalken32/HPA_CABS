@@ -909,6 +909,15 @@ export async function addSettlement(row: {
   triggerRefresh()
 }
 
+export async function updateSettlementAmount(id: number, amount: number, settledDate: string) {
+  const { error } = await supabase
+    .from('driver_settlements')
+    .update({ amount, settled_date: settledDate })
+    .eq('id', id)
+  if (error) throw error
+  triggerRefresh()
+}
+
 export async function removeSettlement(id: number) {
   const { error } = await supabase
     .from('driver_settlements')
