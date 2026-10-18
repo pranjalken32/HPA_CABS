@@ -618,3 +618,14 @@ export function getRecurringRowsToAdd(
     .filter((row) => !existing.has(`${row.category}|${row.car_id ?? 'none'}`))
     .map((row) => ({ ...row, date: firstOfMonth }))
 }
+
+export function getWeekBalanceAsOf(
+  row: Pick<WeeklySettlementRow, 'weekEnd' | 'netPayable' | 'carryForward' | 'settlement'>,
+  days: DailySettlementDay[],
+  asOfDate: string
+): number {
+  const due = row.weekEnd <= asOfDate
+    ? row.netPayable
+    : days.filter((day) => day.date <= asOfDate).at(-1)?.running ?? row.carryForward
+  return due - (row.settlement?.amount ?? 0)
+}

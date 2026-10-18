@@ -1,10 +1,7 @@
 import { useState } from 'react'
-import { useMonthFilter } from '../hooks/useMonthFilter'
 import {
   notifyApp,
   useDriverProfiles,
-  useExpenses,
-  useIncomes,
   useAllExpenses,
   useAllIncomes,
   useCars,
@@ -18,21 +15,20 @@ import {
   upsertDriverDailyIncentive,
   removeDriverDailyIncentive,
   addSettlement,
+  updateSettlementAmount,
   removeSettlement,
   getSettlementErrorKind,
   useDriverUsers,
 } from '../hooks/useSupabase'
-import type { DriverProfileRow, DriverSettlementRow } from '../hooks/useSupabase'
-import { Users, Plus, Edit2, Trash2, FileText, Upload, X, Calendar, Phone, IndianRupee, CheckCircle2, Target, TrendingUp, ChevronLeft, ChevronRight } from 'lucide-react'
+import type { DriverProfileRow } from '../hooks/useSupabase'
+import { Users, Plus, Edit2, Trash2, FileText, Upload, X, CheckCircle2, Target, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useLanguage } from '../useLanguage'
-import { isValidCalendarDate, lastDayOfMonth, parseLocalDate, todayStr } from '../utils/date'
+import { isValidCalendarDate, parseLocalDate, todayStr } from '../utils/date'
 import { fmt, parseNonNegativeNumber, parsePositiveAmount } from '../utils/money'
 import {
-  calculateWeeklyIncentives,
   deriveDailySettlementDays,
   deriveWeeklySettlementRows,
-  isDriverPaidExpense,
-  prorateSalary,
+  getWeekBalanceAsOf,
 } from '../utils/calculations'
 import type { WeeklySettlementLike, WeeklySettlementRow } from '../utils/calculations'
 
@@ -60,25 +56,6 @@ function getDefaultDailySlabs(): SlabInput[] {
   return FALLBACK_DAILY_SLABS.map((slab) => ({ ...slab }))
 }
 
-function prevMonthEnd(startDate: string): string {
-  const [year, month] = startDate.split('-').map(Number)
-  const d = new Date(year, month - 1, 0)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
-function getMonthsBetween(from: string, toMonth: string): string[] {
-  const months: string[] = []
-  const [fy, fm] = from.slice(0, 7).split('-').map(Number)
-  const [ty, tm] = toMonth.split('-').map(Number)
-  let y = fy, m = fm
-  while (y < ty || (y === ty && m < tm)) {
-    months.push(`${y}-${String(m).padStart(2, '0')}`)
-    m++
-    if (m > 12) { m = 1; y++ }
-  }
-  return months
-}
-
 function formatDayLabel(date: string): string {
   return parseLocalDate(date).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })
 }
@@ -101,26 +78,30 @@ function balanceClass(value: number): string {
   return Math.round(value) >= 0 ? 'text-expense' : 'text-income'
 }
 
-function DailySettlementTable({
+function DriverWeekTable({
   rows,
   driver,
   incomes,
   expenses,
-  settlingId,
-  onSettle,
+  today,
+  busy,
+  onPay,
   onUndo,
   t,
 }: {
   rows: WeeklySettlementRow[]
   driver: DriverProfileRow
-  settlingId: number | null
-  onSettle: (row: WeeklySettlementRow) => void
-  onUndo: (settlement: WeeklySettlementLike) => void
   incomes: Parameters<typeof deriveDailySettlementDays>[2]
   expenses: Parameters<typeof deriveDailySettlementDays>[3]
+  today: string
+  busy: boolean
+  onPay: (row: WeeklySettlementRow, amount: number) => Promise<void>
+  onUndo: (settlement: WeeklySettlementLike) => void
   t: ReturnType<typeof useLanguage>['t']
 }) {
   const [weekIndex, setWeekIndex] = useState(0)
+  const [payOpen, setPayOpen] = useState(false)
+  const [payAmount, setPayAmount] = useState('')
   const index = Math.min(weekIndex, rows.length - 1)
   const row = rows[index]
   if (!row) return null
@@ -129,7 +110,28 @@ function DailySettlementTable({
   const days = coveredByMonth ? [] : deriveDailySettlementDays(driver, row, incomes, expenses)
   const totalRevenue = days.reduce((sum, day) => sum + day.revenue, 0)
   const weeklyTargetIncentive = row.incentive - days.reduce((sum, day) => sum + day.incentive, 0)
+  const isCurrentWeek = index === 0
+  const balance = getWeekBalanceAsOf(row, days, today)
+  const settledUp = Math.abs(balance) < 0.5
   const cell = 'py-1.5 px-0.5 text-right whitespace-nowrap'
+
+  const goToWeek = (next: number) => {
+    setWeekIndex(next)
+    setPayOpen(false)
+    setPayAmount('')
+  }
+
+  const submitPayment = async (event: React.FormEvent) => {
+    event.preventDefault()
+    const amount = Number(payAmount)
+    if (payAmount.trim() === '' || !Number.isFinite(amount) || Math.round(amount * 100) === 0) {
+      notifyApp('error', t.invalidPaymentAmount)
+      return
+    }
+    await onPay(row, amount)
+    setPayOpen(false)
+    setPayAmount('')
+  }
 
   return (
     <div className="bg-surface-elevated rounded-xl p-3 border border-border-dim space-y-2">
@@ -138,22 +140,19 @@ function DailySettlementTable({
           type="button"
           aria-label={t.previousWeek}
           disabled={index >= rows.length - 1}
-          onClick={() => setWeekIndex(index + 1)}
+          onClick={() => goToWeek(index + 1)}
           className="p-1.5 rounded-lg bg-surface-card text-text-secondary disabled:opacity-30"
         >
           <ChevronLeft size={16} />
         </button>
-        <div className="text-center">
-          <p className="text-[10px] text-text-muted uppercase">{t.dailyTable}</p>
-          <p className="text-xs font-semibold text-white">
-            {formatDayLabel(row.weekStart)} – {formatDayLabel(row.weekEnd)}
-          </p>
-        </div>
+        <p className="text-xs font-semibold text-white text-center">
+          {formatDayLabel(row.weekStart)} – {formatDayLabel(row.weekEnd)}
+        </p>
         <button
           type="button"
           aria-label={t.nextWeek}
           disabled={index === 0}
-          onClick={() => setWeekIndex(index - 1)}
+          onClick={() => goToWeek(index - 1)}
           className="p-1.5 rounded-lg bg-surface-card text-text-secondary disabled:opacity-30"
         >
           <ChevronRight size={16} />
@@ -184,7 +183,7 @@ function DailySettlementTable({
               </thead>
               <tbody>
                 {days.map((day) => (
-                  <tr key={day.date} className="border-t border-border-dim">
+                  <tr key={day.date} className={`border-t border-border-dim ${day.date > today ? 'opacity-40' : ''}`}>
                     <td className="py-1.5 px-0.5 text-left whitespace-nowrap text-text-secondary">{formatShortDay(day.date)}</td>
                     <td className={`${cell} text-white`}>{day.revenue > 0 ? money(day.revenue) : '—'}</td>
                     <td className={`${cell} text-text-secondary`}>{money(day.salary)}</td>
@@ -220,6 +219,14 @@ function DailySettlementTable({
                     <td colSpan={5} className="py-1.5 px-1 text-left">
                       <CheckCircle2 size={12} className="inline mr-1 -mt-0.5" />
                       {t.paidOn} {formatDayLabel(row.settlement.settled_date)}
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() => onUndo(row.settlement!)}
+                        className="ml-2 text-text-muted underline hover:text-white disabled:opacity-50"
+                      >
+                        {t.undo}
+                      </button>
                     </td>
                     <td className={cell}>−{money(row.settlement.amount)}</td>
                     <td className={`${cell} font-bold ${balanceClass(row.netPayable - row.settlement.amount)}`}>
@@ -231,146 +238,76 @@ function DailySettlementTable({
             </table>
           </div>
           <p className="text-[9px] text-text-muted">M = {t.manual} · {t.balanceSignHint}</p>
-          {row.settlement ? (
-            <div className="flex justify-end">
-              <button
-                type="button"
-                disabled={settlingId !== null}
-                onClick={() => onUndo(row.settlement!)}
-                className="text-[10px] text-text-muted underline hover:text-white disabled:opacity-50"
-              >
-                {t.undo}
-              </button>
-            </div>
-          ) : row.projected ? (
-            <p className="text-[10px] text-text-muted text-center">{t.settlesOn} {formatDayLabel(row.weekEnd)}</p>
-          ) : row.settleable && row.netPayable > 0 ? (
-            <button
-              type="button"
-              disabled={settlingId !== null}
-              onClick={() => onSettle(row)}
-              className="w-full py-2 rounded-lg text-sm font-semibold bg-white text-black disabled:bg-surface-card disabled:text-text-muted"
-            >
-              {t.markSettled} — ₹{money(row.netPayable, 2)}
-            </button>
-          ) : null}
+
+          {!isCurrentWeek ? (
+            !row.settlement && (
+              <p className="text-[10px] text-text-secondary text-center">{t.carriedToLaterWeeks}</p>
+            )
+          ) : (
+            <>
+              <p className="text-xs text-center">
+                <span className="text-text-muted">{t.balanceNow}: </span>
+                {settledUp ? (
+                  <span className="font-semibold text-income">{t.settled}</span>
+                ) : (
+                  <span className={`font-semibold ${balanceClass(balance)}`}>
+                    {balance > 0 ? t.payDriver : t.driverOwes} ₹{money(Math.abs(balance), 2)}
+                  </span>
+                )}
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  disabled={busy || settledUp}
+                  onClick={() => onPay(row, balance)}
+                  className="py-2 rounded-lg text-sm font-semibold bg-white text-black disabled:bg-surface-card disabled:text-text-muted"
+                >
+                  {t.markAsSettled}
+                </button>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setPayOpen((open) => !open)}
+                  className="py-2 rounded-lg text-sm font-semibold bg-surface-card text-white border border-border-dim disabled:opacity-50"
+                >
+                  {t.paidAction}
+                </button>
+              </div>
+              {payOpen && (
+                <form onSubmit={submitPayment} className="space-y-1">
+                  <div className="flex gap-2">
+                    <input
+                      type="number"
+                      step="0.01"
+                      inputMode="decimal"
+                      autoFocus
+                      value={payAmount}
+                      onChange={(event) => setPayAmount(event.target.value)}
+                      placeholder={t.amountPaidPlaceholder}
+                      className="min-w-0 flex-1 bg-surface-card border border-border-dim rounded-lg px-2.5 py-1.5 text-sm text-white"
+                    />
+                    <button
+                      type="submit"
+                      disabled={busy}
+                      className="px-4 rounded-lg text-sm font-semibold bg-white text-black disabled:opacity-50"
+                    >
+                      {t.save}
+                    </button>
+                  </div>
+                  <p className="text-[9px] text-text-muted">{t.paymentHint}</p>
+                </form>
+              )}
+            </>
+          )}
         </>
       )}
     </div>
   )
 }
 
-function WeeklySettlementPanel({
-  rows,
-  settlingId,
-  onSettle,
-  onUndo,
-  t,
-}: {
-  rows: WeeklySettlementRow[]
-  settlingId: number | null
-  onSettle: (row: WeeklySettlementRow) => void
-  onUndo: (settlement: WeeklySettlementLike) => void
-  t: ReturnType<typeof useLanguage>['t']
-}) {
-  return (
-    <div className="space-y-2">
-      <div className="bg-surface-elevated rounded-xl p-3 border border-border-dim">
-        <p className="text-[10px] text-text-muted uppercase">{t.weeklySettlement}</p>
-        <p className="text-[10px] text-text-secondary mt-1">
-          {t.weeklySettlementRule}
-        </p>
-      </div>
-      {rows.map((row) => (
-        <div key={row.weekStart} className="bg-surface-elevated rounded-xl p-3 border border-border-dim space-y-2">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold text-white">{row.weekStart} → {row.weekEnd}</p>
-              {row.projected && (
-                <p className="text-[10px] text-text-muted">{t.projected} · {t.settlesOn} {row.weekEnd}</p>
-              )}
-            </div>
-            {row.settlement && (
-              <span className="text-[10px] font-semibold text-income flex items-center gap-1">
-                <CheckCircle2 size={13} /> {t.settled}
-              </span>
-            )}
-          </div>
-          <div className="grid grid-cols-2 gap-2 text-center">
-            <div className="bg-surface-card rounded-lg p-2">
-              <p className="text-[9px] text-text-muted uppercase">{t.weekSalary}</p>
-              <p className="text-xs font-bold text-white">₹{fmt(row.salary)}</p>
-            </div>
-            <div className="bg-surface-card rounded-lg p-2">
-              <p className="text-[9px] text-text-muted uppercase">{t.weekIncentive}</p>
-              <p className="text-xs font-bold text-income">+₹{fmt(row.incentive)}</p>
-            </div>
-            <div className="bg-surface-card rounded-lg p-2">
-              <p className="text-[9px] text-text-muted uppercase">{t.weekAdvance}</p>
-              <p className="text-xs font-bold text-white">−₹{fmt(row.advance)}</p>
-            </div>
-            <div className="bg-surface-card rounded-lg p-2">
-              <p className="text-[9px] text-text-muted uppercase">{t.weekNet}</p>
-              <p className={`text-xs font-bold ${row.netPayable >= 0 ? 'text-expense' : 'text-income'}`}>
-                ₹{fmt(row.netPayable)}
-              </p>
-            </div>
-          </div>
-          {row.dailyIncentives.length > 0 && (
-            <div className="text-[10px] text-text-muted">
-              {row.dailyIncentives.filter((day) => day.incentive > 0).length} {t.incentiveDays}
-              {row.dailyIncentives.some((day) => day.source === 'manual') && (
-                <span className="ml-2 text-accent">
-                  · {t.manual}: {row.dailyIncentives.filter((day) => day.source === 'manual').map((day) => `${day.date} ₹${fmt(day.incentive)}`).join(', ')}
-                </span>
-              )}
-            </div>
-          )}
-          {row.coverage === 'monthly' ? (
-            <p className="text-[10px] text-income text-center">
-              {t.coveredByMonthlySettlement} · {row.coveringPeriodStart} → {row.coveringPeriodEnd}
-            </p>
-          ) : row.coverage === 'partial' ? (
-            <p className="text-[10px] text-expense text-center">
-              {t.partiallyCoveredByMonthlySettlement} · {row.coveringPeriodStart} → {row.coveringPeriodEnd}
-            </p>
-          ) : row.settlement ? (
-            <div className="flex items-center justify-between text-[10px] text-text-muted">
-              <span>{t.paidOn} {row.settlement.settled_date} · ₹{fmt(row.settlement.amount)}</span>
-              <button
-                disabled={settlingId !== null}
-                onClick={() => onUndo(row.settlement!)}
-                className="underline hover:text-white disabled:opacity-50"
-              >
-                {t.undo}
-              </button>
-            </div>
-          ) : row.projected ? (
-            <p className="text-[10px] text-text-muted text-center">{t.settlesOn} {row.weekEnd}</p>
-          ) : (
-            <button
-              disabled={!row.settleable || row.netPayable <= 0 || settlingId !== null}
-              onClick={() => onSettle(row)}
-              className="w-full py-2 rounded-lg text-sm font-semibold bg-white text-black disabled:bg-surface-card disabled:text-text-muted"
-            >
-              {row.netPayable > 0 ? `${t.markSettled} — ₹${fmt(row.netPayable)}` : t.noDrivers}
-            </button>
-          )}
-        </div>
-      ))}
-    </div>
-  )
-}
-
 export default function Drivers() {
-  const { month, setMonth, startDate, endDate } = useMonthFilter()
   const { t } = useLanguage()
   const drivers = useDriverProfiles()
-  const expenses = useExpenses(startDate, endDate)
-  const incomes = useIncomes(startDate, endDate)
-  const prevEnd = prevMonthEnd(startDate)
-  const allPrevExpenses = useExpenses('2000-01-01', prevEnd)
-  const allPrevIncomes = useIncomes('2000-01-01', prevEnd)
   const allExpenses = useAllExpenses()
   const allIncomes = useAllIncomes()
   const cars = useCars()
@@ -379,7 +316,6 @@ export default function Drivers() {
   const [showForm, setShowForm] = useState(false)
   const [editDriver, setEditDriver] = useState<DriverProfileRow | null>(null)
   const [expandedId, setExpandedId] = useState<number | null>(null)
-  const [viewMode, setViewMode] = useState<'month' | 'week'>('week')
 
   // Form state
   const [name, setName] = useState('')
@@ -401,8 +337,6 @@ export default function Drivers() {
   const [uploading, setUploading] = useState(false)
   const [authUserIdInput, setAuthUserIdInput] = useState<string>('')
   const driverUsers = useDriverUsers()
-
-  const [filterYear, filterMonth] = month.split('-').map(Number)
 
   const [submitting, setSubmitting] = useState(false)
   const [settlingId, setSettlingId] = useState<number | null>(null)
@@ -537,23 +471,6 @@ export default function Drivers() {
           {t.drivers}
         </h2>
         <div className="flex items-center gap-2">
-          <input
-            type="month"
-            value={month}
-            onChange={(e) => setMonth(e.target.value)}
-            className="border border-border-dim rounded-xl px-3 py-1.5 text-sm bg-surface-card text-white"
-          />
-          <div className="flex rounded-xl border border-border-dim overflow-hidden">
-            {(['month', 'week'] as const).map((mode) => (
-              <button
-                key={mode}
-                onClick={() => setViewMode(mode)}
-                className={`px-2.5 py-1.5 text-xs ${viewMode === mode ? 'bg-white text-black' : 'bg-surface-card text-text-muted'}`}
-              >
-                {mode === 'month' ? t.monthlyView : t.weeklyView}
-              </button>
-            ))}
-          </div>
           <button
             onClick={() => { resetForm(); setShowForm(true) }}
             className="bg-white text-black rounded-xl p-2"
@@ -783,73 +700,15 @@ export default function Drivers() {
       )}
 
       {drivers.map((driver) => {
-        const { amount: proRated, workingDays, totalDays } = prorateSalary(
-          driver.monthly_salary, driver.start_date, driver.end_date, filterYear, filterMonth
-        )
-
         const driverSettlements = settlements.filter(
           (settlement) => settlement.driver_profile_id === driver.id || settlement.driver_name === driver.name
         )
         const driverManualIncentives = dailyIncentives.filter(
           (entry) => entry.driver_profile_id === driver.id
         )
-        const monthManualIncentives = driverManualIncentives.filter((entry) => entry.date.startsWith(month))
-        const monthManualTotal = monthManualIncentives.reduce((sum, entry) => sum + entry.amount, 0)
-        const monthlySettlement = driverSettlements.find(
-          (settlement) => (settlement.period_type ?? 'month') === 'month' && settlement.month === month
-        )
-        const allDriverIncomes = [...(allPrevIncomes ?? []), ...(incomes ?? [])]
-        const { weeks: incentiveWeeks, totalIncentive } = calculateWeeklyIncentives(
-          allDriverIncomes,
-          driver.car_id,
-          driver.incentive_target,
-          driver.incentive_base,
-          driver.incentive_step,
-          driver.incentive_slab,
-          filterYear,
-          filterMonth,
-          driver.daily_incentive_from,
-          driver.daily_incentive_slabs ?? [],
-          driverManualIncentives,
-          driver.start_date,
-          driver.end_date
-        )
-
-        const advanceEntries = (expenses ?? []).filter(
-          (e) => isDriverPaidExpense(e, driver)
-        )
-        const totalAdvance = advanceEntries.reduce((s, e) => s + e.amount, 0)
-
-        // Carry-forward: sum unsettled balances from all previous months
-        const driverStartMonth = driver.start_date.slice(0, 7)
-        const prevMonths = getMonthsBetween(driverStartMonth, month)
-        let carryForward = 0
-        for (const pm of prevMonths) {
-          const settled = driverSettlements.find((s) => (s.period_type ?? 'month') === 'month' && s.month === pm)
-          if (settled) continue
-          const [py, pmm] = pm.split('-').map(Number)
-          const { amount: pmSalary } = prorateSalary(driver.monthly_salary, driver.start_date, driver.end_date, py, pmm)
-          const pmStart = `${pm}-01`
-          const pmEnd = `${pm}-${String(lastDayOfMonth(py, pmm)).padStart(2, '0')}`
-          const pmAdvances = (allPrevExpenses ?? []).filter(
-            (e) => isDriverPaidExpense(e, driver) && e.date >= pmStart && e.date <= pmEnd
-          ).reduce((s, e) => s + e.amount, 0)
-          const { totalIncentive: pmIncentive } = calculateWeeklyIncentives(
-            allDriverIncomes,
-            driver.car_id, driver.incentive_target, driver.incentive_base, driver.incentive_step, driver.incentive_slab, py, pmm,
-            driver.daily_incentive_from, driver.daily_incentive_slabs ?? [], driverManualIncentives,
-            driver.start_date, driver.end_date
-          )
-          const pmWeeklySettled = driverSettlements
-            .filter((s) => (s.period_type ?? 'month') === 'week' && s.period_end.slice(0, 7) === pm)
-            .reduce((sum, s) => sum + s.amount, 0)
-          carryForward += pmSalary + pmIncentive - pmAdvances - pmWeeklySettled
-        }
-
-        const weeklySettledInsideMonth = driverSettlements
-          .filter((s) => (s.period_type ?? 'month') === 'week' && s.period_end.slice(0, 7) === month)
-          .reduce((sum, s) => sum + s.amount, 0)
-        const netPayable = proRated + totalIncentive - totalAdvance + carryForward - weeklySettledInsideMonth
+        const recentManualIncentives = [...driverManualIncentives]
+          .sort((a, b) => b.date.localeCompare(a.date))
+          .slice(0, 10)
 
         const weeklyRows = deriveWeeklySettlementRows(
           driver,
@@ -859,24 +718,41 @@ export default function Drivers() {
           currentDate,
           driverManualIncentives
         ).reverse()
+        const latestRow = weeklyRows[0]
+        const latestBalance = latestRow
+          ? getWeekBalanceAsOf(
+            latestRow,
+            deriveDailySettlementDays(driver, latestRow, allIncomes ?? [], allExpenses ?? []),
+            currentDate
+          )
+          : 0
 
         const isExpanded = expandedId === driver.id
 
-        const handleWeeklySettle = async (row: WeeklySettlementRow) => {
+        const handlePayment = async (row: WeeklySettlementRow, amount: number) => {
+          const rounded = Math.round(amount * 100) / 100
           setSettlingId(driver.id)
           try {
-            await addSettlement({
-              driver_name: driver.name,
-              driver_profile_id: driver.id,
-              month: row.weekEnd.slice(0, 7),
-              amount: row.netPayable,
-              settled_date: row.weekEnd,
-              period_type: 'week',
-              period_start: row.weekStart,
-              period_end: row.weekEnd,
-            })
+            if (row.settlement) {
+              await updateSettlementAmount(
+                row.settlement.id,
+                Math.round((row.settlement.amount + rounded) * 100) / 100,
+                currentDate
+              )
+            } else {
+              await addSettlement({
+                driver_name: driver.name,
+                driver_profile_id: driver.id,
+                month: row.weekEnd.slice(0, 7),
+                amount: rounded,
+                settled_date: currentDate,
+                period_type: 'week',
+                period_start: row.weekStart,
+                period_end: row.weekEnd,
+              })
+            }
           } catch (error) {
-            console.error('Weekly settlement save failed:', error)
+            console.error('Driver payment save failed:', error)
             notifyApp('error', getSettlementErrorKind(error) === 'overlap' ? t.settlementOverlap : t.settlementFailed)
           } finally {
             setSettlingId(null)
@@ -926,61 +802,9 @@ export default function Drivers() {
             notifyApp('error', t.manualIncentiveFailed)
           }
         }
-        const handleMonthlySettle = async () => {
-          setSettlingId(driver.id)
-          try {
-            const earlier = prevMonths.filter((pm) => pm < month && !driverSettlements.some((s) => (
-              ((s.period_type ?? 'month') === 'month' && s.month === pm) ||
-              ((s.period_type ?? 'month') === 'week' && s.period_end.slice(0, 7) === pm)
-            )))
-            for (const pm of earlier) {
-              const [py, pmm] = pm.split('-').map(Number)
-              await addSettlement({
-                driver_name: driver.name,
-                driver_profile_id: driver.id,
-                month: pm,
-                amount: 0,
-                settled_date: currentDate,
-                period_type: 'month',
-                period_start: `${pm}-01`,
-                period_end: `${pm}-${String(lastDayOfMonth(py, pmm)).padStart(2, '0')}`,
-              })
-            }
-            await addSettlement({
-              driver_name: driver.name,
-              driver_profile_id: driver.id,
-              month,
-              amount: netPayable,
-              settled_date: currentDate,
-              period_type: 'month',
-              period_start: `${month}-01`,
-              period_end: `${month}-${String(lastDayOfMonth(filterYear, filterMonth)).padStart(2, '0')}`,
-            })
-          } catch (error) {
-            console.error('Settlement save failed:', error)
-            notifyApp('error', getSettlementErrorKind(error) === 'overlap' ? t.settlementOverlap : t.settlementFailed)
-          } finally {
-            setSettlingId(null)
-          }
-        }
-
-        const handleMonthlyUndo = async (settlement: DriverSettlementRow) => {
-          setSettlingId(driver.id)
-          try {
-            await removeSettlement(settlement.id)
-          } catch (error) {
-            console.error('Settlement undo failed:', error)
-            notifyApp('error', t.settlementUndoFailed)
-          } finally {
-            setSettlingId(null)
-          }
-        }
-        const headerWeeklyRow = weeklyRows[0]
-        const headerSettlement = viewMode === 'month' ? monthlySettlement : headerWeeklyRow?.settlement
 
         return (
           <div key={driver.id} className="bg-surface-card rounded-2xl border border-border-dim overflow-hidden">
-            {/* Driver Header */}
             <div
               className="px-4 py-3 flex items-center justify-between cursor-pointer"
               onClick={() => setExpandedDriver(isExpanded ? null : driver.id)}
@@ -1002,37 +826,32 @@ export default function Drivers() {
                 </div>
               </div>
               <div className="text-right">
-                {headerSettlement ? (
-                  <>
-                    <p className="text-sm font-bold text-income">Settled</p>
-                    <p className="text-[10px] text-text-muted">₹{fmt(headerSettlement.amount)}</p>
-                  </>
+                {Math.abs(latestBalance) < 0.5 ? (
+                  <p className="text-sm font-bold text-income">{t.settled}</p>
                 ) : (
-                  <>
-                    <p className={`text-sm font-bold ${(viewMode === 'month' ? netPayable : headerWeeklyRow?.netPayable ?? 0) >= 0 ? 'text-expense' : 'text-income'}`}>
-                      {(viewMode === 'month' ? netPayable : headerWeeklyRow?.netPayable ?? 0) >= 0 ? 'Pay' : 'Over'} ₹{fmt(viewMode === 'month' ? netPayable : headerWeeklyRow?.netPayable ?? 0)}
-                    </p>
-                    <p className="text-[10px] text-text-muted">{viewMode === 'month' ? t.settlementThisMonth : t.settlementThisWeek}</p>
-                  </>
+                  <p className={`text-sm font-bold ${balanceClass(latestBalance)}`}>
+                    {latestBalance > 0 ? t.payDriver : t.driverOwes} ₹{money(Math.abs(latestBalance))}
+                  </p>
                 )}
+                <p className="text-[10px] text-text-muted">{t.balanceNow}</p>
               </div>
             </div>
 
-            {/* Expanded Details */}
             {isExpanded && (
               <div className="border-t border-border-dim px-4 py-3 space-y-3">
-                <DailySettlementTable
+                <DriverWeekTable
                   rows={weeklyRows}
                   driver={driver}
                   incomes={allIncomes ?? []}
                   expenses={allExpenses ?? []}
-                  settlingId={settlingId}
-                  onSettle={handleWeeklySettle}
+                  today={currentDate}
+                  busy={settlingId !== null}
+                  onPay={handlePayment}
                   onUndo={handleWeeklyUndo}
                   t={t}
                 />
                 <details>
-                  <summary className="text-xs text-text-secondary cursor-pointer select-none">{t.moreDetails}</summary>
+                  <summary className="text-xs text-text-secondary cursor-pointer select-none">{t.editDriverDetails}</summary>
                   <div className="space-y-3 mt-3">
                 <div className="bg-surface-elevated rounded-xl p-3 border border-border-dim space-y-2">
                   <p className="text-[10px] text-text-muted uppercase">{t.manualIncentive}</p>
@@ -1066,12 +885,11 @@ export default function Drivers() {
                       {manualSubmitting ? t.saving : t.save}
                     </button>
                   </form>
-                  {monthManualIncentives.length === 0 ? (
+                  {recentManualIncentives.length === 0 ? (
                     <p className="text-[10px] text-text-muted">{t.noManualIncentives}</p>
                   ) : (
                     <div className="space-y-1">
-                      <p className="text-[10px] text-text-secondary">{t.thisMonth}: ₹{fmt(monthManualTotal)}</p>
-                      {monthManualIncentives.map((entry) => (
+                      {recentManualIncentives.map((entry) => (
                         <div key={entry.date} className="flex items-center justify-between text-[10px]">
                           <span className="text-text-secondary">
                             <span className="text-accent mr-1">{t.manual}</span>
@@ -1102,148 +920,6 @@ export default function Drivers() {
                     </div>
                   )}
                 </div>
-                {viewMode === 'week' ? (
-                  <WeeklySettlementPanel
-                    rows={weeklyRows}
-                    settlingId={settlingId}
-                    onSettle={handleWeeklySettle}
-                    onUndo={handleWeeklyUndo}
-                    t={t}
-                  />
-                ) : (
-                <div className="space-y-3">
-                {/* Salary Breakdown */}
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="bg-surface-elevated rounded-xl p-2.5 text-center">
-                    <p className="text-[9px] text-text-muted uppercase">Salary</p>
-                    <p className="text-sm font-bold text-white">₹{fmt(proRated)}</p>
-                    <p className="text-[9px] text-text-muted">{workingDays}/{totalDays} days</p>
-                  </div>
-                  {totalIncentive > 0 && (
-                    <div className="bg-surface-elevated rounded-xl p-2.5 text-center">
-                      <p className="text-[9px] text-text-muted uppercase">Incentive</p>
-                      <p className="text-sm font-bold text-income">+₹{fmt(totalIncentive)}</p>
-                    </div>
-                  )}
-                  <div className="bg-surface-elevated rounded-xl p-2.5 text-center">
-                    <p className="text-[9px] text-text-muted uppercase">Advance</p>
-                    <p className="text-sm font-bold text-white">−₹{fmt(totalAdvance)}</p>
-                  </div>
-                  {carryForward !== 0 && (
-                    <div className="bg-surface-elevated rounded-xl p-2.5 text-center">
-                      <p className="text-[9px] text-text-muted uppercase">Carry Fwd</p>
-                      <p className={`text-sm font-bold ${carryForward >= 0 ? 'text-expense' : 'text-income'}`}>
-                        {carryForward >= 0 ? '+' : ''}₹{fmt(carryForward)}
-                      </p>
-                      <p className="text-[9px] text-text-muted">prev months</p>
-                    </div>
-                  )}
-                  <div className="bg-surface-elevated rounded-xl p-2.5 text-center">
-                    <p className="text-[9px] text-text-muted uppercase">Net Pay</p>
-                    <p className={`text-sm font-bold ${netPayable >= 0 ? 'text-expense' : 'text-income'}`}>
-                      ₹{fmt(netPayable)}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Weekly Incentive Breakdown */}
-                {incentiveWeeks.length > 0 && (driver.incentive_target > 0 || (driver.daily_incentive_slabs ?? []).length > 0) && (
-                  <div className="bg-surface-elevated rounded-xl p-3 border border-border-dim">
-                    <div className="flex items-center gap-1.5 mb-2">
-                      <TrendingUp size={12} className="text-income" />
-                      <p className="text-[10px] text-text-muted uppercase">
-                        {driver.daily_incentive_from
-                          ? t.dailyIncentive
-                          : `${t.weekIncentive} (Target: ₹${fmt(driver.incentive_target / 4)}/wk)`}
-                      </p>
-                    </div>
-                    <div className="space-y-1.5">
-                      {incentiveWeeks.map((w) => (
-                        <div key={w.weekNum} className="flex items-center justify-between text-xs">
-                          <div className="flex items-center gap-2">
-                            <span className={`w-5 h-5 rounded-md flex items-center justify-center text-[10px] font-bold ${
-                              w.hit ? 'bg-income/10 text-income' : 'bg-surface-card text-text-muted'
-                            }`}>
-                              W{w.weekNum}
-                            </span>
-                            <span className="text-text-secondary">₹{fmt(w.revenue)}</span>
-                          </div>
-                          <span className={`font-semibold ${w.hit ? 'text-income' : 'text-text-muted'}`}>
-                            {w.hit ? `+₹${fmt(w.incentive)}` : 'Missed'}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Settlement Status */}
-                {(() => {
-                  const settlement = monthlySettlement
-                  return (
-                    <div className="bg-surface-elevated rounded-xl p-3">
-                      {settlement ? (
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <CheckCircle2 size={16} className="text-income" />
-                            <div>
-                              <p className="text-xs font-semibold text-income">Settled</p>
-                              <p className="text-[10px] text-text-muted">Paid ₹{fmt(settlement.amount)} on {settlement.settled_date}</p>
-                            </div>
-                          </div>
-                          <button
-                            disabled={settlingId === driver.id}
-                            onClick={() => handleMonthlyUndo(settlement)}
-                            className="text-[10px] text-text-muted hover:text-white underline"
-                          >
-                            Undo
-                          </button>
-                        </div>
-                      ) : (
-                        <button
-                          disabled={netPayable <= 0 || settlingId === driver.id || weeklySettledInsideMonth > 0}
-                          onClick={handleMonthlySettle}
-                          className={`w-full py-2 rounded-lg text-sm font-semibold transition-all ${
-                            netPayable > 0 && weeklySettledInsideMonth === 0
-                              ? 'bg-white text-black hover:bg-gray-200'
-                              : 'bg-surface-card text-text-muted cursor-not-allowed'
-                          }`}
-                        >
-                          {weeklySettledInsideMonth > 0
-                            ? t.weeklyPortionsSettled
-                            : netPayable > 0
-                              ? `Mark Settled — ₹${fmt(netPayable)}`
-                              : t.nothingToSettle}
-                        </button>
-                      )}
-                    </div>
-                  )
-                })()}
-
-                {/* Info */}
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="flex items-center gap-1.5 text-text-secondary">
-                    <Calendar size={12} />
-                    <span>Start: {driver.start_date}</span>
-                  </div>
-                  {driver.end_date && (
-                    <div className="flex items-center gap-1.5 text-text-secondary">
-                      <Calendar size={12} />
-                      <span>End: {driver.end_date}</span>
-                    </div>
-                  )}
-                  {driver.phone && (
-                    <div className="flex items-center gap-1.5 text-text-secondary">
-                      <Phone size={12} />
-                      <span>{driver.phone}</span>
-                    </div>
-                  )}
-                  <div className="flex items-center gap-1.5 text-text-secondary">
-                    <IndianRupee size={12} />
-                    <span>₹{fmt(driver.monthly_salary)}/month</span>
-                  </div>
-                </div>
-
                 {/* Documents */}
                 <div>
                   <p className="text-[10px] text-text-muted uppercase mb-2">Documents</p>
@@ -1319,25 +995,6 @@ export default function Drivers() {
                     <Trash2 size={12} /> Remove
                   </button>
                 </div>
-
-                {/* Advance log */}
-                {advanceEntries.length > 0 && (
-                  <div className="border-t border-border-dim pt-2">
-                    <p className="text-[10px] text-text-muted uppercase mb-1">Advances this month</p>
-                    <div className="space-y-1 max-h-24 overflow-y-auto">
-                      {advanceEntries.map((e) => (
-                        <div key={e.id} className="flex items-center justify-between text-xs">
-                          <span className="text-text-secondary">
-                            {e.date} · {e.category === 'driver_incentive' ? t.cat_driver_incentive : t.cat_driver_advance}
-                          </span>
-                          <span className="text-income font-medium">₹{fmt(e.amount)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                </div>
-                )}
                   </div>
                 </details>
               </div>
@@ -1346,11 +1003,8 @@ export default function Drivers() {
         )
       })}
 
-      {/* Info note */}
       <div className="bg-surface-card rounded-2xl p-3 border border-border-dim">
         <p className="text-[10px] text-text-muted leading-relaxed">
-          💡 <strong className="text-text-secondary">Pro-rated salary</strong> is calculated based on the driver's start/end date
-          within the selected month. Unsettled balances from previous months are automatically carried forward.
           To track advances, add an expense with category "Driver Advance" and select the driver.
         </p>
       </div>
