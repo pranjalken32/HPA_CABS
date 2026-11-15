@@ -173,7 +173,7 @@ export default function DriverHome() {
     const previous = fuelLogs
       .filter((log) => log.fuel_type !== 'petrol' && log.odometer_km > 0)
       .sort((a, b) => `${b.date}-${b.id}`.localeCompare(`${a.date}-${a.id}`))[0]
-    if (previous && odometer !== null && odometer <= previous.odometer_km) {
+    if (fuelType === 'cng' && previous && odometer !== null && odometer <= previous.odometer_km) {
       notifyApp('error', 'Odometer must be higher than the previous CNG fill.')
       return
     }
